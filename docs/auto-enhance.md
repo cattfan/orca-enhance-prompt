@@ -15,7 +15,7 @@ Auto-enhance rewrites the prompts **Orca itself** sends to agents, before they r
 
 Switch modes in any of these places:
 
-- The **Models** tab of the panel: **Auto-enhance prompts Orca sends to agents**.
+- The panel's **Privacy** section (gear icon): **Auto-enhance**.
 - The command palette: **Enhance Prompt: Auto-enhance off / with rules / with AI**, or **Cycle auto-enhance**.
 - **Settings → Plugins → Enhance Prompt → Auto-enhance**.
 
@@ -25,7 +25,7 @@ The status bar item shows the mode, with a lightning icon while auto-enhance is 
 
 Orca waits at most 2 seconds for a plugin before sending the prompt anyway. In AI mode:
 
-- Use a fast API model as the **Auto-enhance hook model** (Models tab). Subscription CLIs are skipped because they take longer than that to start.
+- Use a fast API model as the **Auto-enhance hook model** (Privacy section, shown when the mode is AI and you have two or more models). Subscription CLIs are skipped because they take longer than that to start.
 - Project context comes from the cache the plugin keeps warm for the focused workspace, so there is no extra wait. Turn this off with **Auto-enhance: use cached project context**.
 - If the model doesn't answer in time, or fails, the original prompt is sent unchanged and the reason is in `orca plugin logs cattfan.enhance-prompt`.
 

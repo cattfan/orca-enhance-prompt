@@ -23,6 +23,7 @@ import {
   Select,
   set,
   settings,
+  Progress,
   Spinner,
   Stack,
   Switch,
@@ -45,6 +46,7 @@ import {
 import { isStyle, STYLE_LABELS, STYLES } from './prompts'
 import { t, UI_LANGUAGES, uiLanguageSetting } from './i18n'
 import { PRIVACY_KEYS } from './privacy'
+import { percent, type Step } from './progress'
 import type { AttemptView, ModelsView, ProfileInput } from './protocol'
 
 type Target = { terminalId: string; label: string; agent: string | null }
@@ -88,6 +90,17 @@ const CLI_DEFAULT = '__cli_default__'
 const toModel = (value: string) => (value === CLI_DEFAULT ? '' : value)
 /** The form's model picker is on "Other (type the id)". */
 const customModel = atom(false)
+/** The current enhance run: its real steps from the worker, and how it ended. */
+type Run = {
+  runId: string
+  startedAt: number
+  steps: Step[]
+  status: 'running' | 'done' | 'error' | 'cancelled'
+  error?: string
+  finishedAt?: number
+}
+const run = atom<Run | null>(null)
+
 /** What the Privacy tab shows: stored data counts and the switches. */
 const dataSummary = atom<{ history: number; profiles: number; keys: number; catalogs: number } | null>(null)
 const privacy = atom<Record<string, boolean>>({})
@@ -245,7 +258,9 @@ function showContext(items: ContextItemView[], notes: string[]): void {
 async function enhanceNow(): Promise<void> {
   const prompt = read(draft).trim()
   if (!prompt || read(busy)) return
-  inFlight = new AbortController()
+  const controller = new AbortController()
+  inFlight = controller
+  const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`)
   set(busy, 'enhance')
   set(notice, null)
   try {
@@ -254,6 +269,7 @@ async function enhanceNow(): Promise<void> {
       'prompt.enhance',
       {
         prompt,
+        runId,
         style: read(effectiveStyle),
         level: read(effectiveLevel),
         terminalId: read(target),
@@ -263,17 +279,43 @@ async function enhanceNow(): Promise<void> {
         ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
         exclude: read(excluded)
       },
-      { timeoutMs: 120_000, signal: inFlight.signal }
+      { timeoutMs: 120_000, signal: controller.signal }
     )
     set(result, answer.enhanced)
     set(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })
     showContext(answer.context, answer.notes)
+    finishRun(runId, 'done')
   } catch (error) {
-    if (!inFlight?.signal.aborted) set(notice, { tone: 'danger', text: message(error) })
+    if (controller.signal.aborted) finishRun(runId, 'cancelled')
+    else finishRun(runId, 'error', message(error))
   } finally {
-    inFlight = null
+    if (inFlight === controller) inFlight = null
     set(busy, null)
   }
+}
+
+/** Starts a fresh run; progress from an older run is ignored by its id. Exported for tests. */
+export function beginRun(runId: string): string {
+  set(run, { runId, startedAt: Date.now(), steps: [], status: 'running' })
+  return runId
+}
+
+/** Takes a worker snapshot when it belongs to the running run. Exported for tests. */
+export function applyProgress(snapshot: { runId: string; startedAt: number; steps: { key: string; status: Step['status']; detail?: string }[] }): void {
+  const current = read(run)
+  if (current && current.runId === snapshot.runId && current.status === 'running') {
+    set(run, { ...current, startedAt: snapshot.startedAt, steps: snapshot.steps.map((entry) => ({ ...entry, key: entry.key as Step['key'] })) })
+  }
+}
+
+/** Ends a run: every step still running is marked failed (or left as is when cancelled). */
+function finishRun(runId: string, status: Run['status'], error?: string): void {
+  const current = read(run)
+  if (!current || current.runId !== runId || current.status !== 'running') return
+  const steps: Step[] = current.steps.map((entry) =>
+    entry.status === 'running' ? { ...entry, status: status === 'done' ? 'done' : 'failed' } : entry
+  )
+  set(run, { ...current, steps, status, finishedAt: Date.now(), ...(error ? { error } : {}) })
 }
 
 async function previewContext(): Promise<void> {
@@ -294,9 +336,8 @@ async function previewContext(): Promise<void> {
 }
 
 function cancel(): void {
+  // The request's signal stops the worker; enhanceNow then records the run as cancelled.
   inFlight?.abort()
-  set(busy, null)
-  set(notice, { tone: 'neutral', text: t('Cancelled.') })
 }
 
 function toggleItem(id: string, include: boolean): void {
@@ -489,6 +530,7 @@ export function setup(ctx: PanelContext): void {
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
     on('agent.status.changed', () => void refreshTargets()),
+    plugin.on('enhance.progress', applyProgress),
     plugin.on('hook.enhanced', ({ agent, mode, model }) =>
       set(notice, { tone: 'neutral', text: t('Auto-enhanced ({mode}) a prompt for {agent}.', { mode: model ? `${mode}, ${model}` : mode, agent: agent ?? t('an agent') }) })
     )
@@ -543,6 +585,56 @@ function TargetPicker() {
   )
 }
 
+/** Context item names and kinds come from the worker in English; show them in the panel's language. */
+function contextLabel(label: string): string {
+  const fixed: Record<string, () => string> = {
+    Workspace: () => t('Workspace'),
+    'Target agent': () => t('Target agent'),
+    'Stack & commands': () => t('Stack & commands'),
+    'Recent commits': () => t('Recent commits'),
+    'Uncommitted changes': () => t('Uncommitted changes')
+  }
+  if (fixed[label]) return fixed[label]()
+  let match = /^Repository tree \((\d+) files\)$/.exec(label)
+  if (match) return t('Repository tree ({count} files)', { count: match[1] })
+  match = /^Git status \((\d+) changed\)$/.exec(label)
+  if (match) return t('Git status ({count} changed)', { count: match[1] })
+  match = /^Recent output: (.+)$/.exec(label)
+  if (match) return t('Recent output: {name}', { name: match[1] })
+  return label
+}
+
+function contextKind(kind: string): string {
+  const kinds: Record<string, () => string> = {
+    workspace: () => t('workspace'),
+    agent: () => t('agent'),
+    rules: () => t('rules'),
+    stack: () => t('stack'),
+    tree: () => t('tree'),
+    git: () => t('git'),
+    file: () => t('file'),
+    terminal: () => t('terminal')
+  }
+  return kinds[kind]?.() ?? kind
+}
+
+/** Notes from the worker (why something was skipped), in the panel's language. */
+function noteText(note: string): string {
+  const fixed: Record<string, () => string> = {
+    'No focused workspace.': () => t('No focused workspace.'),
+    'Could not tell which folder the workspace is in; project files skipped.': () => t('Could not tell which folder the workspace is in; project files skipped.'),
+    'Remote (SSH/WSL) workspace: project files are not readable from the plugin.': () => t('Remote (SSH/WSL) workspace: project files are not readable from the plugin.'),
+    'Terminal output is off in Privacy.': () => t('Terminal output is off in Privacy.'),
+    'Not a git repository: no git context.': () => t('Not a git repository: no git context.'),
+    'No files matched the prompt; the agent will be told to locate them.': () => t('No files matched the prompt; the agent will be told to locate them.'),
+    'Project files are off in Privacy: workspace and agent only.': () => t('Project files are off in Privacy: workspace and agent only.'),
+    'Preview skips the AI file picker.': () => t('Preview skips the AI file picker.')
+  }
+  if (fixed[note]) return fixed[note]()
+  const match = /^AI file picker skipped: (.+)$/.exec(note)
+  return match ? t('AI file picker skipped: {reason}', { reason: match[1] }) : note
+}
+
 function ContextPanel() {
   const shown = read(contextShown)
   const notes = read(contextNotes)
@@ -556,15 +648,15 @@ function ContextPanel() {
         {shown.map((item) => (
           <Checkbox
             key={item.id}
-            label={item.label}
-            description={`${t('{kind} · {chars} chars', { kind: item.kind, chars: item.chars.toLocaleString() })}${item.note ? ` · ${item.note}` : ''}`}
+            label={contextLabel(item.label)}
+            description={`${t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}${item.note ? ` · ${item.note === 'keyword match' ? t('keyword match') : item.note === 'picked by AI' ? t('picked by AI') : item.note === 'trimmed' ? t('trimmed') : item.note}` : ''}`}
             checked={!ex.has(item.id)}
             onChange={(checked) => toggleItem(item.id, checked)}
           />
         ))}
         {notes.map((note) => (
           <Text key={note} muted size="xs">
-            {note}
+            {noteText(note)}
           </Text>
         ))}
       </Stack>
@@ -573,13 +665,13 @@ function ContextPanel() {
 }
 
 function RunInfo() {
-  const run = read(lastRun)
-  if (!run) return null
-  const failed = run.attempts.filter((attempt) => !attempt.ok)
+  const info = read(lastRun)
+  if (!info) return null
+  const failed = info.attempts.filter((attempt) => !attempt.ok)
   return (
     <Stack gap="none">
-      <Text muted size="xs">
-        {t('{profile} · {model} · {seconds} s · edit freely before sending', { profile: run.profileName, model: run.model, seconds: (run.ms / 1000).toFixed(1) })}
+      <Text muted size="xs" truncate>
+        {`${info.profileName} · ${info.model} · ${t('edit freely before sending')}`}
       </Text>
       {failed.length > 0 ? (
         <Text tone="warning" size="xs">
@@ -587,6 +679,85 @@ function RunInfo() {
         </Text>
       ) : null}
     </Stack>
+  )
+}
+
+const STEP_LABELS: Record<Step['key'], string> = {
+  workspace: 'Reading workspace',
+  project: 'Reading project rules and stack',
+  git: 'Reading git changes',
+  search: 'Finding relevant code',
+  pick: 'AI picking files',
+  terminal: 'Reading terminal output',
+  model: 'Writing the prompt'
+}
+const STEP_GLYPH: Record<Step['status'], string> = { pending: '○', running: '●', done: '✓', skipped: '–', failed: '✕' }
+
+function stepText(entry: Step): string {
+  const label = t(STEP_LABELS[entry.key])
+  if (!entry.detail) return label
+  const count = Number(entry.detail)
+  if (entry.key === 'workspace' || entry.key === 'model' || !Number.isFinite(count)) return `${label} · ${entry.detail}`
+  if (entry.key === 'terminal') return `${label} · ${t('{count} lines', { count })}`
+  if (entry.key === 'git') return `${label} · ${t('{count} changed', { count })}`
+  return `${label} · ${t('{count} files', { count })}`
+}
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+
+/** Live progress of the current run, then how it ended when it did not end well. */
+function RunCard() {
+  const current = read(run)
+  if (!current || current.status === 'done') return null
+  const running = current.status === 'running'
+  const steps = current.steps
+  const active = steps.find((entry) => entry.status === 'running')
+  const title = running
+    ? active
+      ? stepText(active)
+      : t('Starting…')
+    : current.status === 'cancelled'
+      ? t('Cancelled')
+      : t('Enhance failed')
+  return (
+    <Box gap="sm" padding="sm" border={current.status === 'error' ? 'danger' : true} radius="md">
+      <Row justify="between" gap="xs">
+        <Row gap="xs">
+          {running ? <Spinner label={t('Enhancing')} labelHidden /> : null}
+          <Text weight="semibold" size="sm" truncate tone={current.status === 'error' ? 'danger' : undefined}>
+            {title}
+          </Text>
+        </Row>
+        <Text muted size="xs">
+          {running ? <RelativeTime at={current.startedAt} format="duration" /> : seconds((current.finishedAt ?? Date.now()) - current.startedAt)}
+        </Text>
+      </Row>
+      <Progress label={t('Progress')} labelHidden value={running ? Math.max(4, percent(steps)) : percent(steps)} />
+      {steps.length > 0 ? (
+        <Stack gap="none">
+          {steps.map((entry) => (
+            <Text key={entry.key} size="xs" truncate muted={entry.status === 'pending' || entry.status === 'skipped'} tone={entry.status === 'failed' ? 'danger' : entry.status === 'running' ? 'accent' : undefined}>
+              {`${STEP_GLYPH[entry.status]}  ${stepText(entry)}`}
+            </Text>
+          ))}
+        </Stack>
+      ) : null}
+      {current.status === 'error' && current.error ? (
+        <Text size="xs" tone="danger">
+          {current.error}
+        </Text>
+      ) : null}
+      {running ? null : (
+        <Row gap="xs">
+          <Button size="sm" variant="outline" icon="refresh" onPress={() => void enhanceNow()}>
+            {t('Try again')}
+          </Button>
+          <Button size="sm" variant="ghost" onPress={() => set(run, null)}>
+            {t('Dismiss')}
+          </Button>
+        </Row>
+      )}
+    </Box>
   )
 }
 
@@ -709,9 +880,12 @@ function ResultCard({ output }: { output: string }) {
   return (
     <Box gap="sm" padding="sm" border radius="lg">
       <Row justify="between">
-        <Text weight="semibold" size="sm">
-          {t('Enhanced prompt')}
-        </Text>
+        <Row gap="xs">
+          <Text weight="semibold" size="sm">
+            {t('Enhanced prompt')}
+          </Text>
+          {read(lastRun) ? <Badge tone="success">{`${t('Done')} · ${seconds(read(lastRun)!.ms)}`}</Badge> : null}
+        </Row>
         <Row gap="none">
           <IconButton icon="copy" label={t('Copy')} size="sm" variant="ghost" onPress={() => void copy(output)} />
           <IconButton
@@ -748,61 +922,63 @@ function EnhanceTab() {
   const noModel = view !== null && profiles.length === 0
   const allKeyless = profiles.length > 0 && profiles.every((p) => p.keySource === 'none')
   return (
-    <Stack gap="sm">
+    <Stack gap="md">
       {noModel || allKeyless ? (
         <Callout tone="warning" title={noModel ? t('No model yet') : t('No API key yet')}>
-          <Row gap="xs" justify="between">
+          <Row gap="xs" justify="between" wrap>
             <Text size="sm">{t('Add one in the Models tab.')}</Text>
-            <Button size="sm" variant="outline" icon="settings" onPress={() => set(tab, 'models')}>
+            <Button size="sm" variant="outline" icon="agent" onPress={() => set(tab, 'models')}>
               {t('Open Models')}
             </Button>
           </Row>
         </Callout>
       ) : null}
-      <Textarea
-        label={t('Your prompt')}
-        labelHidden
-        placeholder={t('Describe what you want the agent to do…')}
-        rows={4}
-        value={text}
-        onChange={(value) => set(draft, value)}
-        onSubmit={() => void enhanceNow()}
-      />
-      <Row gap="xs" justify="between" wrap>
-        <ComposerModelPicker />
-        <Row gap="xs">
-        <IconButton
-          icon="settings"
-          label={`${t('Options')}: ${optionsSummary()}`}
-          variant={read(optionsOpen) ? 'outline' : 'ghost'}
-          onPress={() => update(optionsOpen, (open) => !open)}
+      <Box gap="sm" padding="sm" border radius="lg">
+        <Textarea
+          label={t('Your prompt')}
+          labelHidden
+          placeholder={t('Describe what you want the agent to do…')}
+          rows={4}
+          value={text}
+          onChange={(value) => set(draft, value)}
+          onSubmit={() => void enhanceNow()}
         />
-        <IconButton
-          icon="search"
-          label={working === 'preview' ? t('Gathering…') : t('Preview context')}
-          variant="ghost"
-          onPress={() => void previewContext()}
-          disabled={working !== null}
-        />
-        {working === 'enhance' ? (
-          <Button variant="ghost" icon="stop" onPress={cancel}>
-            {t('Cancel')}
-          </Button>
-        ) : (
-          <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
-            {t('Enhance')}
-          </Button>
-        )}
+        <Row gap="xs" justify="between" wrap>
+          <ComposerModelPicker />
+          <Row gap="xs">
+            <IconButton
+              icon="filter"
+              label={`${t('Options')}: ${optionsSummary()}`}
+              variant={read(optionsOpen) ? 'outline' : 'ghost'}
+              onPress={() => update(optionsOpen, (open) => !open)}
+            />
+            <IconButton
+              icon="search"
+              label={working === 'preview' ? t('Gathering…') : t('Preview context')}
+              variant="ghost"
+              onPress={() => void previewContext()}
+              disabled={working !== null}
+            />
+            {working === 'enhance' ? (
+              <Button variant="outline" icon="stop" onPress={cancel}>
+                {t('Cancel')}
+              </Button>
+            ) : (
+              <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
+                {t('Enhance')}
+              </Button>
+            )}
+          </Row>
         </Row>
-      </Row>
-      <PromptOptions />
-      {working === 'enhance' ? <Spinner label={t('Enhancing')} /> : null}
+        <PromptOptions />
+      </Box>
+      <RunCard />
       <NoticeBar />
       <ContextPanel />
       {output ? (
         <ResultCard output={output} />
-      ) : (
-        <Row gap="xs" justify="between">
+      ) : working === 'enhance' ? null : (
+        <Row gap="xs" justify="between" wrap>
           <Text muted size="xs">
             {t('Nothing reaches the agent until you click Send.')}
           </Text>
@@ -1128,8 +1304,49 @@ const PRIVACY_ROWS: { key: (typeof PRIVACY_KEYS)[number]; label: string; hint: s
 function PrivacyTab() {
   const flags = read(privacy)
   const data = read(dataSummary)
+  const prefs = read(defaults)
+  const view = read(models)
+  const roleOptions = [
+    { value: 'chain', label: t('Same as the chain') },
+    ...(view?.profiles ?? []).map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
+  ]
   return (
     <Stack gap="md">
+      <Section title={t('Language')}>
+        <Select
+          label={t('Panel language')}
+          labelHidden
+          value={read(uiLanguageSetting)}
+          options={UI_LANGUAGES.map((value) => ({ value, label: UI_LANGUAGE_LABELS[value] }))}
+          onChange={(value) => void changeUiLanguage(value)}
+        />
+      </Section>
+      <Separator />
+      <Section
+        title={t('Auto-enhance')}
+        hint={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
+      >
+        <Select
+          label={t('Auto-enhance prompts Orca sends to agents')}
+          labelHidden
+          value={prefs.autoEnhanceMode}
+          options={[
+            { value: 'off', label: t('Off') },
+            { value: 'rules', label: t('Rules: append your text') },
+            { value: 'ai', label: t('AI rewrite (fast API model, 2 s limit)') }
+          ]}
+          onChange={(value) => void setSetting('autoEnhanceMode', value)}
+        />
+        {view && view.profiles.length > 1 && !view.fromEnv && prefs.autoEnhanceMode === 'ai' ? (
+          <Select
+            label={t('Auto-enhance hook model (needs to answer in under 2 s)')}
+            value={view.hookProfileId ?? 'chain'}
+            options={roleOptions}
+            onChange={(value) => void setRoles({ hookProfileId: value === 'chain' ? null : value })}
+          />
+        ) : null}
+      </Section>
+      <Separator />
       <Section title={t('What it may use')} hint={t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.')}>
         <Stack gap="xs">
           {PRIVACY_ROWS.map((row) => (
@@ -1252,31 +1469,6 @@ function ModelsTab() {
         />
         ) : null}
       </Section>
-      <Separator />
-      <Section
-        title={t('Auto-enhance')}
-        hint={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
-      >
-        <Select
-          label={t('Auto-enhance prompts Orca sends to agents')}
-          labelHidden
-          value={prefs.autoEnhanceMode}
-          options={[
-            { value: 'off', label: t('Off') },
-            { value: 'rules', label: t('Rules: append your text') },
-            { value: 'ai', label: t('AI rewrite (fast API model, 2 s limit)') }
-          ]}
-          onChange={(value) => void setSetting('autoEnhanceMode', value)}
-        />
-        {view.profiles.length > 1 && !view.fromEnv ? (
-          <Select
-            label={t('Auto-enhance hook model (needs to answer in under 2 s)')}
-            value={view.hookProfileId ?? 'chain'}
-            options={roleOptions}
-            onChange={(value) => void setRoles({ hookProfileId: value === 'chain' ? null : value })}
-          />
-        ) : null}
-      </Section>
       {view.profiles.length > 1 && !view.fromEnv ? (
         <Stack gap="lg">
           <Separator />
@@ -1290,21 +1482,6 @@ function ModelsTab() {
           </Section>
         </Stack>
       ) : null}
-      <Row gap="xs" justify="between">
-        <Select
-          label={t('Language')}
-          labelHidden
-          value={read(uiLanguageSetting)}
-          options={UI_LANGUAGES.map((value) => ({ value, label: UI_LANGUAGE_LABELS[value] }))}
-          onChange={(value) => void changeUiLanguage(value)}
-        />
-        <Row gap="none">
-        <Text muted size="xs">
-          {t('More settings and privacy')}
-        </Text>
-        <Hint text={t('Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context you choose go only to the endpoints above; .env files, keys and credentials are never read.')} />
-        </Row>
-      </Row>
     </Stack>
   )
 }
@@ -1313,7 +1490,7 @@ const SECTIONS = [
   { value: 'enhance', label: 'Enhance', icon: 'lightbulb' },
   { value: 'history', label: 'History', icon: 'book' },
   { value: 'models', label: 'Models', icon: 'agent' },
-  { value: 'privacy', label: 'Privacy', icon: 'info' }
+  { value: 'privacy', label: 'Privacy', icon: 'settings' }
 ] as const
 
 function openSection(value: string): void {

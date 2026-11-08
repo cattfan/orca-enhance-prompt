@@ -11,7 +11,7 @@ Enhance Prompt lives in Orca's **right sidebar**.
 
 If you don't see the lightbulb, check that the plugin is enabled under **Settings → Plugins → Enhance Prompt**.
 
-The four icons at the top right of the panel switch between **Enhance** (lightbulb), **History** (book), **Models** (robot) and **Privacy** (i). They fit any sidebar width; hover one to see its name.
+The four icons at the top right of the panel switch between **Enhance** (lightbulb), **History** (book), **Models** (robot) and **Privacy** (gear: language, auto-enhance, access switches and stored data). They fit any sidebar width; hover one to see its name.
 
 ## 2. Add a model
 
@@ -30,11 +30,11 @@ Go back to the **Enhance** tab and describe what you want, as roughly as you lik
 login page is broken on mobile
 ```
 
-Under the prompt is one toolbar: the model menu, **Options** (⚙), **Preview context** (🔍) and **Enhance**.
+The prompt box and its toolbar sit in one card: the model menu, **Options** (filter icon), **Preview context** (🔍) and **Enhance**.
 
 The model menu lists every model you can use right now, like the model menu in ChatGPT or Claude: **Auto** runs your models in order with fallback, or pick one, such as **Claude Code · sonnet** or **Codex · GPT-6.1-Sol**. The lists come from each CLI or API and stay current; see [Model lists stay current](models.md#model-lists-stay-current).
 
-⚙ opens the other options (hover it to see the current ones):
+**Options** opens the other options (hover it to see the current ones):
 
 - **Style**: what kind of prompt you need. See [Styles](#styles).
 - **Context**: how much of your project the model sees. **Standard** is a good default; **Deep** finds the code that matches your request. See [Context levels](context-levels.md).
@@ -43,12 +43,14 @@ The model menu lists every model you can use right now, like the model menu in C
 
 Click **Enhance** or press `Ctrl+Enter` (`⌘Enter`). A model API takes a few seconds; a subscription CLI usually takes 5 to 15.
 
+While it runs, a progress card shows each step as it really happens: reading the workspace, the project's rules and stack, git changes, finding relevant code, the AI file picker, the terminal, then the model writing (with its name, and the next one when it falls back). The bar fills as steps finish and a timer counts the seconds. The model call itself reports no percentage, so it is one step with the timer. **Cancel** stops it; if it fails, the card stays with the error and **Try again**.
+
 ## 4. Review and send
 
 The result opens in the **Enhanced prompt** card. Edit it freely, then:
 
 - Pick the agent's terminal at the bottom of the card. Agent terminals come first.
-- Click **Send**. The prompt is pasted, not submitted, unless **Press Enter after sending** is on (⚙).
+- Click **Send**. The prompt is pasted, not submitted, unless **Press Enter after sending** is on (**Options**). Long prompts are sent in pieces of up to 4,000 characters, still as one paste.
 
 Other actions:
 

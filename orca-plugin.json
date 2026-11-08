@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",

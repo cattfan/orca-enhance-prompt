@@ -11,6 +11,12 @@ test('every UI string has a Vietnamese and a Chinese translation', () => {
   for (const match of source.matchAll(/\bt\('((?:[^'\\]|\\.)+)'/g)) keys.add(match[1].replace(/\\'/g, "'"))
   for (const label of [...Object.values(STYLE_LABELS), ...Object.values(CONTEXT_LEVEL_LABELS)]) keys.add(label)
   for (const key of ['key saved', 'key from env', 'no key', 'local', 'subscription', 'Output: same as prompt', 'Output: English', 'Output: Vietnamese', 'Output: Chinese']) keys.add(key)
+  // Labels kept in tables and passed to t() by variable: progress steps and Privacy rows.
+  for (const match of source.matchAll(/^\s+(?:workspace|project|git|search|pick|terminal|model): '([^']+)',?$/gm)) keys.add(match[1])
+  for (const match of source.matchAll(/\{ key: '[A-Za-z]+', label: '([^']+)', hint: (['"])((?:(?!\2).)+)\2 \}/g)) {
+    keys.add(match[1])
+    keys.add(match[3])
+  }
   for (const [lang, dict] of Object.entries(dictionaries)) {
     const missing = [...keys].filter((key) => !(key in dict))
     assert.deepEqual(missing, [], `${lang} is missing translations`)
@@ -47,9 +53,9 @@ test('the panel renders in Vietnamese from the uiLanguage setting', async () => 
   const view = await mount(panel, { host })
   assert.ok(view.find({ label: 'Prompt của bạn' }))
   assert.ok(view.find({ text: /Chưa có model/ }) ?? view.find({ label: 'Chưa có model' }))
-  // The language menu is at the bottom of the Models tab.
-  await view.press({ role: 'button', label: 'Model' })
-  await view.select({ label: 'Ngôn ngữ' }, 'zh')
+  // The language menu is in the Privacy section (gear icon).
+  await view.press({ role: 'button', label: 'Quyền riêng tư' })
+  await view.select({ label: 'Ngôn ngữ giao diện' }, 'zh')
   await view.press({ role: 'button', label: '优化' })
   assert.ok(view.find({ label: '你的提示词' }))
   assert.equal(host.data().settings.uiLanguage, 'zh')

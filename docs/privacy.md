@@ -4,7 +4,7 @@ Enhance Prompt has no tracking, analytics or telemetry, and no server of its own
 
 ## Turn things off
 
-Orca approves a plugin's access as a whole: it shows everything the plugin may do and asks once. The panel's **Privacy** tab (and **Settings → Plugins → Enhance Prompt → Privacy: …**) decides what the plugin actually uses. The worker checks these switches before every read, send, save or download, so a switch that is off is never bypassed.
+Orca approves a plugin's access as a whole: it shows everything the plugin may do and asks once. The panel's **Privacy** section (gear icon; it also holds the panel language and auto-enhance) and **Settings → Plugins → Enhance Prompt → Privacy: …** decide what the plugin actually uses. The worker checks these switches before every read, send, save or download, so a switch that is off is never bypassed.
 
 | Switch | Off means |
 | --- | --- |

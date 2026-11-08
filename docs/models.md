@@ -75,7 +75,7 @@ The **Model** menu on the Enhance tab can pick one model for a single prompt. Wi
 
 With two or more models:
 
-- **Auto-enhance hook model**: the model [auto-enhance](auto-enhance.md) uses. It must answer in under 2 seconds, so pick a fast API model such as Groq or a small OpenAI model.
+- **Auto-enhance hook model** (in the Privacy section, with the auto-enhance mode): the model [auto-enhance](auto-enhance.md) uses. It must answer in under 2 seconds, so pick a fast API model such as Groq or a small OpenAI model.
 - **File picker model**: the model that picks files at the [Max context level](context-levels.md#max).
 
 ## Test a model

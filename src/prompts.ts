@@ -146,6 +146,45 @@ export function cleanOutput(text: string): string {
   return out.trim()
 }
 
+/** Orca's `terminal.sendText` takes at most 4096 characters per call; stay safely below it. */
+export const SEND_CHUNK = 4000
+
+/**
+ * The text for a terminal, split into pieces of at most `max` characters, sent one after another.
+ * Bracketed-paste markers wrap the whole text (first and last piece), so the agent still sees one
+ * paste. Cuts fall on a line break when there is one near the end, and never inside a surrogate pair.
+ */
+export function terminalChunks(text: string, mode: string, max = SEND_CHUNK): string[] {
+  const formatted = formatForTerminal(text, mode)
+  if (formatted.length <= max) return formatted ? [formatted] : []
+  const start = '\x1b[200~'
+  const end = '\x1b[201~'
+  const pasted = formatted.startsWith(start) && formatted.endsWith(end)
+  const body = pasted ? formatted.slice(start.length, -end.length) : formatted
+  const room = max - (pasted ? end.length : 0)
+  const pieces: string[] = []
+  let rest = body
+  while (rest.length > 0) {
+    const limit = pieces.length === 0 && pasted ? room - start.length : room
+    if (rest.length <= limit) {
+      pieces.push(rest)
+      break
+    }
+    let cut = rest.lastIndexOf('\n', limit - 1) + 1
+    if (cut < limit * 0.6) cut = limit
+    // Do not split a surrogate pair (emoji, rare CJK).
+    const code = rest.charCodeAt(cut - 1)
+    if (code >= 0xd800 && code <= 0xdbff) cut -= 1
+    pieces.push(rest.slice(0, cut))
+    rest = rest.slice(cut)
+  }
+  if (pasted) {
+    pieces[0] = start + pieces[0]
+    pieces[pieces.length - 1] = pieces[pieces.length - 1] + end
+  }
+  return pieces
+}
+
 /** Formats text for a terminal according to the `sendMode` setting. */
 export function formatForTerminal(text: string, mode: string): string {
   const normalized = text.replace(/\r\n?/g, '\n').trim()

@@ -6,6 +6,7 @@
 //   max       + AI-picked files from the tree, recent output of the agent terminal
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { ContextItemView, ContextLevel } from '../presets'
+import type { StepReporter } from '../progress'
 import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files'
 import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo } from './git'
 import { readRuleFiles } from './instructions'
@@ -35,6 +36,8 @@ export type GatherOptions = {
   /** Privacy switches: no git commands, no terminal output. */
   allowGit?: boolean
   allowTerminal?: boolean
+  /** Progress: called when a step starts, finishes or is skipped. */
+  onStep?: StepReporter
 }
 
 export type GatherResult = { items: ContextItem[]; notes: string[]; root: string | null }
@@ -101,10 +104,12 @@ export async function staticParts(root: string, extraFiles: string[], fresh = fa
 
 export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions): Promise<GatherResult> {
   const { level } = options
+  const step: StepReporter = options.onStep ?? (() => undefined)
   const items: ContextItem[] = []
   const notes: string[] = []
   if (level === 'off') return { items, notes, root: null }
 
+  step('workspace', 'running')
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (focused) {
     items.push(item('workspace', 'workspace', 'Workspace', `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`))
@@ -116,8 +121,10 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     const agent = agents?.agents.find((entry) => entry.terminalId === options.terminalId)
     if (agent?.agent) items.push(item('agent', 'agent', 'Target agent', `${agent.agent} (${agent.state})`))
   }
+  step('workspace', 'done', focused?.displayName)
 
   let root: string | null = null
+  if (atLeast(level, 'standard')) step('project', 'running')
   if (focused && atLeast(level, 'standard')) {
     const workspace = await findFocusedWorkspace(orca, focused)
     if (!workspace) {
@@ -132,13 +139,24 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   if (root) {
     const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false)
     items.push(...parts.items)
+    step('project', 'done', String(parts.files.length))
     if (atLeast(level, 'deep')) {
       items.push(...(await dynamicParts(root, parts, options, notes)))
     }
+  } else if (atLeast(level, 'standard')) {
+    step('project', 'skipped')
+    if (atLeast(level, 'deep')) {
+      step('git', 'skipped')
+      step('search', 'skipped')
+    }
+    if (level === 'max') step('pick', 'skipped')
   }
 
   if (level === 'max' && options.allowTerminal === false) notes.push('Terminal output is off in Privacy.')
-  if (level === 'max' && options.allowTerminal !== false && options.terminalId && options.terminalLines > 0) {
+  const readTerminal = level === 'max' && options.allowTerminal !== false && Boolean(options.terminalId) && options.terminalLines > 0
+  if (level === 'max' && !readTerminal) step('terminal', 'skipped')
+  if (readTerminal && options.terminalId) {
+    step('terminal', 'running')
     const read = await orca.host
       .call('terminal.read', { terminalId: options.terminalId, maxLines: options.terminalLines })
       .catch(() => null)
@@ -147,6 +165,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
       const title = focused?.terminals.find((t) => t.id === options.terminalId)?.title ?? 'agent terminal'
       items.push(item('terminal', 'terminal', `Recent output: ${title}`, lines.join('\n')))
     }
+    step('terminal', 'done', String(lines.length))
   }
 
   return { items: fitBudget(items.filter((entry) => !options.exclude.has(entry.id)), BUDGET[level]), notes, root }
@@ -168,8 +187,10 @@ async function dynamicParts(
     return !isProse(file) || file.startsWith('docs/')
   })
   let changed = new Set<string>()
+  const step: StepReporter = options.onStep ?? (() => undefined)
 
   if (parts.isGit) {
+    step('git', 'running')
     const status = await gitStatus(root)
     if (status && (status.changed.length > 0 || status.branchLine)) {
       changed = new Set(changedPaths(status.changed))
@@ -187,10 +208,13 @@ async function dynamicParts(
     if (log?.trim()) out.push(item('git:log', 'git', 'Recent commits', log.trim()))
     const diff = await gitDiff(root, options.level === 'max' ? 9000 : 5000)
     if (diff) out.push(item('git:diff', 'git', 'Uncommitted changes', `${diff.stat}\n\n${diff.diff}`))
+    step('git', 'done', String(changed.size))
   } else {
     notes.push('Not a git repository: no git context.')
+    step('git', 'skipped')
   }
 
+  step('search', 'running')
   const weighted = weightedKeywords(options.prompt)
   const keywords = weighted.map((entry) => entry.word)
   const grepTargets = weighted.filter((entry) => entry.word.length >= 4).slice(0, 8)
@@ -203,7 +227,10 @@ async function dynamicParts(
     .slice(0, RELEVANT_FILES[options.level])
     .map((entry) => ({ path: entry.path, hits: [], why: 'keyword match' }))
 
+  step('search', 'done', String(picked.length))
+  if (options.level === 'max' && !options.pickFiles) step('pick', 'skipped')
   if (options.level === 'max' && options.pickFiles) {
+    step('pick', 'running')
     try {
       const shortlist = [...new Set([...scored.slice(0, 150).map((s) => s.path), ...files])].slice(0, 600)
       const chosen = await options.pickFiles(shortlist, options.prompt)
@@ -212,8 +239,10 @@ async function dynamicParts(
           picked.push({ path, hits: [], why: 'picked by AI' })
         }
       }
+      step('pick', 'done', String(picked.length))
     } catch (error) {
       notes.push(`AI file picker skipped: ${(error as Error).message}`)
+      step('pick', 'skipped')
     }
   }
 

@@ -19,9 +19,10 @@ import {
   type ChainOptions
 } from './models'
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
-import { buildSystemPrompt, buildUserMessage, cleanOutput, formatForTerminal, isStyle, type Style } from './prompts'
+import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, terminalChunks, type Style } from './prompts'
 import type { ModelsView } from './protocol'
 import { parsePrivacy, type Privacy } from './privacy'
+import { createProgress, planSteps, type StepReporter } from './progress'
 import { MODELS_KEY } from './presets'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
@@ -153,7 +154,8 @@ export async function enhance(
     language?: string
     exclude?: string[]
   },
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  progress?: (level: ContextLevel, allowProjectFiles: boolean) => StepReporter
 ) {
   const prompt = input.prompt.trim()
   if (!prompt) throw hostError('Write a prompt first.', 'invalid_params')
@@ -163,6 +165,7 @@ export async function enhance(
   const requested: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
   // Privacy: without project files, nothing beyond workspace and agent names.
   const level: ContextLevel = !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
+  const step = progress?.(level, settings.privacy.allowProjectFiles) ?? (() => undefined)
 
   const gathered = await gatherContext(orca, {
     level,
@@ -174,7 +177,8 @@ export async function enhance(
     excludePatterns: settings.excludePatterns,
     pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal),
     allowGit: settings.privacy.allowGit,
-    allowTerminal: settings.privacy.allowTerminalRead
+    allowTerminal: settings.privacy.allowTerminalRead,
+    onStep: step
   })
   if (level !== requested) gathered.notes.push('Project files are off in Privacy: workspace and agent only.')
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
@@ -192,7 +196,17 @@ export async function enhance(
     chosenModel && profile.id === input.profileId ? { ...profile, model: chosenModel } : profile
   )
   try {
-    const result = await runChain(orca, list, system, user, chainOptions(settings, signal))
+    const result = await runChain(
+      orca,
+      list,
+      system,
+      user,
+      chainOptions(settings, signal, {
+        onAttempt: (profile, model, attempt, total) =>
+          step('model', 'running', `${profile.name} · ${model || 'default'}${attempt > 1 ? ` · ${attempt}/${total}` : ''}`)
+      })
+    )
+    step('model', 'done', `${result.profile.name} · ${result.attempts.find((attempt) => attempt.ok)?.model ?? ''}`)
     return {
       enhanced: cleanOutput(result.text),
       profile: result.profile,
@@ -203,6 +217,7 @@ export async function enhance(
       style
     }
   } catch (error) {
+    step('model', 'failed', (error as Error).message.slice(0, 160))
     if (error instanceof ChainError) throw hostError(error.message, error.code)
     throw error
   }
@@ -292,9 +307,17 @@ async function setMode(orca: OrcaWorkerApi, mode: AutoMode): Promise<string> {
 }
 
 export default function activate(orca: OrcaWorkerApi): void {
-  orca.panels.handle('prompt.enhance', async (input, { signal }) => {
+  orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
     const started = Date.now()
-    const result = await enhance(orca, input, signal)
+    const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
+    // Progress goes only to the panel that asked, and only when it asked for it.
+    const progress = runId
+      ? (level: ContextLevel, allowProjectFiles: boolean) =>
+          createProgress(runId, planSteps(level, allowProjectFiles), (snapshot) =>
+            orca.panels.post('enhance.progress', snapshot, { panel: panel.id })
+          )
+      : undefined
+    const result = await enhance(orca, input, signal, progress)
     const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
     await addHistory(orca, result.settings.historyLimit, {
       original: input.prompt.trim(),
@@ -333,10 +356,16 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.send', async ({ terminalId, text, enter }) => {
     const settings = await readSettings(orca)
     if (!settings.privacy.allowTerminalSend) throw hostError('Sending to terminals is off in Privacy.', 'not_permitted')
-    const payload = formatForTerminal(text, settings.sendMode)
-    if (!payload) throw hostError('Nothing to send.', 'invalid_params')
+    const pieces = terminalChunks(text, settings.sendMode)
+    if (pieces.length === 0) throw hostError('Nothing to send.', 'invalid_params')
     const pressEnter = enter ?? settings.sendPressEnter
-    const result = await orca.host.call('terminal.sendText', { terminalId, text: payload })
+    // Long prompts go in pieces: Orca accepts at most 4096 characters per call, and keeps writes to
+    // one terminal in order.
+    let result = { accepted: true }
+    for (const piece of pieces) {
+      result = await orca.host.call('terminal.sendText', { terminalId, text: piece })
+      if (!result.accepted) break
+    }
     if (pressEnter && result.accepted) {
       // Give the agent's TUI a beat to take the paste before submitting it.
       await new Promise((resolve) => setTimeout(resolve, 150))

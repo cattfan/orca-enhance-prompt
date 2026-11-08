@@ -21,6 +21,8 @@ orca plugin validate .
 ## Every change is a release
 
 1. Bump `version` in `orca-plugin.json`: patch for fixes, minor for features, major for breaking changes.
+   Minor and patch are single digits 0-9 and carry over like an odometer: 1.8.9 -> 1.9.0,
+   1.9.0 -> 2.0.0 (never 1.10.0), 13.9.9 -> 14.0.0. `scripts/release.mjs` refuses anything else.
 2. Add a section at the top of `CHANGELOG.md` (Added / Changed / Fixed / Security / Notes) and its link at the bottom.
 3. Commit with a message that says what changed: `git commit -m "vX.Y.Z: <summary>"`.
 4. Tag and push: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin main vX.Y.Z`.

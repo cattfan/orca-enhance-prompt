@@ -23,6 +23,7 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   pause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
   warning: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  filter: '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
   stop: '<rect width="14" height="14" x="5" y="5" rx="2"/>',
   zap: '<path d="M4 14a1 1 0 0 1-.8-1.6l9.9-10.2a.5.5 0 0 1 .9.5l-1.9 6A1 1 0 0 0 13 10h7a1 1 0 0 1 .8 1.6l-9.9 10.2a.5.5 0 0 1-.9-.5l1.9-6A1 1 0 0 0 11 14z"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
@@ -66,6 +67,8 @@ export const PANEL_CSS = `
 .sw .track::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px}.sw .track.on{background:var(--primary)}.sw .track.on::after{left:16px;background:var(--bg)}
 .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:18px 8px;color:var(--muted)}.empty b{color:var(--fg)}
 .box-border{border:1px solid var(--border)}.r-md{border-radius:10px}.r-lg{border-radius:14px}.h3{font-weight:600;font-size:14px}.sep{height:1px;background:var(--border);width:100%}.grid2{display:grid;grid-template-columns:1fr 1fr;width:100%}.grid2 .sel{width:100%;justify-content:space-between}.bg-muted{background:var(--accent-bg)}.p-sm{padding:8px 10px}.p-md{padding:12px}
+.prog{height:6px;border-radius:999px;background:var(--accent-bg);overflow:hidden;width:100%}.prog>i{display:block;height:100%;background:#818cf8;border-radius:999px}
+.tone-accent{color:#818cf8}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
 `
 
@@ -85,7 +88,7 @@ function node(n) {
   switch (n.type) {
     case 'Box': {
       const dir = p.direction === 'row' ? 'row' : 'col'
-      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}" style="${p.border === 'accent' ? 'border-color:#6366f1' : ''}">${inner()}</div>`
+      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}" style="${p.border === 'accent' ? 'border-color:#6366f1' : p.border === 'danger' ? 'border-color:#ef4444' : ''}">${inner()}</div>`
     }
     case 'Stack':
       return `<div class="${cls('col', `g-${p.gap ?? 'sm'}`)}">${inner()}</div>`
@@ -120,6 +123,8 @@ function node(n) {
       return `<span class="${cls('btn', p.variant ?? 'outline', p.size === 'sm' && 'sm', p.tone && `tone-${p.tone}`)}">${p.icon ? icon(p.icon, 15) : ''}${textOf(kids)}</span>`
     case 'IconButton':
       return `<span class="${cls('ibtn', p.size === 'sm' && 'sm', p.variant === 'outline' && 'outline', p.tone && `tone-${p.tone}`)}" title="${esc(p.label)}">${icon(p.icon, p.size === 'sm' ? 15 : 17)}</span>`
+    case 'Progress':
+      return `<div class="prog" title="${esc(p.label)}"><i style="width:${Math.max(0, Math.min(100, Number(p.value ?? 0)))}%"></i></div>`
     case 'Spinner':
       return `<span class="row g-xs muted"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>${p.labelHidden ? '' : esc(p.label)}</span>`
     case 'Tabs': {

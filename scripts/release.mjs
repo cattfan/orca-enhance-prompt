@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const version = process.argv[2]
-if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) {
-  console.error('Usage: node scripts/release.mjs <x.y.z>')
+// Version digits: minor and patch run 0-9 and carry over, like an odometer: 1.9.9 -> 2.0.0, 13.9.9 -> 14.0.0.
+if (!/^\d+\.\d\.\d$/.test(version ?? '')) {
+  console.error('Usage: node scripts/release.mjs <x.y.z>   (y and z are single digits 0-9; after 9 carry: 1.9.9 -> 2.0.0)')
   process.exit(2)
 }
 const tag = `v${version}`

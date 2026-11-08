@@ -113,6 +113,8 @@ export type ChainOptions = {
   totalMs?: number
   fallback: boolean
   fallbackOn: 'any' | 'transient'
+  /** Progress: called before each model is tried (1-based `attempt` of `total`). */
+  onAttempt?: (profile: ModelProfile, model: string, attempt: number, total: number) => void
 }
 
 export class ChainError extends Error {
@@ -159,6 +161,7 @@ export async function runChain(
     }
     const attemptStart = Date.now()
     const model = effectiveModel(profile)
+    options.onAttempt?.(profile, model, attempts.length + 1, list.length)
     const { key } = await resolveKey(orca, profile)
     if (!key && needsKey(profile)) {
       attempts.push({ profileId: profile.id, name: profile.name, model, ok: false, error: 'no API key', ms: 0 })

@@ -1,7 +1,29 @@
 # Changelog
 
-All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
-version is a `vX.Y.Z` git tag and a GitHub release with these notes.
+All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
+2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
+
+## [2.0.0] - 2026-11-08
+
+### Fixed
+- **Sending a long prompt failed** with "text: Too big: expected string to have <=4096 characters": Orca
+  accepts at most 4096 characters per terminal write, so prompts are now sent in pieces of up to 4,000
+  characters, in order, still as one bracketed paste (cuts fall on line breaks and never split an emoji).
+
+### Added
+- **Live progress while enhancing**: a card shows each step as the worker really reaches it (workspace, project
+  rules and stack, git, relevant code, AI file picker, terminal, then the model with its name and any fallback
+  attempt), a bar that fills as steps finish, and a running timer. The model call reports no percentage of its
+  own, so it is one step with the timer. It ends as done (the result shows "Done · x s"), failed (the card keeps
+  the error with **Try again**) or cancelled; each run starts fresh, and progress from an older run is ignored.
+
+### Changed
+- **Privacy holds the settings**: the panel language and auto-enhance (mode and hook model) moved there from
+  the Models section, next to the access switches and stored data. Its icon is the settings gear. Saved values
+  are unchanged.
+- **Composer redesign**: the prompt box and its toolbar sit in one card; the options button uses a filter icon
+  (so it is not confused with the settings gear); Cancel replaces Enhance while running.
+- Context item names, kinds and the worker's notes are shown in the panel's language.
 
 ## [1.9.0] - 2026-11-08
 
@@ -211,6 +233,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.0.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.0
 [1.9.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.9.0
 [1.8.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.2
 [1.8.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.1

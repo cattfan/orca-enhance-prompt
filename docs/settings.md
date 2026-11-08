@@ -1,12 +1,12 @@
 # Settings
 
-Open **Settings → Plugins → Enhance Prompt**. Model profiles, API keys, fallback and the auto-enhance mode are also in the panel's **Models** tab.
+Open **Settings → Plugins → Enhance Prompt**. Model profiles, API keys and fallback are also in the panel's **Models** section; language, auto-enhance and the access switches in its **Privacy** section (gear icon).
 
 ## Language
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Panel language | Auto | Language of the panel: Auto follows Orca, or English, Tiếng Việt, 中文. Also in the menu at the bottom of the panel's Models section. |
+| Panel language | Auto | Language of the panel: Auto follows Orca, or English, Tiếng Việt, 中文. Also in the panel's Privacy section (gear icon). |
 | Output language | Same as my prompt | Language of the enhanced prompt. The **Output** menu on the Enhance tab overrides it for one prompt. |
 
 Code, identifiers, paths and error messages are always kept as they are.

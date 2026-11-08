@@ -43,6 +43,8 @@ declare module 'orca' {
         /** Output language for this prompt (auto, en, vi, zh, ...); the setting when absent. */
         language?: string
         exclude?: string[]
+        /** Set by the panel to receive `enhance.progress` for this run. */
+        runId?: string
       }
       output: {
         enhanced: string
@@ -111,5 +113,11 @@ declare module 'orca' {
   interface PluginPanelEvents {
     /** The auto-enhance hook rewrote a prompt Orca was sending. */
     'hook.enhanced': { agent: string | null; mode: string; model?: string }
+    /** The steps of the panel's enhance run, a full snapshot on every change. */
+    'enhance.progress': {
+      runId: string
+      startedAt: number
+      steps: { key: string; status: 'pending' | 'running' | 'done' | 'skipped' | 'failed'; detail?: string }[]
+    }
   }
 }

@@ -82,7 +82,7 @@ Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM S
 
 </td>
 <td width="50%">
-  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="Fallback settings and the auto-enhance mode in the Models tab" width="100%" /></a>
+  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="Fallback settings in the Models section" width="100%" /></a>
 </td>
 </tr>
 <tr>
