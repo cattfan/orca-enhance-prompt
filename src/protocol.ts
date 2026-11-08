@@ -105,6 +105,10 @@ declare module 'orca' {
         error?: string
       }
     }
+    /** Deletes one history entry (in order with new entries being saved). */
+    'history.remove': { input: { id: string }; output: { ok: true } }
+    /** Deletes the whole history (in order with new entries being saved). */
+    'history.clear': { output: { ok: true } }
     /** What the plugin keeps: history entries, saved models, saved keys, cached model lists. */
     'data.summary': { output: { history: number; profiles: number; keys: number; catalogs: number } }
     /** Deletes history, cached model lists, or everything (models and their keys too). */

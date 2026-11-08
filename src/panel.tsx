@@ -34,7 +34,7 @@ import {
   type OrcaNode,
   type PanelContext
 } from 'orca'
-import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history.ts'
+import { HISTORY_KEY, parseHistory, type HistoryEntry } from './history.ts'
 import {
   CONTEXT_LEVEL_LABELS,
   CONTEXT_LEVELS,
@@ -78,6 +78,10 @@ const target = atom<string | null>('target', null)
 const pressEnter = atom<boolean | null>('pressEnter', null)
 const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
 const historyFilter = atom('historyFilter', '')
+/** History entries drawn at once; "Show more" adds a page. */
+const HISTORY_PAGE = 50
+const historyShown = atom(HISTORY_PAGE)
+const confirmClearHistory = atom(false)
 const form = atom<Form | null>('form', null)
 const detected = atom<{ preset: string; label: string; path: string; added: boolean }[]>([])
 type Catalog = { models: { id: string; label: string; description?: string; isDefault?: boolean }[]; source: string; fetchedAt: number; error?: string }
@@ -373,8 +377,22 @@ function reuse(entry: HistoryEntry): void {
   set(tab, 'enhance')
 }
 
-function removeEntry(id: string): void {
-  update(historyRaw, (list) => parseHistory(list).filter((entry) => entry.id !== id).map(toJson))
+/** History changes go through the worker, in order with the entries it is saving. */
+async function removeEntry(id: string): Promise<void> {
+  try {
+    await plugin.request('history.remove', { id })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+async function clearHistory(): Promise<void> {
+  set(confirmClearHistory, false)
+  try {
+    await plugin.request('history.clear')
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
 }
 
 async function setSetting(key: string, value: JsonValue): Promise<void> {
@@ -1000,6 +1018,7 @@ function EnhanceTab() {
 function HistoryTab() {
   const all = read(history)
   const list = read(filteredHistory)
+  const shown = read(historyShown)
   if (all.length === 0) {
     return <EmptyState icon="book" title={t('No history yet')} description={t('Enhanced prompts show up here.')} />
   }
@@ -1007,7 +1026,7 @@ function HistoryTab() {
     <Stack gap="sm">
       <Input label={t('Search history')} labelHidden type="search" placeholder={t('Search history')} value={read(historyFilter)} onChange={(value) => set(historyFilter, value)} />
       <Stack gap="xs">
-        {list.map((entry) => (
+        {list.slice(0, shown).map((entry) => (
           <Box key={entry.id} gap="xs" padding="sm" border radius="md">
             <Text weight="medium" truncate>
               {entry.original.split('\n')[0].slice(0, 160)}
@@ -1020,18 +1039,29 @@ function HistoryTab() {
               <Row gap="xs">
                 <IconButton icon="edit" label={t('Open in Enhance tab')} size="sm" variant="ghost" onPress={() => reuse(entry)} />
                 <IconButton icon="copy" label={t('Copy enhanced prompt')} size="sm" variant="ghost" onPress={() => void copy(entry.enhanced)} />
-                <IconButton icon="delete" label={t('Delete')} size="sm" variant="ghost" onPress={() => removeEntry(entry.id)} />
+                <IconButton icon="delete" label={t('Delete')} size="sm" variant="ghost" onPress={() => void removeEntry(entry.id)} />
               </Row>
             </Row>
           </Box>
         ))}
       </Stack>
+      {list.length > shown ? (
+        <Button variant="ghost" size="sm" onPress={() => update(historyShown, (count) => count + HISTORY_PAGE)}>
+          {t('Show more')}
+        </Button>
+      ) : null}
       <Row justify="between">
         <Text muted size="xs">
-          {t('{shown} of {total}', { shown: list.length, total: all.length })}
+          {t('{shown} of {total}', { shown: Math.min(shown, list.length), total: all.length })}
         </Text>
-        <Button variant="ghost" tone="danger" size="sm" icon="delete" onPress={() => set(historyRaw, [])}>
-          {t('Clear history')}
+        <Button
+          variant={read(confirmClearHistory) ? 'solid' : 'ghost'}
+          tone="danger"
+          size="sm"
+          icon="delete"
+          onPress={() => (read(confirmClearHistory) ? void clearHistory() : set(confirmClearHistory, true))}
+        >
+          {read(confirmClearHistory) ? t('Press again to clear history') : t('Clear history')}
         </Button>
       </Row>
     </Stack>

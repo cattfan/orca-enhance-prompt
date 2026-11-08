@@ -272,7 +272,9 @@ const VI: Record<string, string> = {
   'Basic: workspace + agent': 'Cơ bản: workspace + agent',
   'Standard: + rules, stack, tree': 'Chuẩn: + luật, stack, cây thư mục',
   'Deep: + git + relevant code': 'Sâu: + git + code liên quan',
-  'Max: + AI-picked files + terminal': 'Tối đa: + file AI chọn + terminal'
+  'Max: + AI-picked files + terminal': 'Tối đa: + file AI chọn + terminal',
+  'Show more': 'Xem thêm',
+  'Press again to clear history': 'Bấm lần nữa để xoá lịch sử'
 }
 
 const ZH: Record<string, string> = {
@@ -523,7 +525,9 @@ const ZH: Record<string, string> = {
   'Basic: workspace + agent': '基础：工作区 + agent',
   'Standard: + rules, stack, tree': '标准：+ 规则、技术栈、目录树',
   'Deep: + git + relevant code': '深入：+ git + 相关代码',
-  'Max: + AI-picked files + terminal': '最大：+ AI 选择的文件 + 终端'
+  'Max: + AI-picked files + terminal': '最大：+ AI 选择的文件 + 终端',
+  'Show more': '显示更多',
+  'Press again to clear history': '再按一次清空历史'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

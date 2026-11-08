@@ -6,7 +6,7 @@ import { apiCatalog, claudeCatalog, codexCatalog, geminiCatalog, parseCatalog, t
 import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
 import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index.ts'
-import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history.ts'
+import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
   candidates,
   ChainError,
@@ -128,10 +128,14 @@ async function addHistory(orca: OrcaWorkerApi, settings: Settings, entry: Omit<H
   await withHistory(async () => {
     const list = parseHistory(await orca.storage.get(HISTORY_KEY))
     const at = Date.now()
-    const next: HistoryEntry[] = [{ id: `${at.toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, ...entry }, ...list].slice(
-      0,
-      settings.historyLimit
-    )
+    const added: HistoryEntry = {
+      id: `${at.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      at,
+      ...entry,
+      original: trimForHistory(entry.original),
+      enhanced: trimForHistory(entry.enhanced)
+    }
+    const next = capHistory([added, ...list], settings.historyLimit)
     await orca.storage.set(HISTORY_KEY, next.map(toJson))
   })
 }
@@ -611,6 +615,21 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
 
 /** Privacy section: what is stored, and wiping it. */
 function registerDataHandlers(orca: OrcaWorkerApi): void {
+  // History edits from the panel go through the same queue as new entries, so none is lost.
+  orca.panels.handle('history.remove', async ({ id }) => {
+    await withHistory(async () => {
+      const list = parseHistory(await orca.storage.get(HISTORY_KEY))
+      const next = list.filter((entry) => entry.id !== id)
+      if (next.length !== list.length) await orca.storage.set(HISTORY_KEY, next.map(toJson))
+    })
+    return { ok: true as const }
+  })
+
+  orca.panels.handle('history.clear', async () => {
+    await withHistory(() => orca.storage.delete(HISTORY_KEY))
+    return { ok: true as const }
+  })
+
   orca.panels.handle('data.summary', async () => {
     const keys = await orca.storage.keys()
     const config = await loadModels(orca)
