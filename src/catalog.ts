@@ -4,7 +4,7 @@
 //   Codex CLI    `codex debug models`: the catalog Codex itself shows (visibility "list").
 //   Gemini CLI   known models plus the one in ~/.gemini/settings.json.
 //   APIs         GET /models (OpenAI-compatible) or /v1/models (Anthropic) with the profile's key.
-import { readFile } from 'node:fs/promises'
+import { open, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { CLI_BINARIES, readCommand, resolveBinary } from './cli'
@@ -80,10 +80,63 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs = 8000): Prom
   }
 }
 
+/**
+ * The model table built into the installed Claude Code: entries such as
+ * {id:"claude-fable-5-1",name:"Fable 5.1",short_name:"Fable",description:"…",section:"main"}, the same
+ * list its /model menu shows. Read straight from the program file (a native binary or cli.js), in
+ * chunks, so it always matches the version you have. "main" models first, then older ("overflow").
+ */
+export function parseClaudeModelTable(text: string): { id: string; name: string; description?: string; main: boolean }[] {
+  const found = new Map<string, { id: string; name: string; description?: string; main: boolean }>()
+  const pattern = /\{id:"(claude-[a-z0-9-]{3,60})",name:"([^"]{2,40})",short_name:"[^"]{1,30}"(?:,description:"([^"]{0,120})")?,section:"(main|overflow)"/g
+  for (const match of text.matchAll(pattern)) {
+    const [, id, name, description, section] = match
+    const previous = found.get(id)
+    if (!previous || (!previous.description && description) || (section === 'main' && !previous.main)) {
+      found.set(id, { id, name, ...(description || previous?.description ? { description: description || previous?.description } : {}), main: section === 'main' || Boolean(previous?.main) })
+    }
+  }
+  return [...found.values()].sort((a, b) => Number(b.main) - Number(a.main))
+}
+
+async function claudeModelTable(binary: string): Promise<{ id: string; name: string; description?: string; main: boolean }[]> {
+  try {
+    const info = await stat(binary)
+    if (!info.isFile() || info.size > 800 * 1024 * 1024) return []
+    const handle = await open(binary, 'r')
+    try {
+      const size = 8 * 1024 * 1024
+      const buffer = Buffer.alloc(size)
+      let tail = ''
+      let text = ''
+      const entries = new Map<string, { id: string; name: string; description?: string; main: boolean }>()
+      for (let position = 0; position < info.size; position += size) {
+        const { bytesRead } = await handle.read(buffer, 0, size, position)
+        if (bytesRead === 0) break
+        text = tail + buffer.toString('latin1', 0, bytesRead)
+        if (text.includes('short_name:')) {
+          for (const entry of parseClaudeModelTable(text)) {
+            const previous = entries.get(entry.id)
+            if (!previous || (!previous.description && entry.description) || (entry.main && !previous.main)) entries.set(entry.id, { ...previous, ...entry, main: entry.main || Boolean(previous?.main) })
+          }
+        }
+        tail = text.slice(-4096)
+      }
+      return [...entries.values()].sort((a, b) => Number(b.main) - Number(a.main))
+    } finally {
+      await handle.close()
+    }
+  } catch {
+    return []
+  }
+}
+
 export async function claudeCatalog(command: string, online = true): Promise<Catalog> {
   const aliases = new Set<string>(['default', 'opus', 'sonnet', 'haiku'])
   const sources: string[] = ['built-in']
   const binary = resolveBinary(command || CLI_BINARIES['claude-code'])
+  const exact = binary ? await claudeModelTable(binary) : []
+  if (exact.length > 0) sources.push('Claude Code model table')
   if (binary) {
     const help = await readCommand(binary, ['--help'], 10_000)
     if (help) {
@@ -113,12 +166,21 @@ export async function claudeCatalog(command: string, online = true): Promise<Cat
   if (allowed.length > 0) list = list.filter((alias) => alias === 'default' || allowed.includes(alias))
   const order = ['haiku', 'sonnet', 'opus', 'fable', 'opusplan', 'default']
   list.sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || a.localeCompare(b))
+  const exactAllowed = allowed.length > 0 ? exact.filter((model) => allowed.includes(model.id)) : exact
   return {
-    models: list.map((id) => ({
-      id,
-      label: CLAUDE_ALIAS_INFO[id] ? `${id}: ${CLAUDE_ALIAS_INFO[id]}` : id,
-      ...(id === current ? { isDefault: true, description: 'Your Claude Code default' } : {})
-    })),
+    models: [
+      ...exactAllowed.map((model) => ({
+        id: model.id,
+        label: model.name,
+        ...(model.description ? { description: model.description } : {}),
+        ...(model.id === current ? { isDefault: true } : {})
+      })),
+      ...list.map((id) => ({
+        id,
+        label: CLAUDE_ALIAS_INFO[id] ? `${id}: ${CLAUDE_ALIAS_INFO[id]}` : id,
+        ...(id === current ? { isDefault: true, description: 'Your Claude Code default' } : {})
+      }))
+    ],
     source: sources.join(' + '),
     fetchedAt: Date.now()
   }

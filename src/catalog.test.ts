@@ -1,5 +1,5 @@
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { aliasesFromText, parseCatalog } from './catalog'
+import { aliasesFromText, parseCatalog, parseClaudeModelTable } from './catalog'
 import * as main from './worker'
 
 const realFetch = globalThis.fetch
@@ -56,4 +56,15 @@ test('a failed API catalog reports the error and caches nothing', async () => {
   assert.match(catalog.error ?? '', /401/)
   assert.equal(Object.keys(host.data().storage).filter((key) => key.startsWith('catalog:')).length, 0)
   await worker.deactivate()
+})
+
+test('reads the model table built into Claude Code', () => {
+  const bundle =
+    'x,{id:"claude-opus-4-8",name:"Opus 4.8",short_name:"Opus",section:"overflow",capabilities:{}},' +
+    '{id:"claude-fable-5-1",name:"Fable 5.1",short_name:"Fable",description:"For your toughest challenges",section:"main",capabilities:{}},' +
+    '{id:"claude-opus-4-8",name:"Opus 4.8",short_name:"Opus",section:"overflow"}'
+  assert.deepEqual(parseClaudeModelTable(bundle), [
+    { id: 'claude-fable-5-1', name: 'Fable 5.1', description: 'For your toughest challenges', main: true },
+    { id: 'claude-opus-4-8', name: 'Opus 4.8', main: false }
+  ])
 })

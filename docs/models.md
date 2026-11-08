@@ -48,7 +48,7 @@ You don't type model ids. The **Model** field lists what each source offers toda
 
 | Source | Where the list comes from |
 | --- | --- |
-| Claude Code | Its aliases (`haiku`, `sonnet`, `opus`, `fable`…), which always point at the newest model. Read from `claude --help` and the [Claude Code settings schema](https://www.schemastore.org/claude-code-settings.json), limited to your `availableModels` if you set one, with your default marked. |
+| Claude Code | Every model by name (Opus 5.5, Sonnet 5.5, Fable 5.1, Haiku 5.5, then older ones such as Opus 4.8 or Sonnet 4.6), read from the model table built into the installed Claude Code, the list its `/model` menu shows. Then the aliases (`haiku`, `sonnet`, `opus`, `fable`…), which always point at the newest model, from `claude --help` and the [Claude Code settings schema](https://www.schemastore.org/claude-code-settings.json). Limited to your `availableModels` if you set one, with your default marked. |
 | Codex CLI | `codex debug models`: the same catalog Codex shows, with your `config.toml` model marked. |
 | Gemini CLI | Known models plus the one in `~/.gemini/settings.json`. |
 | API presets | The provider's `GET /models` (Anthropic: `/v1/models`), newest first. |

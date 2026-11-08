@@ -447,7 +447,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     const baseUrl = (input.baseUrl ?? profile?.baseUrl ?? '').trim() || preset.baseUrl
     const command = (input.command ?? profile?.command ?? '').trim()
     // CLIs share one catalog per preset; APIs one per endpoint (keys differ per profile, lists rarely do).
-    const cacheKey = provider === 'cli' ? `catalog:${preset.id}` : `catalog:${provider}:${baseUrl}`
+    const cacheKey = provider === 'cli' ? `catalog:v2:${preset.id}` : `catalog:v2:${provider}:${baseUrl}`
     if (!input.refresh) {
       const cached = parseCatalog(await orca.storage.get(cacheKey))
       if (cached && cached.models.length > 0 && Date.now() - cached.fetchedAt < CATALOG_TTL_MS) {

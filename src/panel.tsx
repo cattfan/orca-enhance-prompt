@@ -214,7 +214,7 @@ function formCatalogInput(current: Form) {
 function modelOptions(catalog: Catalog | undefined, current: string) {
   const options = (catalog?.models ?? []).map((model) => ({
     value: model.id,
-    label: model.isDefault ? `${modelName(model.id, model.label)} · ${t('your default')}` : modelName(model.id, model.label)
+    label: model.isDefault ? `${modelName(model.id, model.label, model.description)} · ${t('your default')}` : modelName(model.id, model.label, model.description)
   }))
   if (current && !options.some((option) => option.value === current)) options.unshift({ value: current, label: current })
   return options
@@ -629,19 +629,17 @@ const PROFILE_DEFAULT = '__profile_default__'
 /** "sonnet: Sonnet, newest" -> "Sonnet, newest"; display names stay as they are. */
 const modelDisplay = (label: string) => (label.includes(': ') ? label.slice(label.indexOf(': ') + 2) : label)
 
-const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
-
-/** "sonnet — Sonnet, newest", or just "GPT-6.1-Sol" when the display name is the id. */
-function modelName(id: string, label: string): string {
-  const display = modelDisplay(label)
-  if (!id) return display
-  return squash(display) === squash(id) || display === id ? display : `${id} — ${display}`
+/** Aliases ("sonnet: Sonnet, newest") read "sonnet — Sonnet, newest"; named models read "Fable 5.1 — For…". */
+function modelName(id: string, label: string, description?: string): string {
+  if (label.includes(': ')) return `${id} — ${modelDisplay(label)}`
+  const short = description ? (description.length > 42 ? `${description.slice(0, 40)}…` : description) : ''
+  return short ? `${label} — ${short}` : label
 }
 
-/** The id, or the display name when it is just the id written nicely ("GPT-6.1-Sol"). */
+/** Composer names: "Fable 5.1", "GPT-6.1-Sol", or for an alias "sonnet (latest)". */
 function shortModelName(id: string, label: string): string {
-  const display = modelDisplay(label)
-  return squash(display) === squash(id) ? display : id
+  if (label.includes(': ')) return `${id} (${t('latest')})`
+  return label || id
 }
 
 /** Every model of every enabled profile, from its live list, plus Auto. */

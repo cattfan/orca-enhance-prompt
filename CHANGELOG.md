@@ -3,6 +3,19 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.9.0] - 2026-11-08
+
+### Added
+- **Every Claude model by name**, not just aliases: Opus 5.5, Sonnet 5.5, Fable 5.1, Haiku 5.5, then older ones
+  (Opus 4.8, 4.7, 4.6, Sonnet 4.6, Haiku 4.5…), with their descriptions. Read from the model table built into
+  the installed Claude Code (the list its /model menu shows), so it always matches your version. The aliases
+  stay at the end as "sonnet (latest)" and so on.
+- Menus show display names: "Claude Code · Fable 5.1" in the composer, "Fable 5.1 — For your toughest
+  challenges" on the model card.
+
+### Changed
+- Cached model lists from earlier versions are ignored, so the new list shows up right away.
+
 ## [1.8.2] - 2026-11-08
 
 ### Fixed
@@ -198,6 +211,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.9.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.9.0
 [1.8.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.2
 [1.8.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.1
 [1.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.0

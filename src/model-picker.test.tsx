@@ -32,6 +32,7 @@ test('lists each model of each profile and sends the one you pick', async () => 
         models:
           preset === 'claude-code'
             ? [
+                { id: 'claude-opus-5-5', label: 'Opus 5.5', description: 'For complex work and everyday tasks' },
                 { id: 'haiku', label: 'haiku: Haiku, newest (fastest)' },
                 { id: 'sonnet', label: 'sonnet: Sonnet, newest', isDefault: true },
                 { id: 'opus', label: 'opus: Opus, newest' }
@@ -51,23 +52,28 @@ test('lists each model of each profile and sends the one you pick', async () => 
   const labels = (menu.props.options as { label: string }[]).map((option) => option.label)
   assert.deepEqual(labels, [
     'Auto (fallback)',
-    'Claude Code · haiku · default',
-    'Claude Code · sonnet',
-    'Claude Code · opus',
+    'Claude Code · Opus 5.5',
+    'Claude Code · haiku (latest) · default',
+    'Claude Code · sonnet (latest)',
+    'Claude Code · opus (latest)',
     'Codex · CLI default',
     'Codex · GPT-6.1-Sol'
   ])
 
-  await view.select(menu, 'claude|opus')
+  await view.select(menu, 'claude|claude-opus-5-5')
   await view.type({ label: 'Your prompt' }, 'fix it')
   await view.press({ role: 'button', text: 'Enhance' })
-  assert.equal(sent[0].profileId, 'claude')
-  assert.equal(sent[0].model, 'opus')
+  assert.equal(sent.at(-1)?.model, 'claude-opus-5-5')
+
+  await view.select(menu, 'claude|opus')
+  await view.press({ role: 'button', text: 'Enhance' })
+  assert.equal(sent.at(-1)?.profileId, 'claude')
+  assert.equal(sent.at(-1)?.model, 'opus')
 
   // The profile's own model is sent as no override, so editing the profile later still applies.
   await view.select({ label: 'Model', type: 'Select' }, 'claude|haiku')
   await view.press({ role: 'button', text: 'Enhance' })
-  assert.equal(sent[1].model, undefined)
+  assert.equal(sent.at(-1)?.model, undefined)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
