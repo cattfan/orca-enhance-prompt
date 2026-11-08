@@ -47,7 +47,7 @@ import { isStyle, STYLE_LABELS, STYLES } from './prompts.ts'
 import { t, UI_LANGUAGES, uiLanguageSetting } from './i18n.ts'
 import { PRIVACY_KEYS } from './privacy.ts'
 import { percent, type Step } from './progress.ts'
-import type { AttemptView, ModelsView, ProfileInput } from './protocol.ts'
+import { PANEL_REQUEST_LIMIT_MS, type AttemptView, type ModelsView, type ProfileInput } from './protocol.ts'
 
 type Target = { terminalId: string; label: string; agent: string | null }
 type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string } | null
@@ -279,7 +279,7 @@ async function enhanceNow(): Promise<void> {
         ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
         exclude: read(excluded)
       },
-      { timeoutMs: 120_000, signal: controller.signal }
+      { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
     )
     set(result, answer.enhanced)
     set(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })

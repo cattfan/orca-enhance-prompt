@@ -20,7 +20,7 @@ import {
 } from './models.ts'
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelProfile, type ModelsConfig } from './presets.ts'
 import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts.ts'
-import type { ModelsView } from './protocol.ts'
+import { PANEL_REQUEST_LIMIT_MS, type ModelsView } from './protocol.ts'
 import { parsePrivacy, type Privacy } from './privacy.ts'
 import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
@@ -29,6 +29,13 @@ const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
 /** Orca waits 2 s for a hook; leave room to answer. */
 const HOOK_BUDGET_MS = 1700
+/**
+ * A panel run must answer before the panel stops waiting: the whole run (AI file picker and every
+ * model of the fallback chain) shares this budget, a few seconds under the panel's limit. Mutable
+ * for tests only.
+ */
+export const RUN_LIMITS = { budgetMs: PANEL_REQUEST_LIMIT_MS - 5_000, pickerMs: 25_000 }
+
 /** Model lists are fetched again after a day, or on Refresh. */
 const CATALOG_TTL_MS = 24 * 3600_000
 
@@ -136,13 +143,14 @@ async function pickFilesWithModel(
   settings: Settings,
   tree: string[],
   prompt: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  totalMs: number = RUN_LIMITS.pickerMs
 ): Promise<string[]> {
   const system =
     'You pick source files relevant to a coding task. Answer ONLY a JSON array of up to 8 file paths copied exactly from the list, most relevant first. No prose.'
   const user = `<task>\n${prompt}\n</task>\n<files>\n${tree.join('\n')}\n</files>`
   const list = candidates(config.profiles, config.selectorProfileId, settings.fallbackEnabled)
-  const { text } = await runChain(orca, list, system, user, chainOptions(settings, signal, { timeoutMs: 25_000 }))
+  const { text } = await runChain(orca, list, system, user, chainOptions(settings, signal, { timeoutMs: RUN_LIMITS.pickerMs, totalMs }))
   const match = /\[[\s\S]*\]/.exec(text)
   if (!match) return []
   let parsed: unknown
@@ -174,8 +182,12 @@ export async function enhance(
     exclude?: string[]
   },
   signal?: AbortSignal,
-  progress?: (level: ContextLevel, allowProjectFiles: boolean) => StepReporter
+  progress?: (level: ContextLevel, allowProjectFiles: boolean) => StepReporter,
+  budgetMs?: number
 ) {
+  const deadline = budgetMs === undefined ? undefined : Date.now() + budgetMs
+  /** What is left of the run's budget; undefined without one. */
+  const left = () => (deadline === undefined ? undefined : Math.max(0, deadline - Date.now()))
   const prompt = input.prompt.trim()
   if (!prompt) throw hostError('Write a prompt first.', 'invalid_params')
   const settings = await readSettings(orca)
@@ -193,7 +205,8 @@ export async function enhance(
     exclude: new Set(input.exclude ?? []),
     extraFiles: settings.extraContextFiles,
     excludePatterns: settings.excludePatterns,
-    pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal),
+    // The picker gets its own share, so the rewrite itself always has time left.
+    pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal, Math.min(RUN_LIMITS.pickerMs, (left() ?? Infinity) / 2)),
     allowGit: settings.privacy.allowGit,
     allowTerminal: settings.privacy.allowTerminalRead,
     onStep: step
@@ -220,6 +233,7 @@ export async function enhance(
       system,
       user,
       chainOptions(settings, signal, {
+        ...(deadline === undefined ? {} : { totalMs: left() }),
         onAttempt: (profile, model, attempt, total) =>
           step('model', 'running', `${profile.name} · ${model || 'default'}${attempt > 1 ? ` · ${attempt}/${total}` : ''}`)
       })
@@ -364,37 +378,50 @@ async function fetchCatalog(
   return apiCatalog(source.provider === 'anthropic' ? 'anthropic' : 'openai', source.baseUrl, source.typedKey || savedKey || envKey)
 }
 
+/**
+ * One Enhance from the panel. It answers within the panel's wait (RUN_LIMITS.budgetMs); when the panel
+ * has stopped waiting (closed, cancelled or timed out), the result is dropped and nothing is saved.
+ */
+export async function enhanceRequest(
+  orca: OrcaWorkerApi,
+  input: Parameters<typeof enhance>[1] & { runId?: string },
+  signal: AbortSignal,
+  panelId: string
+) {
+  const started = Date.now()
+  const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
+  // Progress goes only to the panel that asked, and only when it asked for it.
+  const progress = runId
+    ? (level: ContextLevel, allowProjectFiles: boolean) =>
+        createProgress(runId, planSteps(level, allowProjectFiles), (snapshot) =>
+          orca.panels.post('enhance.progress', snapshot, { panel: panelId })
+        )
+    : undefined
+  const result = await enhance(orca, input, signal, progress, RUN_LIMITS.budgetMs)
+  // The panel gave up while the model was answering: it shows an error, so keep no trace either.
+  if (signal.aborted) throw hostError('Cancelled.', 'cancelled')
+  const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
+  await addHistory(orca, result.settings, {
+    original: input.prompt.trim(),
+    enhanced: result.enhanced,
+    style: result.style,
+    model,
+    source: 'panel'
+  }).catch((error) => orca.log(`history: ${(error as Error).message}`))
+  return {
+    enhanced: result.enhanced,
+    model,
+    profileName: result.profile.name,
+    ms: Date.now() - started,
+    attempts: result.attempts,
+    context: view(result.items),
+    notes: result.notes
+  }
+}
+
 /** Enhance, Preview context, Send, Copy and the list of terminals to send to. */
 function registerRunHandlers(orca: OrcaWorkerApi): void {
-  orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
-    const started = Date.now()
-    const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
-    // Progress goes only to the panel that asked, and only when it asked for it.
-    const progress = runId
-      ? (level: ContextLevel, allowProjectFiles: boolean) =>
-          createProgress(runId, planSteps(level, allowProjectFiles), (snapshot) =>
-            orca.panels.post('enhance.progress', snapshot, { panel: panel.id })
-          )
-      : undefined
-    const result = await enhance(orca, input, signal, progress)
-    const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
-    await addHistory(orca, result.settings, {
-      original: input.prompt.trim(),
-      enhanced: result.enhanced,
-      style: result.style,
-      model,
-      source: 'panel'
-    }).catch((error) => orca.log(`history: ${(error as Error).message}`))
-    return {
-      enhanced: result.enhanced,
-      model,
-      profileName: result.profile.name,
-      ms: Date.now() - started,
-      attempts: result.attempts,
-      context: view(result.items),
-      notes: result.notes
-    }
-  })
+  orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => enhanceRequest(orca, input, signal, panel.id))
 
   orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude }) => {
     const settings = await readSettings(orca)

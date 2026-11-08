@@ -1,6 +1,9 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
 import type { ContextItemView, ProfileView, Preset, Provider } from './presets.ts'
 
+/** The longest a panel may wait for its worker (Orca caps `timeoutMs` at 120000). */
+export const PANEL_REQUEST_LIMIT_MS = 120_000
+
 export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
 export type ProfileInput = {
   id?: string

@@ -319,3 +319,42 @@ test('editing a profile from its card keeps "follow the preset" (no preset value
   assert.equal((host.data().storage.models as { profiles: Record<string, unknown>[] }).profiles[0].model, 'gpt-4.1-mini')
   await worker.deactivate()
 })
+
+test('a panel run answers within its budget even when every model of the chain hangs', async () => {
+  const saved = main.RUN_LIMITS.budgetMs
+  main.RUN_LIMITS.budgetMs = 400
+  globalThis.fetch = ((_url: RequestInfo | URL, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    })) as typeof fetch
+  const host = mockHost({
+    storage: { models: { profiles: [profile('one', 'openai'), profile('two', 'groq')] } },
+    secrets: { 'apiKey.one': 'k1', 'apiKey.two': 'k2' },
+    settings: { timeoutSeconds: 60, fallbackEnabled: true }
+  })
+  const worker = await mountWorker(main, { host })
+  const started = Date.now()
+  try {
+    await assert.rejects(worker.request('prompt.enhance', { prompt: 'fix it', level: 'off' }))
+    assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`)
+    assert.equal(host.data().storage.history, undefined)
+  } finally {
+    main.RUN_LIMITS.budgetMs = saved
+    await worker.deactivate()
+  }
+})
+
+test('when the panel stops waiting, a late answer is dropped and not saved to history', async () => {
+  globalThis.fetch = (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    return new Response(JSON.stringify(openaiAnswer('late answer')), { status: 200 })
+  }) as typeof fetch
+  const host = mockHost({ storage: { models: { profiles: [profile('one', 'openai')] } }, secrets: { 'apiKey.one': 'k1' } })
+  let orca: Parameters<typeof main.default>[0] | null = null
+  const worker = await mountWorker({ default: (api: Parameters<typeof main.default>[0]) => { orca = api; main.default(api) } }, { host })
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 10)
+  await assert.rejects(main.enhanceRequest(orca!, { prompt: 'fix it', level: 'off' }, controller.signal, 'enhance'), /Cancelled/)
+  assert.equal(host.data().storage.history, undefined)
+  await worker.deactivate()
+})
