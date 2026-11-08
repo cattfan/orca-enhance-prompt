@@ -53,7 +53,7 @@ export const PANEL_CSS = `
 .btn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:6px 12px;font-weight:600;font-size:13px;border:1px solid var(--border);background:var(--bg);white-space:nowrap}
 .btn.solid{background:var(--primary);color:var(--bg);border-color:var(--primary)}.btn.ghost{border-color:transparent;background:transparent}
 .btn.sm{padding:4px 10px;font-size:12px}.btn.tone-danger{color:var(--danger)}
-.ibtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px}.ibtn.sm{width:26px;height:26px}.ibtn.tone-danger{color:var(--danger)}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px}.ibtn.sm{width:26px;height:26px}.ibtn.tone-danger{color:var(--danger)}.ibtn.outline{border:1px solid var(--border);background:var(--accent-bg)}
 .tabs{display:flex;gap:16px;border-bottom:1px solid var(--border);margin-bottom:12px}
 .tab{display:flex;align-items:center;gap:6px;padding:6px 2px 9px;color:var(--muted);font-weight:500}.tab.on{color:var(--fg);border-bottom:2px solid var(--fg);margin-bottom:-1px}
 .callout{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
@@ -119,7 +119,7 @@ function node(n) {
     case 'Button':
       return `<span class="${cls('btn', p.variant ?? 'outline', p.size === 'sm' && 'sm', p.tone && `tone-${p.tone}`)}">${p.icon ? icon(p.icon, 15) : ''}${textOf(kids)}</span>`
     case 'IconButton':
-      return `<span class="${cls('ibtn', p.size === 'sm' && 'sm', p.tone && `tone-${p.tone}`)}" title="${esc(p.label)}">${icon(p.icon, p.size === 'sm' ? 15 : 17)}</span>`
+      return `<span class="${cls('ibtn', p.size === 'sm' && 'sm', p.variant === 'outline' && 'outline', p.tone && `tone-${p.tone}`)}" title="${esc(p.label)}">${icon(p.icon, p.size === 'sm' ? 15 : 17)}</span>`
     case 'Spinner':
       return `<span class="row g-xs muted"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>${p.labelHidden ? '' : esc(p.label)}</span>`
     case 'Tabs': {

@@ -20,6 +20,8 @@
 
 <h3 align="center"><a href="#install"><ins>Install Enhance Prompt</ins></a></h3>
 
+<p align="center"><a href="https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community"><img src="https://img.shields.io/badge/Open%20in%20Orca-community%20catalog-4493F8?style=for-the-badge" alt="Open in Orca" /></a></p>
+
 <p align="center">
   <img src="assets/cover.jpg" alt="The Enhance Prompt panel turning “login page is broken on mobile” into a structured bug-fix prompt that names the files and the test command" width="960" />
 </p>
@@ -149,9 +151,12 @@ Works with **your subscription CLI** or **any API key**.
 
 ### From Orca
 
-1. Open **Settings → Plugins**, search for **Enhance Prompt** and click **Install**.
-2. Review what it asks for and approve it.
-3. Open the right sidebar with `Ctrl+L` (`⌘L` on macOS) and click the **lightbulb** tab. Clicking **Enhance: off** in the status bar does the same.
+**[Open in Orca](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** takes you straight to the plugin's page in Orca. Or by hand:
+
+1. Open **Settings → Plugins**. Once, add the community catalog with **Add marketplace**: URL `https://github.com/stablyai/orca-community-plugins.git`, ref `main`. Turn on the setting that allows full-access plugins.
+2. Search for **Enhance Prompt** and click **Install**.
+3. Review what it asks for and approve it.
+4. Open the right sidebar with `Ctrl+L` (`⌘L` on macOS) and click the **lightbulb** tab. Clicking **Enhance: off** in the status bar does the same.
 
 ### From the CLI
 

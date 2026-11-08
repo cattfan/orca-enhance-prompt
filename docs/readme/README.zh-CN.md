@@ -126,9 +126,12 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 ### 在 Orca 中
 
-1. 打开 **Settings → Plugins**，搜索 **Enhance Prompt** 并点击 **Install**。
-2. 查看并批准插件请求的权限。
-3. 用 `Ctrl+L`（macOS 上为 `⌘L`）打开右侧边栏，点击 **灯泡** 标签。也可以点击状态栏的 **Enhance: off**。
+**[在 Orca 中打开](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** 会直接打开插件页面。或手动安装：
+
+1. 打开 **Settings → Plugins**。首次使用时，用 **Add marketplace** 添加社区目录：URL `https://github.com/stablyai/orca-community-plugins.git`，ref `main`。并开启允许完全访问插件的设置。
+2. 搜索 **Enhance Prompt** 并点击 **Install**。
+3. 查看并批准插件请求的权限。
+4. 用 `Ctrl+L`（macOS 上为 `⌘L`）打开右侧边栏，点击 **灯泡** 标签。也可以点击状态栏的 **Enhance: off**。
 
 ### 通过 CLI
 

@@ -3,6 +3,17 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.8.2] - 2026-11-08
+
+### Fixed
+- **Nothing is hidden in a narrow sidebar**: Orca's tab strip hid the tabs that did not fit, so the panel now
+  uses an icon navigation (Enhance, History, Models, Privacy) with the section name on the left; it fits any
+  width. The send row and the model card rows wrap instead of clipping.
+
+### Added
+- **Open in Orca** button and community-catalog install steps in the READMEs (English, Vietnamese, Chinese).
+- The live preview takes `?width=` and `?theme=` in its URL.
+
 ## [1.8.1] - 2026-11-08
 
 ### Fixed
@@ -187,6 +198,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.8.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.2
 [1.8.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.1
 [1.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.0
 [1.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.7.0

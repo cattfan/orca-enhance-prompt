@@ -106,6 +106,8 @@ const PAGE = `<!doctype html>
   const $ = (id) => document.getElementById(id)
   const prefs = JSON.parse(localStorage.getItem('prefs') || '{}')
   for (const key of ['theme', 'width']) if (prefs[key]) $(key).value = prefs[key]
+  const query = new URLSearchParams(location.search)
+  for (const key of ['theme', 'width']) if (query.get(key)) $(key).value = query.get(key)
   $('open').checked = !!prefs.open
   let data = null
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])

@@ -11,6 +11,8 @@ Enhance Prompt lives in Orca's **right sidebar**.
 
 If you don't see the lightbulb, check that the plugin is enabled under **Settings → Plugins → Enhance Prompt**.
 
+The four icons at the top right of the panel switch between **Enhance** (lightbulb), **History** (book), **Models** (robot) and **Privacy** (i). They fit any sidebar width; hover one to see its name.
+
 ## 2. Add a model
 
 Open the **Models** tab.

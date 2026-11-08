@@ -48,9 +48,9 @@ test('the panel renders in Vietnamese from the uiLanguage setting', async () => 
   assert.ok(view.find({ label: 'Prompt của bạn' }))
   assert.ok(view.find({ text: /Chưa có model/ }) ?? view.find({ label: 'Chưa có model' }))
   // The language menu is at the bottom of the Models tab.
-  await view.select({ type: 'Tabs' }, 'models')
+  await view.press({ role: 'button', label: 'Model' })
   await view.select({ label: 'Ngôn ngữ' }, 'zh')
-  await view.select({ type: 'Tabs' }, 'enhance')
+  await view.press({ role: 'button', label: '优化' })
   assert.ok(view.find({ label: '你的提示词' }))
   assert.equal(host.data().settings.uiLanguage, 'zh')
   assert.deepEqual(view.errors, [])

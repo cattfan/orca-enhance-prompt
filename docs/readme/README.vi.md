@@ -126,9 +126,12 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 ### Từ Orca
 
-1. Mở **Settings → Plugins**, tìm **Enhance Prompt** và bấm **Install**.
-2. Xem các quyền plugin xin và duyệt.
-3. Mở thanh bên phải bằng `Ctrl+L` (`⌘L` trên macOS) rồi bấm tab **bóng đèn**. Bấm **Enhance: off** ở thanh trạng thái cũng được.
+**[Mở trong Orca](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** đưa bạn thẳng tới trang của plugin trong Orca. Hoặc làm tay:
+
+1. Mở **Settings → Plugins**. Lần đầu, thêm catalog cộng đồng bằng **Add marketplace**: URL `https://github.com/stablyai/orca-community-plugins.git`, ref `main`. Bật setting cho phép plugin full access.
+2. Tìm **Enhance Prompt** và bấm **Install**.
+3. Xem các quyền plugin xin và duyệt.
+4. Mở thanh bên phải bằng `Ctrl+L` (`⌘L` trên macOS) rồi bấm tab **bóng đèn**. Bấm **Enhance: off** ở thanh trạng thái cũng được.
 
 ### Từ CLI
 

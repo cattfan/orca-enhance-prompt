@@ -26,8 +26,6 @@ import {
   Spinner,
   Stack,
   Switch,
-  Tab,
-  Tabs,
   Text,
   Textarea,
   update,
@@ -733,7 +731,7 @@ function ResultCard({ output }: { output: string }) {
       </Row>
       <Textarea label={t('Enhanced prompt')} labelHidden rows={10} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
       <RunInfo />
-      <Row gap="xs">
+      <Row gap="xs" wrap>
         <TargetPicker />
         <Button variant="solid" icon="play" onPress={() => void send(output)} disabled={!read(target) || working !== null}>
           {t('Send')}
@@ -1074,7 +1072,7 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
           )}
         </Row>
       </Row>
-      <Row gap="xs" justify="between">
+      <Row gap="xs" justify="between" wrap>
         <QuickModel profile={profile} fromEnv={fromEnv} />
         <Badge tone={profile.keySource === 'none' ? 'warning' : profile.enabled ? 'success' : 'neutral'}>
           {profile.enabled ? t(KEY_LABEL[profile.keySource]) : t('off')}
@@ -1313,29 +1311,51 @@ function ModelsTab() {
   )
 }
 
-export default function Panel() {
+const SECTIONS = [
+  { value: 'enhance', label: 'Enhance', icon: 'lightbulb' },
+  { value: 'history', label: 'History', icon: 'book' },
+  { value: 'models', label: 'Models', icon: 'agent' },
+  { value: 'privacy', label: 'Privacy', icon: 'info' }
+] as const
+
+function openSection(value: string): void {
+  set(tab, value)
+  if (value === 'privacy') void refreshDataSummary()
+}
+
+/**
+ * Icon navigation instead of Tabs: four 30px buttons fit any sidebar width, where Orca's tab strip
+ * hides the tabs that do not fit. The section name sits on the left; each icon names itself on hover.
+ */
+function Nav() {
+  const current = SECTIONS.find((section) => section.value === read(tab)) ?? SECTIONS[0]
   return (
-    <Tabs
-      label="Enhance Prompt"
-      value={read(tab)}
-      onChange={(value) => {
-        set(tab, value)
-        if (value === 'privacy') void refreshDataSummary()
-      }}
-    >
-      <Tab value="enhance" label={t('Enhance')} icon="lightbulb">
-        <EnhanceTab />
-      </Tab>
-      <Tab value="history" label={t('History')} icon="book">
-        <HistoryTab />
-      </Tab>
-      <Tab value="models" label={t('Models')} icon="agent">
-        <ModelsTab />
-      </Tab>
-      <Tab value="privacy" label={t('Privacy')} icon="info">
-        <PrivacyTab />
-      </Tab>
-    </Tabs>
+    <Row justify="between" gap="xs">
+      <Text weight="semibold" truncate>
+        {t(current.label)}
+      </Text>
+      <Row gap="none">
+        {SECTIONS.map((section) => (
+          <IconButton
+            key={section.value}
+            icon={section.icon}
+            label={section.value === 'history' ? `${t('History')} (${read(history).length})` : t(section.label)}
+            variant={section.value === current.value ? 'outline' : 'ghost'}
+            onPress={() => openSection(section.value)}
+          />
+        ))}
+      </Row>
+    </Row>
   )
 }
 
+export default function Panel() {
+  const current = read(tab)
+  return (
+    <Stack gap="sm">
+      <Nav />
+      <Separator />
+      {current === 'history' ? <HistoryTab /> : current === 'models' ? <ModelsTab /> : current === 'privacy' ? <PrivacyTab /> : <EnhanceTab />}
+    </Stack>
+  )
+}

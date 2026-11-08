@@ -90,7 +90,7 @@ test('warns when no model is configured, and adds one from the Models tab', asyn
   })
   const view = await mount(panel, { host })
   assert.ok(view.find({ label: 'No model yet' }) ?? view.find({ text: /No model yet/ }))
-  await view.select({ type: 'Tabs' }, 'models')
+  await view.press({ role: 'button', label: 'Models' })
   await view.press({ role: 'button', text: 'Add model' })
   await view.select({ label: 'Preset' }, 'groq')
   await view.type({ label: 'API key' }, 'gsk-1')
