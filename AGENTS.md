@@ -36,6 +36,14 @@ The test suite usually finishes in seconds, but some tests start real processes 
   scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
   `orca-plugin.json` and `CHANGELOG.md` is changed or untracked.
 
+## End-to-end in the real Orca
+
+`node scripts/e2e.mjs` loads this folder into the running Orca as a development plugin
+(`local.enhance-prompt`, next to the installed one, with its own empty storage), drives its worker,
+hook and panel through Orca (`dev request`, `dev hook`, `shot`), then unloads it. It only reads: no
+model call, no terminal send, nothing saved. The first run prints the approval fingerprint Orca asks
+for; approve it yourself, then run `node scripts/e2e.mjs --approve <fingerprint>`.
+
 ## Live preview
 
 `npm run dev` serves http://localhost:5173: the panel's scenarios from `src/panel.check.ts`, drawn by
