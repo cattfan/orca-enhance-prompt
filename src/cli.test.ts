@@ -89,3 +89,77 @@ test('a Claude Code profile on "CLI default" runs claude without --model', async
   assert.ok(!/--model/.test(answer.enhanced), answer.enhanced)
   await worker.deactivate()
 })
+
+/** A CLI that starts a grandchild node (like an npm .cmd shim does) and runs for 8 s. */
+function slowCli(): { command: string; customArgs: string; pidFile: string } {
+  const pidFile = join(dir, `pid-${Math.random().toString(36).slice(2)}.txt`).replace(/\\/g, '/')
+  const slow = join(dir, 'slow.mjs').replace(/\\/g, '/')
+  writeFileSync(slow, `import { writeFileSync } from 'node:fs'\nwriteFileSync(process.argv[2], String(process.pid))\nsetTimeout(() => process.stdout.write('done'), 8000)\n`)
+  if (process.platform === 'win32') {
+    const shim = join(dir, 'slow.cmd')
+    writeFileSync(shim, `@"${node}" "${slow}" %*\r\n`)
+    return { command: shim, customArgs: pidFile, pidFile }
+  }
+  const shim = join(dir, 'slow.sh')
+  writeFileSync(shim, `#!/bin/sh\n"${node}" "${slow}" "$@"\n`, { mode: 0o755 })
+  return { command: shim, customArgs: pidFile, pidFile }
+}
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+async function gone(pid: number): Promise<boolean> {
+  for (let i = 0; i < 30 && alive(pid); i++) await new Promise((resolve) => setTimeout(resolve, 100))
+  return !alive(pid)
+}
+async function pidFrom(file: string): Promise<number> {
+  const { readFileSync, existsSync } = await import('node:fs')
+  for (let i = 0; i < 50 && !existsSync(file); i++) await new Promise((resolve) => setTimeout(resolve, 50))
+  return Number(readFileSync(file, 'utf8'))
+}
+
+test('cancelling runCli stops the whole CLI tree at once (shim .cmd/.sh launching node)', async () => {
+  const cli = slowCli()
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 600)
+  const started = Date.now()
+  await assert.rejects(runCli({ kind: 'custom-cli', model: '', ...cli }, 's', 'u', controller.signal), /cancelled or timed out/)
+  assert.ok(Date.now() - started < 3000, `settled after ${Date.now() - started} ms`)
+  assert.ok(await gone(await pidFrom(cli.pidFile)), 'the grandchild node is still running')
+})
+
+test('cancelling runCli of an .exe (node itself) stops it too; a cancel before start starts nothing', async () => {
+  const slow = join(dir, 'slow.mjs').replace(/\\/g, '/')
+  slowCli()
+  const pidFile = join(dir, 'exe-pid.txt').replace(/\\/g, '/')
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 600)
+  const started = Date.now()
+  await assert.rejects(runCli({ kind: 'custom-cli', command: node, model: '', customArgs: `${slow} ${pidFile}` }, 's', 'u', controller.signal))
+  assert.ok(Date.now() - started < 3000)
+  assert.ok(await gone(await pidFrom(pidFile)))
+
+  const { existsSync } = await import('node:fs')
+  const never = join(dir, 'never-pid.txt').replace(/\\/g, '/')
+  await assert.rejects(runCli({ kind: 'custom-cli', command: node, model: '', customArgs: `${slow} ${never}` }, 's', 'u', AbortSignal.abort()), /cancelled/)
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.ok(!existsSync(never), 'a process was started after the cancel')
+})
+
+test('a cancel after the CLI already finished changes nothing; readCommand times out a shim tree', async () => {
+  const controller = new AbortController()
+  const out = await runCli({ kind: 'custom-cli', command: node, model: '', customArgs: script }, 'S', '<request>\nok\n</request>', controller.signal)
+  controller.abort()
+  assert.match(out, /^Rewritten: ok/)
+
+  const { readCommand } = await import('./cli.ts')
+  const cli = slowCli()
+  const started = Date.now()
+  assert.equal(await readCommand(cli.command, [cli.pidFile], 600), null)
+  assert.ok(Date.now() - started < 3000, `settled after ${Date.now() - started} ms`)
+  assert.ok(await gone(await pidFrom(cli.pidFile)))
+})

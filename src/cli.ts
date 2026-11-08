@@ -1,7 +1,7 @@
 // Runs an installed agent CLI in one-shot mode, so the rewrite uses the person's own subscription
 // (Claude Pro/Max via Claude Code, ChatGPT via Codex, Google via Gemini CLI) instead of an API key.
 // Arguments are fixed tokens (plus a validated model name); the prompt always goes over stdin.
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
@@ -104,6 +104,33 @@ function cmdQuote(arg: string): string {
   return arg === '' || /\s/.test(arg) ? `"${arg}"` : arg
 }
 
+/**
+ * Stops a CLI and everything it started. On Windows a `.cmd` shim (npm installs codex and gemini
+ * that way) runs node under cmd.exe, and killing cmd.exe leaves node running with our pipes open, so
+ * the whole tree goes with `taskkill /T /F`. Elsewhere the CLI leads its own process group
+ * (spawned detached), which is signalled as a whole. Safe to call after the process has exited.
+ */
+export function killTree(child: ChildProcess): void {
+  const pid = child.pid
+  if (pid === undefined || child.exitCode !== null || child.signalCode !== null) {
+    child.kill()
+    return
+  }
+  if (process.platform === 'win32') {
+    const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+    killer.on('error', () => child.kill())
+    return
+  }
+  try {
+    process.kill(-pid, 'SIGTERM')
+  } catch {
+    child.kill()
+  }
+}
+
+/** Spawn options shared by every CLI call: its own process group off Windows, so killTree reaches all of it. */
+const GROUP = process.platform === 'win32' ? {} : { detached: true }
+
 /** Runs a binary with fixed arguments and returns stdout; null on any failure. For read-only queries. */
 export function readCommand(binary: string, args: string[], timeoutMs = 20_000): Promise<string | null> {
   const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
@@ -116,13 +143,17 @@ export function readCommand(binary: string, args: string[], timeoutMs = 20_000):
             windowsVerbatimArguments: true,
             stdio: ['ignore', 'pipe', 'ignore']
           })
-        : spawn(binary, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
+        : spawn(binary, args, { ...GROUP, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
     } catch {
       resolve(null)
       return
     }
     let out = ''
-    const timer = setTimeout(() => child.kill(), timeoutMs)
+    // On timeout: stop the whole tree and answer now, without waiting for the pipes to close.
+    const timer = setTimeout(() => {
+      killTree(child)
+      resolve(null)
+    }, timeoutMs)
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
       if (out.length < 8_000_000) out += chunk
     })
@@ -156,8 +187,13 @@ export async function runCli(
   const args = cliArgs(options.kind, options.model, outFile, options.customArgs)
   const input = `<instructions>\n${system}\n</instructions>\n\n${user}`
   const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
+  const cancelled = () => new LlmError('The request was cancelled or timed out.', 'timeout')
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(cancelled())
+        return
+      }
       const child = isCmd
         ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${[cmdQuote(binary), ...args.map(cmdQuote)].join(' ')}"`], {
             cwd,
@@ -165,7 +201,7 @@ export async function runCli(
             windowsVerbatimArguments: true,
             stdio: ['pipe', 'pipe', 'pipe']
           })
-        : spawn(binary, args, { cwd, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+        : spawn(binary, args, { ...GROUP, cwd, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
       let out = ''
       let err = ''
       child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
@@ -174,8 +210,13 @@ export async function runCli(
       child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
         if (err.length < 20_000) err += chunk
       })
-      const onAbort = () => child.kill()
-      signal?.addEventListener('abort', onAbort)
+      // Cancel or timeout: stop the CLI and everything it started, and answer now (a grandchild
+      // holding the pipes would otherwise delay 'close' until it finished on its own).
+      const onAbort = () => {
+        killTree(child)
+        reject(cancelled())
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
       child.on('error', (error) => {
         signal?.removeEventListener('abort', onAbort)
         reject(new LlmError(`Could not start ${binary}: ${error.message}`, 'unavailable'))
@@ -183,7 +224,7 @@ export async function runCli(
       child.on('close', (code) => {
         signal?.removeEventListener('abort', onAbort)
         if (signal?.aborted) {
-          reject(new LlmError('The request was cancelled or timed out.', 'timeout'))
+          reject(cancelled())
         } else if (code === 0) {
           resolve(out)
         } else {
