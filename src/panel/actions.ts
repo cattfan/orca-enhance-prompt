@@ -10,7 +10,7 @@ import { type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
 import { type Form, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
-export let inFlight: AbortController | null = null
+let inFlight: AbortController | null = null
 
 // ---------------------------------------------------------------- data
 
@@ -308,11 +308,11 @@ export async function addDetected(presetId: string, path: string): Promise<void>
 
 export function applyPreset(id: string): void {
   const preset = presetById(id)
-  update(form, (current) =>
-    current
-      ? { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, command: '', args: '', name: current.id ? current.name : preset.label }
-      : current
-  )
+  update(form, (current) => {
+    if (!current) return current
+    const name = current.id ? current.name : preset.label
+    return { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, command: '', args: '', name }
+  })
   const current = read(form)
   if (current) void loadCatalog('form', formCatalogInput(current))
 }
@@ -407,7 +407,12 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
       forgetSaved()
     }
     set(confirmWipe, false)
-    set(notice, { tone: 'success', text: what === 'all' ? t('All plugin data deleted.') : what === 'history' ? t('History cleared.') : t('Model lists cleared.') })
+    const done: Record<typeof what, () => string> = {
+      all: () => t('All plugin data deleted.'),
+      history: () => t('History cleared.'),
+      catalogs: () => t('Model lists cleared.')
+    }
+    set(notice, { tone: 'success', text: done[what]() })
     await refreshModels()
     await refreshDataSummary()
   } catch (error) {

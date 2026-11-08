@@ -82,7 +82,7 @@ export function statusLinePaths(line: string): string[] {
 
 export function changedPaths(statusLines: string[]): string[] {
   return statusLines
-    .map((line) => line.slice(3).split(' -> ').pop()!.replace(/^"|"$/g, ''))
+    .map((line) => (line.slice(3).split(' -> ').pop() ?? '').replace(/^"|"$/g, ''))
     .filter(Boolean)
 }
 

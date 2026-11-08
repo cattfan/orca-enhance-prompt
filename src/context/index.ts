@@ -234,7 +234,8 @@ async function dynamicParts(
     const log = skip('git:log') ? null : await gitLog(root, 6, signal)
     stopIfCancelled(signal)
     if (log?.trim()) out.push(item('git:log', 'git', msg('label.log'), log.trim()))
-    const diff = skip('git:diff') ? null : await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns), signal)
+    const diffChars = options.level === 'max' ? 9000 : 5000
+    const diff = skip('git:diff') ? null : await gitDiff(root, diffChars, (path) => !isExcluded(path, patterns), signal)
     stopIfCancelled(signal)
     if (diff) out.push(item('git:diff', 'git', msg('label.diff'), `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
