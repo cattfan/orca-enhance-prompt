@@ -3,6 +3,19 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.0.1] - 2026-11-08
+
+### Fixed
+
+- The panel opens faster. Claude Code's model list is read straight from its program file bytes and remembered until that file changes, `claude --help` is read once per version, and the panel's simultaneous requests for one list share a single fetch. Stored-data counts load only when Privacy is opened.
+- Text sent to a terminal no longer carries control characters (ESC, Ctrl-C, DEL and the like) from the model's answer, so it cannot type keystrokes into the agent.
+- A send that fails part-way still closes its bracketed paste, so the agent is not left stuck in paste mode.
+- Preview context now obeys the Privacy switches (project files, git, terminal output) exactly like a run.
+- Auto-enhance (AI) no longer adds cached project context while "Read project files" is off.
+- Model lists use API keys from environment variables only while that Privacy switch is on.
+- History no longer loses an entry when a panel run and auto-enhance finish at the same time.
+- Closing the panel during a run stops the model call; a cancelled run shows its open step as skipped, not failed.
+
 ## [2.0.0] - 2026-11-08
 
 ### Fixed
@@ -233,6 +246,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.0.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.1
 [2.0.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.0
 [1.9.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.9.0
 [1.8.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.2
