@@ -153,7 +153,9 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   }
 
   if (level === 'max' && options.allowTerminal === false) notes.push('Terminal output is off in Privacy.')
-  const readTerminal = level === 'max' && options.allowTerminal !== false && Boolean(options.terminalId) && options.terminalLines > 0
+  // An unticked item is not read at all (not just left out afterwards).
+  const readTerminal =
+    level === 'max' && options.allowTerminal !== false && Boolean(options.terminalId) && options.terminalLines > 0 && !options.exclude.has('terminal')
   if (level === 'max' && !readTerminal) step('terminal', 'skipped')
   if (readTerminal && options.terminalId) {
     step('terminal', 'running')
@@ -191,9 +193,10 @@ async function dynamicParts(
 
   if (parts.isGit) {
     step('git', 'running')
+    const skip = (id: string) => options.exclude.has(id)
+    // Status also ranks changed files higher, so it is read even when its item is unticked.
     const status = await gitStatus(root)
-    if (status && (status.changed.length > 0 || status.branchLine)) {
-      changed = new Set(changedPaths(status.changed))
+    if (status && !skip('git:status') && (status.changed.length > 0 || status.branchLine)) {
       const shown = status.changed.filter((line) => !statusLinePaths(line).some((path) => isSensitive(path) || isExcluded(path, patterns)))
       out.push(
         item(
@@ -204,9 +207,10 @@ async function dynamicParts(
         )
       )
     }
-    const log = await gitLog(root, 6)
+    if (status) changed = new Set(changedPaths(status.changed))
+    const log = skip('git:log') ? null : await gitLog(root, 6)
     if (log?.trim()) out.push(item('git:log', 'git', 'Recent commits', log.trim()))
-    const diff = await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns))
+    const diff = skip('git:diff') ? null : await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns))
     if (diff) out.push(item('git:diff', 'git', 'Uncommitted changes', `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {
@@ -252,6 +256,7 @@ async function dynamicParts(
 
   const perFile = options.level === 'max' ? 1800 : 1400
   for (const entry of picked) {
+    if (options.exclude.has(`file:${entry.path}`)) continue
     const text = await readText(root, entry.path)
     if (!text) continue
     out.push(item(`file:${entry.path}`, 'file', entry.path, snippet(text, entry.hits, perFile), entry.why))

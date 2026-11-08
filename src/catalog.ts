@@ -169,8 +169,10 @@ async function claudeHelpAliases(binary: string): Promise<string[] | null> {
   const signature = info ? `${binary}:${info.size}:${info.mtimeMs}` : binary
   if (helpMemo?.signature === signature) return helpMemo.aliases
   const help = await readCommand(binary, ['--help'], 10_000)
-  const at = help ? help.indexOf('--model') : -1
-  const aliases = help && at >= 0 ? aliasesFromText(help.slice(at, at + 400).replace(/\s+/g, ' ')) : null
+  // A failed or timed-out run is not remembered: the next list asks again.
+  if (help === null) return null
+  const at = help.indexOf('--model')
+  const aliases = at >= 0 ? aliasesFromText(help.slice(at, at + 400).replace(/\s+/g, ' ')) : null
   helpMemo = { signature, aliases }
   return aliases
 }

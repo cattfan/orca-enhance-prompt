@@ -10,7 +10,8 @@ export function git(
   return new Promise((resolve) => {
     execFile(
       'git',
-      ['-c', 'core.quotepath=off', '-c', 'color.ui=never', ...args],
+      // core.fsmonitor=false: a repository's own config cannot make a read run a program.
+      ['-c', 'core.quotepath=off', '-c', 'color.ui=never', '-c', 'core.fsmonitor=false', ...args],
       {
         cwd,
         timeout: options.timeoutMs ?? 4000,

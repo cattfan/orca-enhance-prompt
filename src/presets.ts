@@ -34,8 +34,18 @@ export const PRESETS: Preset[] = [
 
 export const isCliPreset = (id: string) => presetById(id).provider === 'cli'
 
+/** The preset used for an unknown id: OpenAI-compatible, everything typed by the person. */
+const CUSTOM_PRESET: Preset = PRESETS.find((preset) => preset.id === 'custom') ?? {
+  id: 'custom',
+  label: 'Custom (OpenAI-compatible)',
+  provider: 'openai',
+  baseUrl: '',
+  model: '',
+  env: ''
+}
+
 export function presetById(id: string): Preset {
-  return PRESETS.find((preset) => preset.id === id) ?? PRESETS.find((preset) => preset.id === 'custom')!
+  return PRESETS.find((preset) => preset.id === id) ?? CUSTOM_PRESET
 }
 
 export type ModelProfile = {

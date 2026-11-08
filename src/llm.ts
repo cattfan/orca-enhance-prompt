@@ -87,6 +87,29 @@ async function readError(response: Response): Promise<string> {
   return body.slice(0, 300) || response.statusText
 }
 
+/**
+ * The answer's JSON. A proxy, captive portal or broken gateway can answer 200 with an HTML page or
+ * nothing at all: that is reported as the endpoint being unavailable (so fallback moves on, also
+ * with "transient only"), naming what came back instead of a bare "Unexpected token <".
+ */
+async function readJson(response: Response, baseUrl: string, signal?: AbortSignal): Promise<unknown> {
+  let body: string
+  try {
+    body = await response.text()
+  } catch (error) {
+    if (signal?.aborted) throw new LlmError('The request was cancelled or timed out.', 'timeout')
+    throw new LlmError(`${baseUrl} stopped answering: ${(error as Error).message}`, 'unavailable')
+  }
+  try {
+    return JSON.parse(body) as unknown
+  } catch {
+    const type = response.headers.get('content-type')?.split(';')[0] || 'no content type'
+    const text = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+    const what = body.trim() ? `${type}: "${text}"` : 'an empty answer'
+    throw new LlmError(`${baseUrl} did not answer with JSON (${what}). A proxy or sign-in page may be in the way.`, 'unavailable')
+  }
+}
+
 export async function complete(
   config: LlmConfig,
   system: string,
@@ -150,7 +173,7 @@ export async function complete(
     const code = response.status === 429 ? 'rate_limited' : 'action_failed'
     throw new LlmError(`${response.status}: ${await readError(response)}`, code, response.status)
   }
-  const data = (await response.json()) as {
+  const data = (await readJson(response, config.baseUrl, signal)) as {
     content?: { type: string; text?: string }[]
     choices?: { message?: { content?: string | { type: string; text?: string }[] } }[]
   }
