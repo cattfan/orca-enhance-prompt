@@ -17,9 +17,11 @@ const claude: ProfileView = {
   command: '',
   args: '',
   keySource: 'subscription',
-  envName: ''
+  envName: '',
+  effectiveBaseUrl: '',
+  effectiveModel: 'haiku'
 }
-const codex: ProfileView = { ...claude, id: 'codex', name: 'Codex', preset: 'codex', model: '' }
+const codex: ProfileView = { ...claude, id: 'codex', name: 'Codex', preset: 'codex', model: '', effectiveModel: '' }
 
 test('lists each model of each profile and sends the one you pick', async () => {
   const sent: { profileId?: string | null; model?: string }[] = []

@@ -60,3 +60,32 @@ test('a CLI profile works in the chain, needs no key, and is skipped by the hook
   assert.deepEqual(await worker.hooks.fire('agent.prompt.before', event), { kind: 'continue', event })
   await worker.deactivate()
 })
+
+test('"CLI default" (model \'\') passes no model flag for every CLI preset; an API profile falls back to its preset', async () => {
+  const { effectiveModel } = await import('./models.ts')
+  const { PRESETS } = await import('./presets.ts')
+  for (const preset of PRESETS.filter((entry) => entry.provider === 'cli')) {
+    const profile = { id: 'p', name: 'p', preset: preset.id, provider: 'cli' as const, baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+    assert.equal(effectiveModel(profile), '', preset.id)
+    const args = cliArgs(preset.id as 'claude-code', effectiveModel(profile), '/tmp/o', '')
+    assert.ok(!args.includes('--model') && !args.includes('-m'), `${preset.id}: ${args.join(' ')}`)
+    assert.equal(effectiveModel({ ...profile, model: 'sonnet' }), 'sonnet')
+  }
+  const api = { id: 'a', name: 'a', preset: 'openai', provider: 'openai' as const, baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+  assert.equal(effectiveModel(api), 'gpt-4.1-mini')
+})
+
+test('a Claude Code profile on "CLI default" runs claude without --model', async () => {
+  const fake = join(dir, process.platform === 'win32' ? 'claude.cmd' : 'claude')
+  writeFileSync(fake, process.platform === 'win32' ? '@echo off\r\necho ARGS %*\r\n' : '#!/bin/sh\necho ARGS "$@"\n', { mode: 0o755 })
+  const profile = { id: 'cc', name: 'Claude Code', preset: 'claude-code', provider: 'cli', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true, command: fake, args: '' }
+  const host = mockHost({ storage: { models: { profiles: [profile] } }, results: { 'workspace.readContext': null, 'agents.list': { agents: [] } } })
+  const worker = await mountWorker(main, { host })
+  const view = await worker.request('models.get')
+  assert.equal(view.profiles[0].model, '')
+  assert.equal(view.profiles[0].effectiveModel, '')
+  const answer = await worker.request('prompt.enhance', { prompt: 'add dark mode', level: 'off' })
+  assert.match(answer.enhanced, /^ARGS -p/)
+  assert.ok(!/--model/.test(answer.enhanced), answer.enhanced)
+  await worker.deactivate()
+})

@@ -829,14 +829,14 @@ function modelMenu() {
     const add = (id: string, label: string) => {
       if (seen.has(id)) return
       seen.add(id)
-      const saved = id !== '' && id === profile.model
+      const saved = id !== '' && id === profile.effectiveModel
       options.push({
         value: `${profile.id}${MODEL_SEP}${id || PROFILE_DEFAULT}`,
         label: `${profile.name} · ${label}${saved ? ` · ${t('default')}` : ''}`
       })
     }
-    if (profile.provider === 'cli' && !profile.model) add('', t('CLI default'))
-    else if (profile.model && !listed.some((model) => model.id === profile.model)) add(profile.model, profile.model)
+    if (profile.provider === 'cli' && !profile.effectiveModel) add('', t('CLI default'))
+    else if (profile.effectiveModel && !listed.some((model) => model.id === profile.effectiveModel)) add(profile.effectiveModel, profile.effectiveModel)
     for (const model of listed) add(model.id, shortModelName(model.id, model.label))
   }
   return options
@@ -847,7 +847,7 @@ function currentModelValue(): string {
   if (choice === 'auto') return 'auto'
   const profile = read(enabledProfiles).find((entry) => entry.id === choice)
   if (!profile) return 'auto'
-  const model = read(modelChoice) || profile.model
+  const model = read(modelChoice) || profile.effectiveModel
   return `${choice}${MODEL_SEP}${model || PROFILE_DEFAULT}`
 }
 
@@ -861,7 +861,7 @@ function pickModel(value: string): void {
   const profile = read(enabledProfiles).find((entry) => entry.id === profileId)
   set(profileChoice, profileId)
   // The profile's own model is stored as '' so a later change to the profile follows through.
-  set(modelChoice, model === PROFILE_DEFAULT || model === profile?.model ? '' : model)
+  set(modelChoice, model === PROFILE_DEFAULT || model === profile?.effectiveModel ? '' : model)
 }
 
 /** The model menu in the composer: every model you can use right now, one click away. */
@@ -1053,7 +1053,7 @@ function ModelPicker({ current }: { current: Form }) {
         {options.length > 0 ? (
           <Select
             label={label}
-            placeholder={cli ? t('CLI default') : t('Choose a model')}
+            placeholder={cli ? t('CLI default') : presetById(current.preset).model || t('Choose a model')}
             value={typing ? CUSTOM_MODEL : current.model || (cli ? CLI_DEFAULT : undefined)}
             options={[...(cli ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options, { value: CUSTOM_MODEL, label: t('Other (type the id)…') }]}
             onChange={(value) => {
@@ -1142,7 +1142,7 @@ function ProfileForm() {
           ) : null}
         </Stack>
       ) : (
-        <Input label={t('Base URL')} placeholder="https://…" value={current.baseUrl} onChange={(value) => patchForm({ baseUrl: value })} />
+        <Input label={t('Base URL')} placeholder={presetById(current.preset).baseUrl || 'https://…'} value={current.baseUrl} onChange={(value) => patchForm({ baseUrl: value })} />
       )}
       <ModelPicker current={current} />
       {cli ? null : (
@@ -1168,7 +1168,7 @@ function ProfileForm() {
           onPress={() => void saveForm()}
           disabled={
             !current.name.trim() ||
-            (cli ? current.preset === 'custom-cli' && !current.command?.trim() : !current.baseUrl.trim()) ||
+            (cli ? current.preset === 'custom-cli' && !current.command?.trim() : !(current.baseUrl.trim() || presetById(current.preset).baseUrl)) ||
             read(busy) === 'save'
           }
         >
@@ -1184,11 +1184,11 @@ function ProfileForm() {
 
 /** The profile's model, switchable in place from the live list. */
 function QuickModel({ profile, fromEnv }: { profile: ProfileView; fromEnv: boolean }) {
-  const options = modelOptions(read(catalogs)[profile.id], profile.model)
+  const options = modelOptions(read(catalogs)[profile.id], profile.effectiveModel)
   if (fromEnv || options.length < 2) {
     return (
       <Text muted size="xs" truncate>
-        {profile.model || t('CLI default')}
+        {profile.effectiveModel || t('CLI default')}
       </Text>
     )
   }
@@ -1196,7 +1196,7 @@ function QuickModel({ profile, fromEnv }: { profile: ProfileView; fromEnv: boole
     <Select
       label={t('Model')}
       labelHidden
-      value={profile.model || CLI_DEFAULT}
+      value={profile.effectiveModel || CLI_DEFAULT}
       options={[...(profile.provider === 'cli' ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options]}
       onChange={(value) => void switchModel(profile, toModel(value))}
     />
@@ -1213,7 +1213,7 @@ async function switchModel(profile: ProfileView, model: string): Promise<void> {
 }
 
 function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView; index: number; count: number; fromEnv: boolean }) {
-  const where = profile.provider === 'cli' ? `${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI` : profile.baseUrl
+  const where = profile.provider === 'cli' ? `${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI` : profile.effectiveBaseUrl
   return (
     <Box gap="xs" padding="sm" border radius="md" background={profile.enabled ? 'none' : 'muted'}>
       <Row justify="between" gap="xs">
@@ -1312,7 +1312,7 @@ function PrivacyTab() {
   const view = read(models)
   const roleOptions = [
     { value: 'chain', label: t('Same as the chain') },
-    ...(view?.profiles ?? []).map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
+    ...(view?.profiles ?? []).map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel || t('CLI default')}` }))
   ]
   return (
     <Stack gap="md">
@@ -1423,7 +1423,7 @@ function ModelsTab() {
   if (!view) return <Spinner label={t('Loading')} />
   const roleOptions = [
     { value: 'chain', label: t('Same as the chain') },
-    ...view.profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
+    ...view.profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel || t('CLI default')}` }))
   ]
   return (
     <Stack gap="md">

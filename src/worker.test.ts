@@ -297,3 +297,25 @@ test('a long send that succeeds writes every piece once and no extra paste end',
   assert.equal(texts.join(''), '\x1b[200~' + text.trim() + '\x1b[201~')
   await worker.deactivate()
 })
+
+test('editing a profile from its card keeps "follow the preset" (no preset value written in)', async () => {
+  const stored = profile('gpt', 'openai', { baseUrl: '', model: '' })
+  const host = mockHost({ storage: { models: { profiles: [stored] } }, secrets: { 'apiKey.gpt': 'sk-test' } })
+  const worker = await mountWorker(main, { host })
+  const view = await worker.request('models.get')
+  const card = view.profiles[0]
+  assert.equal(card.baseUrl, '')
+  assert.equal(card.model, '')
+  assert.equal(card.effectiveBaseUrl, 'https://api.openai.com/v1')
+  assert.equal(card.effectiveModel, 'gpt-4.1-mini')
+  // What the panel's Disable button sends: the card as it is, with enabled flipped.
+  await worker.request('models.save', { ...card, enabled: false })
+  const saved = (host.data().storage.models as { profiles: Record<string, unknown>[] }).profiles[0]
+  assert.equal(saved.baseUrl, '')
+  assert.equal(saved.model, '')
+  assert.equal(saved.enabled, false)
+  // A model the person picks is stored as is, even when it equals the preset's.
+  await worker.request('models.save', { ...card, model: 'gpt-4.1-mini' })
+  assert.equal((host.data().storage.models as { profiles: Record<string, unknown>[] }).profiles[0].model, 'gpt-4.1-mini')
+  await worker.deactivate()
+})

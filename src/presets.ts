@@ -64,7 +64,14 @@ export type ModelsConfig = {
 }
 
 /** What the panel sees: never the key itself. */
+/**
+ * A profile for the panel. `baseUrl` and `model` are what the person saved ('' = follow the preset, or
+ * the CLI's own default); `effectiveBaseUrl` and `effectiveModel` are what a run actually uses. Edits
+ * send the saved values back, so a preset default is never written into the profile by accident.
+ */
 export type ProfileView = ModelProfile & {
+  effectiveBaseUrl: string
+  effectiveModel: string
   keySource: 'secret' | 'env' | 'none' | 'not-needed' | 'subscription'
   envName: string
 }

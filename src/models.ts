@@ -64,7 +64,12 @@ export function effectiveBaseUrl(profile: ModelProfile): string {
   return profile.baseUrl || presetById(profile.preset).baseUrl
 }
 
+/**
+ * The model a run uses. An API needs one, so '' means the preset's model. A CLI does not: '' means
+ * "CLI default" (no --model flag), even when its preset suggests one for new profiles.
+ */
 export function effectiveModel(profile: ModelProfile): string {
+  if (profile.provider === 'cli') return profile.model
   return profile.model || presetById(profile.preset).model
 }
 
@@ -94,8 +99,8 @@ export async function viewProfiles(orca: OrcaWorkerApi, profiles: ModelProfile[]
   return Promise.all(
     profiles.map(async (profile) => ({
       ...profile,
-      baseUrl: effectiveBaseUrl(profile),
-      model: effectiveModel(profile),
+      effectiveBaseUrl: effectiveBaseUrl(profile),
+      effectiveModel: effectiveModel(profile),
       keySource: (await resolveKey(orca, profile)).source,
       envName: presetById(profile.preset).env
     }))

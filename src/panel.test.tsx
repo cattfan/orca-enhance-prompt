@@ -17,7 +17,9 @@ const gpt: ProfileView = {
   command: '',
   args: '',
   keySource: 'secret',
-  envName: 'OPENAI_API_KEY'
+  envName: 'OPENAI_API_KEY',
+  effectiveBaseUrl: 'https://api.openai.com/v1',
+  effectiveModel: 'gpt-4.1-mini'
 }
 const modelsView = (profiles: ProfileView[]): ModelsView => ({ profiles, hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS })
 

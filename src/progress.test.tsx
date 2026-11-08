@@ -80,7 +80,7 @@ test('a failing model marks the model step failed', async () => {
   await worker.deactivate()
 })
 
-const gpt: ProfileView = { id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: '', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', keySource: 'secret', envName: '' }
+const gpt: ProfileView = { id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: '', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', keySource: 'secret', envName: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini' }
 const models = { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS }
 
 test('the panel shows live steps, ignores old runs, and ends with the result or Try again', async () => {

@@ -16,11 +16,13 @@ const base: ProfileView = {
   command: '',
   args: '',
   keySource: 'subscription',
-  envName: ''
+  envName: '',
+  effectiveBaseUrl: '',
+  effectiveModel: 'haiku'
 }
-const gpt: ProfileView = { ...base, id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', keySource: 'secret', envName: 'OPENAI_API_KEY' }
-const groq: ProfileView = { ...base, id: 'groq', name: 'Groq', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', keySource: 'env', envName: 'GROQ_API_KEY' }
-const ollama: ProfileView = { ...base, id: 'ollama', name: 'Ollama', preset: 'ollama', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5-coder', keySource: 'not-needed', envName: '', enabled: false }
+const gpt: ProfileView = { ...base, id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini', keySource: 'secret', envName: 'OPENAI_API_KEY' }
+const groq: ProfileView = { ...base, id: 'groq', name: 'Groq', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', effectiveBaseUrl: 'https://api.groq.com/openai/v1', effectiveModel: 'llama-3.3-70b-versatile', keySource: 'env', envName: 'GROQ_API_KEY' }
+const ollama: ProfileView = { ...base, id: 'ollama', name: 'Ollama', preset: 'ollama', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5-coder', effectiveBaseUrl: 'http://localhost:11434/v1', effectiveModel: 'qwen2.5-coder', keySource: 'not-needed', envName: '', enabled: false }
 
 const models = (profiles: ProfileView[], hookProfileId: string | null = null) => ({
   profiles,
