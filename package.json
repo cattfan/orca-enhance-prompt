@@ -7,7 +7,9 @@
     "typecheck": "tsc -p .",
     "test": "orca plugin test .",
     "check": "orca plugin check .",
-    "validate": "orca plugin validate ."
+    "validate": "orca plugin validate .",
+    "dev": "node scripts/dev-server.mjs",
+    "images": "node scripts/make-images.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

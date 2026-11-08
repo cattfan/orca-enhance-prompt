@@ -13,6 +13,11 @@ orca plugin check .
 orca plugin validate .
 ```
 
+## Live preview
+
+`npm run dev` serves http://localhost:5173: the panel's scenarios from `src/panel.check.ts`, drawn by
+`scripts/render-panel.mjs`, redrawn on every save. Add a scenario there to preview a new state.
+
 ## Every change is a release
 
 1. Bump `version` in `orca-plugin.json`: patch for fixes, minor for features, major for breaking changes.

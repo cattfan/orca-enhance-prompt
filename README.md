@@ -202,6 +202,8 @@ orca plugin check .
 orca plugin dev watch . --check
 ```
 
+**Live UI preview:** `npm run dev` opens http://localhost:5173 with every scenario of `src/panel.check.ts` drawn side by side (sample data only). Pick a scenario, switch dark/light, change the panel width, open the folds; it redraws on every save in `src/`. To see the real panel in Orca instead, run `orca plugin dev watch .`: the development folder replaces the installed copy while it runs.
+
 There is no build step: Orca transpiles `src/*.ts(x)` when it loads them. `node scripts/make-images.mjs` regenerates every picture from the panel's `shot-*` scenarios (sample data only), and `node scripts/make-icon.mjs` renders the icon. Releases follow [AGENTS.md](AGENTS.md).
 
 ## License

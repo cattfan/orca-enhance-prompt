@@ -3,6 +3,12 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.6.1] - 2026-11-08
+
+### Added
+- **Live UI preview on localhost** for development: `npm run dev` serves http://localhost:5173 with every
+  panel scenario side by side, dark/light, adjustable width and folds, redrawn on every save in `src/`.
+
 ## [1.6.0] - 2026-11-08
 
 ### Added
@@ -132,6 +138,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.1
 [1.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.0
 [1.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.5.0
 [1.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.4.0
