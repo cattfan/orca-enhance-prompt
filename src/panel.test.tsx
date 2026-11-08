@@ -64,7 +64,7 @@ test('enhances with context, then sends to the chosen agent', async () => {
   await view.toggle({ label: 'Repository tree' })
 
   // The options fold shows the current choice as its title.
-  assert.ok(view.find({ label: 'Balanced · Standard · Auto' }))
+  assert.ok(view.find({ label: 'Balanced · Standard' }))
   await view.press({ role: 'button', text: 'Enhance' })
   assert.deepEqual(enhanceInputs[1].exclude, ['tree'])
 

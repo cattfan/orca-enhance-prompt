@@ -3,6 +3,18 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.6.0] - 2026-11-08
+
+### Added
+- **Model menu next to Enhance**, like the model picker in ChatGPT or Claude: every model of every enabled
+  profile, from its live list (Claude Code · Haiku / Sonnet / Opus / Fable, Codex · each catalog model,
+  API models), plus **Auto**. The profile's own model is marked **default**.
+- The picked model is used for that prompt only; the saved profile and the rest of the fallback chain keep
+  their own models. The header badge shows the picked model.
+
+### Changed
+- The options fold now holds style, context and output language; **Preview context** is an icon button.
+
 ## [1.5.0] - 2026-11-08
 
 ### Changed
@@ -120,6 +132,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.0
 [1.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.5.0
 [1.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.4.0
 [1.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.3.0

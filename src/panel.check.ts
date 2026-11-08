@@ -99,12 +99,24 @@ function catalogFor(preset: string) {
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-2.5-coder-32b'],
     ollama: ['qwen2.5-coder', 'llama3.2', 'deepseek-r1']
   }
-  return { models: (lists[preset] ?? []).map((id) => ({ id, label: id })), source: 'sample', fetchedAt: now }
+  const labels: Record<string, string> = {
+    haiku: 'haiku: Haiku, newest (fastest)',
+    sonnet: 'sonnet: Sonnet, newest',
+    opus: 'opus: Opus, newest',
+    fable: 'fable: Fable, newest',
+    default: 'default: Account default'
+  }
+  return { models: (lists[preset] ?? []).map((id) => ({ id, label: labels[id] ?? id })), source: 'sample', fetchedAt: now }
 }
 
 const enhanceScenario = (lang: 'en' | 'vi') => ({
   settings: { uiLanguage: lang },
-  requests: { 'models.get': models([base, gpt, groq]), 'targets.list': agents, 'models.detect': detect(true) },
+  requests: {
+    'models.get': models([base, gpt, groq]),
+    'targets.list': agents,
+    'models.detect': detect(true),
+    'models.catalog': ({ preset }: { preset: string }) => catalogFor(preset)
+  },
   persisted: {
     plugin: {
       tab: 'enhance',
@@ -113,7 +125,9 @@ const enhanceScenario = (lang: 'en' | 'vi') => ({
       style: 'bugfix',
       level: 'deep',
       lastRun,
-      contextShown: context
+      contextShown: context,
+      profileChoice: 'claude-code',
+      modelChoice: 'sonnet'
     }
   }
 })

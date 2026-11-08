@@ -67,6 +67,8 @@ const result = atom('result', '', { persist: 'plugin' })
 const style = atom<string | null>('style', null, { persist: 'plugin' })
 const level = atom<string | null>('level', null, { persist: 'plugin' })
 const profileChoice = atom('profileChoice', 'auto', { persist: 'plugin' })
+/** The model picked for that profile in the composer; '' = the profile's own model. */
+const modelChoice = atom('modelChoice', '', { persist: 'plugin' })
 /** Per-prompt output language: 'default' uses the setting. */
 const outputChoice = atom('outputChoice', 'default', { persist: 'plugin' })
 const excluded = atom<string[]>('excluded', [])
@@ -248,6 +250,7 @@ async function enhanceNow(): Promise<void> {
         level: read(effectiveLevel),
         terminalId: read(target),
         profileId: choice === 'auto' ? null : choice,
+        ...(choice !== 'auto' && read(modelChoice) ? { model: read(modelChoice) } : {}),
         // Leave the key out (not undefined): request inputs must be plain JSON.
         ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
         exclude: read(excluded)
@@ -583,37 +586,99 @@ const shortLabel = (label: string) => label.split(/[:：]/)[0].trim()
 
 /** Style, context, output and model, folded under a one-line summary of the current choice. */
 function PromptOptions() {
-  const profiles = read(enabledProfiles)
-  const choice = read(profileChoice)
   const styleValue = read(effectiveStyle)
   const levelValue = read(effectiveLevel)
   const output = outputOptions().find((option) => option.value === read(outputChoice))
-  const modelName = choice === 'auto' ? t('Auto') : (profiles.find((profile) => profile.id === choice)?.name ?? t('Auto'))
   const summary = [
     t(STYLE_LABELS[isStyle(styleValue) ? styleValue : 'balanced']),
     shortLabel(t(CONTEXT_LEVEL_LABELS[isContextLevel(levelValue) ? levelValue : 'standard'])),
-    read(outputChoice) !== 'default' && output ? output.label.replace(/^[^:：]+[:：]\s*/, '') : '',
-    modelName
+    read(outputChoice) !== 'default' && output ? output.label.replace(/^[^:：]+[:：]\s*/, '') : ''
   ]
     .filter(Boolean)
     .join(' · ')
   return (
-    <Collapsible title={summary} description={t('Style, context, output language and model')}>
+    <Collapsible title={summary} description={t('Style, context and output language')}>
       <Grid columns={2} gap="sm">
         <Select label={t('Style')} value={styleValue} options={styleOptions()} onChange={(value) => set(style, value)} />
         <Select label={t('Context')} value={levelValue} options={levelOptions()} onChange={(value) => set(level, value)} />
         <Select label={t('Output language')} value={read(outputChoice)} options={outputOptions()} onChange={(value) => set(outputChoice, value)} />
-        <Select
-          label={t('Model')}
-          value={choice}
-          options={[
-            { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (chain with fallback)') : t('Auto (first model)') },
-            ...profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
-          ]}
-          onChange={(value) => set(profileChoice, value)}
-        />
       </Grid>
     </Collapsible>
+  )
+}
+
+const MODEL_SEP = '|'
+const PROFILE_DEFAULT = '__profile_default__'
+
+/** "sonnet: Sonnet, newest" -> "Sonnet, newest"; display names stay as they are. */
+const modelDisplay = (label: string) => (label.includes(': ') ? label.slice(label.indexOf(': ') + 2) : label)
+
+/** Every model of every enabled profile, from its live list, plus Auto. */
+function modelMenu() {
+  const options: { value: string; label: string }[] = [
+    { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (chain with fallback)') : t('Auto (first model)') }
+  ]
+  for (const profile of read(enabledProfiles)) {
+    const catalog = read(catalogs)[profile.id]
+    const listed = catalog?.models ?? []
+    const seen = new Set<string>()
+    const add = (id: string, label: string) => {
+      if (seen.has(id)) return
+      seen.add(id)
+      const saved = id !== '' && id === profile.model
+      options.push({
+        value: `${profile.id}${MODEL_SEP}${id || PROFILE_DEFAULT}`,
+        label: `${profile.name} · ${label}${saved ? ` · ${t('default')}` : ''}`
+      })
+    }
+    if (profile.provider === 'cli' && !profile.model) add('', t('CLI default'))
+    else if (profile.model && !listed.some((model) => model.id === profile.model)) add(profile.model, profile.model)
+    for (const model of listed) add(model.id, modelDisplay(model.label))
+  }
+  return options
+}
+
+/** Short name of the model picked in the composer, for the header badge. */
+function pickedModelLabel(): string {
+  if (read(profileChoice) === 'auto') return t('Auto')
+  const option = modelMenu().find((entry) => entry.value === currentModelValue())
+  return option?.label.split(' · ')[1] ?? t('Auto')
+}
+
+function currentModelValue(): string {
+  const choice = read(profileChoice)
+  if (choice === 'auto') return 'auto'
+  const profile = read(enabledProfiles).find((entry) => entry.id === choice)
+  if (!profile) return 'auto'
+  const model = read(modelChoice) || profile.model
+  return `${choice}${MODEL_SEP}${model || PROFILE_DEFAULT}`
+}
+
+function pickModel(value: string): void {
+  if (value === 'auto') {
+    set(profileChoice, 'auto')
+    set(modelChoice, '')
+    return
+  }
+  const [profileId, model] = value.split(MODEL_SEP)
+  const profile = read(enabledProfiles).find((entry) => entry.id === profileId)
+  set(profileChoice, profileId)
+  // The profile's own model is stored as '' so a later change to the profile follows through.
+  set(modelChoice, model === PROFILE_DEFAULT || model === profile?.model ? '' : model)
+}
+
+/** The model menu in the composer: every model you can use right now, one click away. */
+function ComposerModelPicker() {
+  const options = modelMenu()
+  const value = currentModelValue()
+  return (
+    <Select
+      label={t('Model')}
+      labelHidden
+      value={options.some((option) => option.value === value) ? value : 'auto'}
+      options={options}
+      onChange={pickModel}
+    />
   )
 }
 
@@ -687,7 +752,8 @@ function EnhanceTab() {
         onSubmit={() => void enhanceNow()}
       />
       <PromptOptions />
-      <Row gap="xs" justify="between" wrap>
+      <Row gap="xs" wrap>
+        <ComposerModelPicker />
         {working === 'enhance' ? (
           <Row gap="xs">
             <Spinner label={t('Enhancing')} />
@@ -700,9 +766,13 @@ function EnhanceTab() {
             {t('Enhance')}
           </Button>
         )}
-        <Button variant="ghost" size="sm" icon="search" tooltip={t('See what context would be sent')} onPress={() => void previewContext()} disabled={working !== null}>
-          {working === 'preview' ? t('Gathering…') : t('Preview context')}
-        </Button>
+        <IconButton
+          icon="search"
+          label={working === 'preview' ? t('Gathering…') : t('Preview context')}
+          variant="ghost"
+          onPress={() => void previewContext()}
+          disabled={working !== null}
+        />
       </Row>
       <NoticeBar />
       <ContextPanel />
@@ -1122,7 +1192,11 @@ export default function Panel() {
       <Row justify="between">
         <Text weight="semibold">Enhance Prompt</Text>
         <Row gap="xs">
-          {view ? <Badge tone={first && first.keySource !== 'none' ? 'accent' : 'warning'}>{first ? first.model : t('no model')}</Badge> : null}
+          {view ? (
+            <Badge tone={first && first.keySource !== 'none' ? 'accent' : 'warning'}>
+              {first ? pickedModelLabel() : t('no model')}
+            </Badge>
+          ) : null}
           <Select
             label={t('Language')}
             labelHidden

@@ -28,12 +28,13 @@ Go back to the **Enhance** tab and describe what you want, as roughly as you lik
 login page is broken on mobile
 ```
 
-The line under the prompt shows the current options, for example **Balanced · Standard · Auto**. Click it to change them:
+Next to **Enhance**, the model menu lists every model you can use right now, like the model menu in ChatGPT or Claude: **Auto** runs your models in order with fallback, or pick one, such as **Claude Code · Sonnet** or **Codex · GPT-6.1-Sol**. The lists come from each CLI or API and stay current; see [Model lists stay current](models.md#model-lists-stay-current).
+
+The line under the prompt shows the other options, for example **Balanced · Standard**. Click it to change them:
 
 - **Style**: what kind of prompt you need. See [Styles](#styles).
 - **Context**: how much of your project the model sees. **Standard** is a good default; **Deep** finds the code that matches your request. See [Context levels](context-levels.md).
 - **Output**: the language of the result, or the same language as your request.
-- **Model**: **Auto** runs your models in order with fallback, or pick one.
 
 Click **Enhance** or press `Ctrl+Enter` (`⌘Enter`). A model API takes a few seconds; a subscription CLI usually takes 5 to 15.
 

@@ -17,6 +17,8 @@ export function resolveLanguage(setting: string, locale: string): UiLanguage {
 }
 
 const VI: Record<string, string> = {
+  'Style, context and output language': 'Kiểu, ngữ cảnh và ngôn ngữ đầu ra',
+  default: 'mặc định',
   'Style, context, output language and model': 'Kiểu, ngữ cảnh, ngôn ngữ đầu ra và model',
   'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter (⌘Enter trên macOS)',
   'Your enhanced prompt appears here': 'Prompt đã cải thiện sẽ hiện ở đây',
@@ -185,6 +187,8 @@ const VI: Record<string, string> = {
 }
 
 const ZH: Record<string, string> = {
+  'Style, context and output language': '风格、上下文和输出语言',
+  default: '默认',
   'Style, context, output language and model': '风格、上下文、输出语言和模型',
   'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter（macOS 上为 ⌘Enter）',
   'Your enhanced prompt appears here': '优化后的提示词会显示在这里',

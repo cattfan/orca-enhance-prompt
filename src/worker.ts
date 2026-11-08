@@ -144,6 +144,7 @@ export async function enhance(
     terminalId?: string | null
     level?: string
     profileId?: string | null
+    model?: string
     language?: string
     exclude?: string[]
   },
@@ -175,7 +176,11 @@ export async function enhance(
     agent: settings.adaptToAgent ? (agentItem?.content.split(' ')[0] ?? null) : null
   })
   const user = buildUserMessage(prompt, gathered.items)
-  const list = candidates(config.profiles, input.profileId ?? null, settings.fallbackEnabled)
+  const chosenModel = input.model?.trim().slice(0, 200)
+  // The picked model applies to the picked profile only; the rest of the chain keeps its own models.
+  const list = candidates(config.profiles, input.profileId ?? null, settings.fallbackEnabled).map((profile) =>
+    chosenModel && profile.id === input.profileId ? { ...profile, model: chosenModel } : profile
+  )
   try {
     const result = await runChain(orca, list, system, user, chainOptions(settings, signal))
     return {
