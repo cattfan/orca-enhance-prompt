@@ -58,3 +58,49 @@ test('treeSummary and fitBudget', () => {
   assert.deepEqual(fitted.map((i) => i.id), ['rules', 'file', 'tree'])
   assert.equal(fitted[2].note, 'trimmed')
 })
+
+test('git diff leaves out secret files, renames of them and excluded paths', async () => {
+  const { execFileSync } = await import('node:child_process')
+  const { mkdtempSync, mkdirSync, rmSync, writeFileSync, unlinkSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { gitDiff, parseNameStatus, statusLinePaths } = await import('./git.ts')
+  const root = mkdtempSync(join(tmpdir(), 'diff-secrets-'))
+  const run = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root })
+  try {
+    run('init', '-q')
+    mkdirSync(join(root, 'config'))
+    mkdirSync(join(root, 'src'))
+    mkdirSync(join(root, 'dist'))
+    const files: Record<string, string> = {
+      'config/credentials.yml': 'token: OLD-CRED\n',
+      'secrets.json': '{"key":"OLD-SECRET"}\n',
+      'id_rsa': 'OLD-PRIVATE-KEY\n',
+      'certs.p12': 'OLD-P12\n',
+      'src/app.ts': 'export const a = 1\n',
+      'dist/bundle.js': 'old bundle\n'
+    }
+    for (const [path, text] of Object.entries(files)) writeFileSync(join(root, path), text)
+    run('add', '-A')
+    run('commit', '-q', '-m', 'init')
+    writeFileSync(join(root, 'config/credentials.yml'), 'token: NEW-CRED\n')
+    writeFileSync(join(root, 'certs.p12'), 'NEW-P12\n')
+    writeFileSync(join(root, 'src/app.ts'), 'export const a = 2 // VISIBLE\n')
+    writeFileSync(join(root, 'dist/bundle.js'), 'new bundle EXCLUDED\n')
+    run('mv', 'secrets.json', 'data.json')
+    unlinkSync(join(root, 'id_rsa'))
+    run('add', '-A')
+
+    const result = await gitDiff(root, 20_000, (path) => !path.startsWith('dist/'))
+    assert.ok(result)
+    const all = `${result.stat}\n${result.diff}`
+    assert.match(all, /VISIBLE/)
+    for (const secret of ['CRED', 'SECRET', 'PRIVATE-KEY', 'P12', 'EXCLUDED', 'data.json', 'credentials.yml', 'id_rsa']) {
+      assert.ok(!all.includes(secret), `${secret} leaked:\n${all}`)
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+  assert.deepEqual(parseNameStatus('M\0src/a.ts\0R100\0secrets.json\0data.json\0D\0id_rsa\0'), [['src/a.ts'], ['secrets.json', 'data.json'], ['id_rsa']])
+  assert.deepEqual(statusLinePaths('R  secrets.json -> "data file.json"'), ['secrets.json', 'data file.json'])
+})

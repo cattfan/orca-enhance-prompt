@@ -8,7 +8,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import type { ContextItemView, ContextLevel } from '../presets.ts'
 import type { StepReporter } from '../progress.ts'
 import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files.ts'
-import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo } from './git.ts'
+import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo, statusLinePaths } from './git.ts'
 import { readRuleFiles } from './instructions.ts'
 import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
 import { detectStack } from './stack.ts'
@@ -194,7 +194,7 @@ async function dynamicParts(
     const status = await gitStatus(root)
     if (status && (status.changed.length > 0 || status.branchLine)) {
       changed = new Set(changedPaths(status.changed))
-      const shown = status.changed.filter((line) => !isSensitive(changedPaths([line])[0] ?? ''))
+      const shown = status.changed.filter((line) => !statusLinePaths(line).some((path) => isSensitive(path) || isExcluded(path, patterns)))
       out.push(
         item(
           'git:status',
@@ -206,7 +206,7 @@ async function dynamicParts(
     }
     const log = await gitLog(root, 6)
     if (log?.trim()) out.push(item('git:log', 'git', 'Recent commits', log.trim()))
-    const diff = await gitDiff(root, options.level === 'max' ? 9000 : 5000)
+    const diff = await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns))
     if (diff) out.push(item('git:diff', 'git', 'Uncommitted changes', `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {

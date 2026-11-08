@@ -1,5 +1,6 @@
 // Read-only git helpers. Fixed argument arrays, no shell; every call has a timeout and size cap.
 import { execFile } from 'node:child_process'
+import { isSensitive } from './files.ts'
 
 export function git(
   cwd: string,
@@ -55,6 +56,15 @@ export async function gitStatus(root: string): Promise<{ branchLine: string; cha
   return { branchLine, changed: lines }
 }
 
+/** Both names of a status line ("R  old -> new"), unquoted. */
+export function statusLinePaths(line: string): string[] {
+  return line
+    .slice(3)
+    .split(' -> ')
+    .map((path) => path.replace(/^"|"$/g, ''))
+    .filter(Boolean)
+}
+
 export function changedPaths(statusLines: string[]): string[] {
   return statusLines
     .map((line) => line.slice(3).split(' -> ').pop()!.replace(/^"|"$/g, ''))
@@ -65,12 +75,48 @@ export async function gitLog(root: string, count: number): Promise<string | null
   return git(root, ['log', `-n${count}`, '--no-merges', '--pretty=format:%h %s (%cr)'])
 }
 
-export async function gitDiff(root: string, maxChars: number): Promise<{ stat: string; diff: string } | null> {
-  const stat = await git(root, ['diff', 'HEAD', '--stat=100', '--', ...SAFE_PATHSPECS])
+/** Most files a diff may leave out by name; past this the diff is skipped rather than risk a leak. */
+const MAX_DIFF_EXCLUSIONS = 300
+
+/**
+ * Paths of every changed file (both sides of a rename or copy), from `git diff HEAD --name-status -z`.
+ * Exported for tests.
+ */
+export function parseNameStatus(out: string): string[][] {
+  const fields = out.split('\0').filter(Boolean)
+  const entries: string[][] = []
+  for (let index = 0; index < fields.length; ) {
+    const status = fields[index++]
+    const sides = /^[RC]/.test(status) ? 2 : 1
+    entries.push(fields.slice(index, index + sides))
+    index += sides
+  }
+  return entries
+}
+
+/**
+ * Uncommitted changes, without any file that may hold secrets (`isSensitive`) or that `allow` refuses
+ * (the person's exclude patterns). A rename or copy is left out whole when either side is refused,
+ * so renaming `secrets.json` to `data.json` does not show its content.
+ */
+export async function gitDiff(
+  root: string,
+  maxChars: number,
+  allow: (path: string) => boolean = () => true
+): Promise<{ stat: string; diff: string } | null> {
+  const names = await git(root, ['diff', 'HEAD', '--name-status', '-z', '-M', '--', ...SAFE_PATHSPECS])
+  if (names === null) return null
+  const refused = new Set<string>()
+  for (const paths of parseNameStatus(names)) {
+    if (paths.some((path) => isSensitive(path) || !allow(path))) paths.forEach((path) => refused.add(path))
+  }
+  if (refused.size > MAX_DIFF_EXCLUSIONS) return null
+  const pathspecs = [...SAFE_PATHSPECS, ...[...refused].map((path) => `:(exclude,literal)${path}`)]
+  const stat = await git(root, ['diff', 'HEAD', '-M', '--stat=100', '--', ...pathspecs])
   if (stat === null || !stat.trim()) {
     return null
   }
-  const diff = (await git(root, ['diff', 'HEAD', '-U2', '--no-ext-diff', '--', ...SAFE_PATHSPECS], { maxBytes: 4_000_000 })) ?? ''
+  const diff = (await git(root, ['diff', 'HEAD', '-M', '-U2', '--no-ext-diff', '--', ...pathspecs], { maxBytes: 4_000_000 })) ?? ''
   return { stat: stat.trim(), diff: diff.length > maxChars ? `${diff.slice(0, maxChars)}\n…(diff truncated)` : diff }
 }
 
