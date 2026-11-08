@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { assert, mockHost, mount, test } from 'orca/testing'
 import { dictionaries, resolveLanguage, translate } from './i18n.ts'
 import * as panel from './panel.tsx'
@@ -7,7 +7,11 @@ import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
 import { STYLE_LABELS } from './prompts.ts'
 
 test('every UI string has a Vietnamese and a Chinese translation', () => {
-  const source = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+  // The panel is src/panel.tsx and its parts in src/panel/.
+  const parts = readdirSync(new URL('./panel/', import.meta.url)).filter((name) => /\.tsx?$/.test(name))
+  const source = [new URL('./panel.tsx', import.meta.url), ...parts.map((name) => new URL(`./panel/${name}`, import.meta.url))]
+    .map((url) => readFileSync(url, 'utf8'))
+    .join('\n')
   const keys = new Set<string>()
   for (const match of source.matchAll(/\bt\('((?:[^'\\]|\\.)+)'/g)) keys.add(match[1].replace(/\\'/g, "'"))
   for (const label of [...Object.values(STYLE_LABELS), ...Object.values(CONTEXT_LEVEL_LABELS)]) keys.add(label)

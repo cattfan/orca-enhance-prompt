@@ -1,0 +1,150 @@
+// state.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
+import { atom, derived, read, set, type Atom, type JsonValue } from 'orca'
+import { HISTORY_KEY, parseHistory } from '../history.ts'
+import { isMessage, render, type Message } from '../messages.ts'
+import { type ContextItemView } from '../presets.ts'
+import { t } from '../i18n.ts'
+import { type Step } from '../progress.ts'
+import { type AttemptView, type ModelsView, type ProfileInput } from '../protocol.ts'
+
+export type Target = { terminalId: string; label: string; agent: string | null }
+export type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string } | null
+export type Defaults = {
+  style: string
+  level: string
+  pressEnter: boolean
+  fallbackEnabled: boolean
+  fallbackOn: string
+  outputLanguage: string
+  autoEnhanceMode: string
+}
+export type Form = Omit<ProfileInput, 'apiKey'> & { apiKey: string }
+
+// Keyed atoms survive hot reloads; `persist: 'plugin'` ones survive panel runs.
+export const tab = atom('tab', 'enhance', { persist: 'plugin' })
+export const draft = atom('')
+export const result = atom('')
+export const style = atom<string | null>('style', null, { persist: 'plugin' })
+export const level = atom<string | null>('level', null, { persist: 'plugin' })
+export const profileChoice = atom('profileChoice', 'auto', { persist: 'plugin' })
+/** The model picked for that profile in the composer; '' = the profile's own model. */
+export const modelChoice = atom('modelChoice', '', { persist: 'plugin' })
+/** Per-prompt output language: 'default' uses the setting. */
+export const outputChoice = atom('outputChoice', 'default', { persist: 'plugin' })
+export const excluded = atom<string[]>('excluded', [])
+export const target = atom<string | null>('target', null)
+export const pressEnter = atom<boolean | null>('pressEnter', null)
+export const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
+export const historyFilter = atom('historyFilter', '')
+/** History entries drawn at once; "Show more" adds a page. */
+export const HISTORY_PAGE = 50
+export const historyShown = atom(HISTORY_PAGE)
+export const confirmClearHistory = atom(false)
+export const form = atom<Form | null>('form', null)
+export const detected = atom<{ preset: string; label: string; path: string; added: boolean }[]>([])
+export type Catalog = { models: { id: string; label: string; description?: string; isDefault?: boolean }[]; source: string; fetchedAt: number; error?: string }
+/** Model lists by profile id, or 'form' for the add/edit form. */
+export const catalogs = atom<Record<string, Catalog>>({})
+export const catalogLoading = atom<Record<string, boolean>>({})
+export const CUSTOM_MODEL = '__custom__'
+/** Select values cannot be empty: this stands for "the CLI's own default model" (stored as ''). */
+export const CLI_DEFAULT = '__cli_default__'
+export const toModel = (value: string) => (value === CLI_DEFAULT ? '' : value)
+/** The form's model picker is on "Other (type the id)". */
+export const customModel = atom(false)
+/** The current enhance run: its real steps from the worker, and how it ended. */
+export type Run = {
+  runId: string
+  startedAt: number
+  steps: Step[]
+  status: 'running' | 'done' | 'error' | 'cancelled'
+  error?: string
+  finishedAt?: number
+}
+export const run = atom<Run | null>(null)
+
+/** What the Privacy tab shows: stored data counts and the switches. */
+export const dataSummary = atom<{ history: number; profiles: number; keys: number; catalogs: number } | null>(null)
+export const privacy = atom<Record<string, boolean>>({})
+/** "Delete everything" asks for a second press. */
+export const confirmWipe = atom(false)
+/** The composer's options (style, context, output, Enter) are shown. */
+export const optionsOpen = atom('optionsOpen', false, { persist: 'plugin' })
+
+export const busy = atom<'enhance' | 'preview' | 'send' | 'test' | 'save' | null>(null)
+export const notice = atom<Notice>(null)
+export type LastRun = { model: string; profileName: string; ms: number; attempts: AttemptView[] } | null
+export const lastRun = atom<LastRun>(null)
+/** Every context item seen for the current draft, so excluded ones stay listed (unchecked). */
+export const contextShown = atom<ContextItemView[]>([])
+/** Notes are Messages; an older version saved plain strings. */
+export const contextNotes = atom<(Message | string)[]>([])
+
+/**
+ * The draft, the last result and what the last run used are kept across panel runs (Orca writes
+ * `persist: 'plugin'` atoms to panel-state.json in the plugin's data folder) only while "Save history"
+ * is on. The panel works on the in-memory atoms above; `put` mirrors them into these saved copies,
+ * or empties the copies when saving is off. Same keys as before, so earlier saved values still load.
+ */
+export const KEPT: [Atom<never>, Atom<never>, unknown][] = [
+  [draft, atom('draft', '', { persist: 'plugin' }), ''],
+  [result, atom('result', '', { persist: 'plugin' }), ''],
+  [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
+  [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
+  [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []]
+] as never
+
+export const mayKeep = () => read(privacy).saveHistory !== false
+
+/** Sets an atom of KEPT, and its saved copy when saving is allowed. */
+export function put<T>(target: Atom<T>, value: T): void {
+  set(target, value)
+  const pair = KEPT.find(([now]) => (now as unknown) === target)
+  if (pair) set(pair[1], (mayKeep() ? value : pair[2]) as never)
+}
+
+/** Empties every saved copy (saving turned off, or Delete everything). */
+export function forgetSaved(): void {
+  for (const [, saved, empty] of KEPT) set(saved, empty as never)
+}
+
+/** On open: the saved copies become the working values. */
+export function restoreSaved(): void {
+  for (const [now, saved] of KEPT) set(now, read(saved))
+}
+export const targets = atom<Target[]>([])
+export const models = atom<ModelsView | null>(null)
+export const defaults = atom<Defaults>({
+  style: 'balanced',
+  level: 'standard',
+  pressEnter: false,
+  fallbackEnabled: true,
+  fallbackOn: 'any',
+  outputLanguage: 'auto',
+  autoEnhanceMode: 'off'
+})
+
+export const history = derived(() => parseHistory(read(historyRaw)))
+export const filteredHistory = derived(() => {
+  const query = read(historyFilter).trim().toLowerCase()
+  const list = read(history)
+  return query
+    ? list.filter((entry) => entry.original.toLowerCase().includes(query) || entry.enhanced.toLowerCase().includes(query))
+    : list
+})
+export const effectiveStyle = derived(() => read(style) ?? read(defaults).style)
+export const effectiveLevel = derived(() => read(level) ?? read(defaults).level)
+export const effectiveEnter = derived(() => read(pressEnter) ?? read(defaults).pressEnter)
+export const enabledProfiles = derived(() => (read(models)?.profiles ?? []).filter((profile) => profile.enabled))
+
+/** A worker Message in the panel's language; a plain string (saved by an older version) as is. */
+export function say(text: Message | string): string {
+  return typeof text === 'string' ? text : render(text, (template, params) => t(template, params))
+}
+
+/** An error in the panel's language: the worker's Message when it sent one, else its text. */
+export const message = (error: unknown) => {
+  const text = error && typeof error === 'object' && 'text' in error ? (error as { text: unknown }).text : null
+  if (isMessage(text)) return say(text)
+  return error instanceof Error ? error.message : String(error)
+}

@@ -1,0 +1,416 @@
+// actions.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
+import { plugin, read, set, settings, update, type JsonValue } from 'orca'
+import { type HistoryEntry } from '../history.ts'
+import { type Message } from '../messages.ts'
+import { isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
+import { isStyle } from '../prompts.ts'
+import { t, uiLanguageSetting } from '../i18n.ts'
+import { PRIVACY_KEYS } from '../privacy.ts'
+import { type Step } from '../progress.ts'
+import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
+import { type Form, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+
+export let inFlight: AbortController | null = null
+
+// ---------------------------------------------------------------- data
+
+export async function refreshDefaults(): Promise<void> {
+  const all = await settings.get().catch(() => ({}) as Record<string, JsonValue>)
+  set(defaults, {
+    style: typeof all.defaultStyle === 'string' && isStyle(all.defaultStyle) ? all.defaultStyle : 'balanced',
+    level: typeof all.contextLevel === 'string' && isContextLevel(all.contextLevel) ? all.contextLevel : 'standard',
+    pressEnter: all.sendPressEnter === true,
+    fallbackEnabled: all.fallbackEnabled !== false,
+    fallbackOn: all.fallbackOn === 'transient' ? 'transient' : 'any',
+    outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto',
+    autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off'
+  })
+  set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
+  set(privacy, Object.fromEntries(PRIVACY_KEYS.map((key) => [key, all[key] !== false])))
+  // Saving history is off: nothing typed or produced stays on disk after the panel closes.
+  if (!mayKeep()) forgetSaved()
+}
+
+export async function changeUiLanguage(value: string): Promise<void> {
+  set(uiLanguageSetting, value)
+  await settings.set('uiLanguage', value).catch(() => undefined)
+}
+
+export async function refreshModels(): Promise<void> {
+  try {
+    const view = await plugin.request('models.get')
+    set(models, view)
+    // Lists come from cache (a day) or the CLI/API; cards use them for quick model switching.
+    for (const profile of view.profiles) {
+      if (!read(catalogs)[profile.id]) void loadCatalog(profile.id, { preset: profile.preset, profileId: profile.id })
+    }
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function loadCatalog(
+  key: string,
+  input: { preset: string; profileId?: string; baseUrl?: string; provider?: string; command?: string; apiKey?: string },
+  refresh = false
+): Promise<void> {
+  update(catalogLoading, (map) => ({ ...map, [key]: true }))
+  try {
+    const clean = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== ''))
+    const catalog = await plugin.request('models.catalog', { preset: input.preset, ...clean, refresh }, { timeoutMs: 40_000 })
+    update(catalogs, (map) => ({ ...map, [key]: catalog }))
+  } catch (error) {
+    update(catalogs, (map) => ({ ...map, [key]: { models: [], source: '', fetchedAt: Date.now(), error: message(error) } }))
+  } finally {
+    update(catalogLoading, (map) => ({ ...map, [key]: false }))
+  }
+}
+
+export function formCatalogInput(current: Form) {
+  return {
+    preset: current.preset,
+    ...(current.id ? { profileId: current.id } : {}),
+    baseUrl: current.baseUrl,
+    provider: current.provider,
+    command: current.command ?? '',
+    apiKey: current.apiKey
+  }
+}
+
+export async function refreshTargets(): Promise<void> {
+  try {
+    const { targets: list } = await plugin.request('targets.list')
+    set(targets, list)
+    const current = read(target)
+    if (!current || !list.some((item) => item.terminalId === current)) {
+      set(target, list.find((item) => item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
+    }
+  } catch {
+    set(targets, [])
+  }
+}
+
+export function showContext(items: ContextItemView[], notes: (Message | string)[]): void {
+  const ex = new Set(read(excluded))
+  const keptExcluded = read(contextShown).filter((item) => ex.has(item.id) && !items.some((i) => i.id === item.id))
+  put(contextShown, [...items, ...keptExcluded])
+  put(contextNotes, notes)
+}
+
+// ---------------------------------------------------------------- actions
+
+export async function enhanceNow(): Promise<void> {
+  const prompt = read(draft).trim()
+  if (!prompt || read(busy)) return
+  const controller = new AbortController()
+  inFlight = controller
+  const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`)
+  set(busy, 'enhance')
+  set(notice, null)
+  try {
+    const choice = read(profileChoice)
+    const answer = await plugin.request(
+      'prompt.enhance',
+      {
+        prompt,
+        runId,
+        style: read(effectiveStyle),
+        level: read(effectiveLevel),
+        terminalId: read(target),
+        profileId: choice === 'auto' ? null : choice,
+        ...(choice !== 'auto' && read(modelChoice) ? { model: read(modelChoice) } : {}),
+        // Leave the key out (not undefined): request inputs must be plain JSON.
+        ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
+        exclude: read(excluded)
+      },
+      { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
+    )
+    put(result, answer.enhanced)
+    put(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })
+    showContext(answer.context, answer.notes)
+    finishRun(runId, 'done')
+  } catch (error) {
+    if (controller.signal.aborted) finishRun(runId, 'cancelled')
+    else finishRun(runId, 'error', message(error))
+  } finally {
+    if (inFlight === controller) inFlight = null
+    set(busy, null)
+  }
+}
+
+/** Starts a fresh run; progress from an older run is ignored by its id. Exported for tests. */
+export function beginRun(runId: string): string {
+  set(run, { runId, startedAt: Date.now(), steps: [], status: 'running' })
+  return runId
+}
+
+/** Takes a worker snapshot when it belongs to the running run. Exported for tests. */
+export function applyProgress(snapshot: { runId: string; startedAt: number; steps: { key: string; status: Step['status']; detail?: string }[] }): void {
+  const current = read(run)
+  if (current && current.runId === snapshot.runId && current.status === 'running') {
+    set(run, { ...current, startedAt: snapshot.startedAt, steps: snapshot.steps.map((entry) => ({ ...entry, key: entry.key as Step['key'] })) })
+  }
+}
+
+/** What a step still running becomes when the run ends this way. */
+export const OPEN_STEP_ENDS: Record<Run['status'], Step['status']> = { running: 'running', done: 'done', error: 'failed', cancelled: 'skipped' }
+
+/** Ends a run: a step still running is done, failed or (when cancelled) skipped. */
+export function finishRun(runId: string, status: Run['status'], error?: string): void {
+  const current = read(run)
+  if (!current || current.runId !== runId || current.status !== 'running') return
+  const steps: Step[] = current.steps.map((entry) => (entry.status === 'running' ? { ...entry, status: OPEN_STEP_ENDS[status] } : entry))
+  set(run, { ...current, steps, status, finishedAt: Date.now(), ...(error ? { error } : {}) })
+}
+
+export async function previewContext(): Promise<void> {
+  set(busy, 'preview')
+  try {
+    const answer = await plugin.request(
+      'context.preview',
+      { prompt: read(draft), level: read(effectiveLevel), terminalId: read(target), exclude: read(excluded) },
+      { timeoutMs: 60_000 }
+    )
+    showContext(answer.context, answer.notes)
+    set(notice, { tone: 'neutral', text: t('{count} context items, {chars} chars.', { count: answer.context.length, chars: answer.chars.toLocaleString() }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
+  }
+}
+
+export function cancel(): void {
+  // The request's signal stops the worker; enhanceNow then records the run as cancelled.
+  inFlight?.abort()
+}
+
+export function toggleItem(id: string, include: boolean): void {
+  update(excluded, (list) => (include ? list.filter((entry) => entry !== id) : [...new Set([...list, id])]))
+}
+
+export async function send(text: string): Promise<void> {
+  const terminalId = read(target)
+  if (!terminalId || !text.trim()) return
+  set(busy, 'send')
+  try {
+    const { accepted } = await plugin.request('prompt.send', { terminalId, text, enter: read(effectiveEnter) })
+    const label = read(targets).find((item) => item.terminalId === terminalId)?.label ?? 'terminal'
+    set(notice, accepted ? { tone: 'success', text: t('Sent to {label}.', { label }) } : { tone: 'warning', text: t('{label} did not accept the text.', { label }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
+  }
+}
+
+export async function copy(text: string): Promise<void> {
+  if (!text.trim()) return
+  const answer = await plugin.request('prompt.copy', { text }).catch((error) => ({ copied: false, error: message(error) }))
+  set(notice, answer.copied ? { tone: 'success', text: t('Copied to clipboard.') } : { tone: 'danger', text: t('Copy failed: {error}', { error: answer.error ?? 'unknown error' }) })
+}
+
+export function reuse(entry: HistoryEntry): void {
+  put(draft, entry.original)
+  put(result, entry.enhanced)
+  if (isStyle(entry.style)) set(style, entry.style)
+  set(tab, 'enhance')
+}
+
+/** History changes go through the worker, in order with the entries it is saving. */
+export async function removeEntry(id: string): Promise<void> {
+  try {
+    await plugin.request('history.remove', { id })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function clearHistory(): Promise<void> {
+  set(confirmClearHistory, false)
+  try {
+    await plugin.request('history.clear')
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function setSetting(key: string, value: JsonValue): Promise<void> {
+  try {
+    await settings.set(key, value)
+    await refreshDefaults()
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+// ---- model profiles
+
+export function openForm(profile?: ProfileView): void {
+  set(customModel, false)
+  if (profile) {
+    set(form, {
+      id: profile.id,
+      name: profile.name,
+      preset: profile.preset,
+      provider: profile.provider,
+      baseUrl: profile.baseUrl,
+      model: profile.model,
+      temperature: profile.temperature,
+      maxTokens: profile.maxTokens,
+      enabled: profile.enabled,
+      command: profile.command,
+      args: profile.args,
+      apiKey: ''
+    })
+  } else {
+    const preset = presetById('openai')
+    set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', apiKey: '' })
+  }
+  const current = read(form)
+  if (current) void loadCatalog('form', formCatalogInput(current))
+}
+
+export async function detectClis(): Promise<void> {
+  try {
+    const { found } = await plugin.request('models.detect')
+    set(detected, found)
+  } catch {
+    set(detected, [])
+  }
+}
+
+/** One click: adds a detected subscription CLI as a model with its defaults. */
+export async function addDetected(presetId: string, path: string): Promise<void> {
+  const preset = presetById(presetId)
+  try {
+    set(
+      models,
+      await plugin.request('models.save', {
+        name: preset.label.replace(/ \(.*\)$/, ''),
+        preset: preset.id,
+        provider: preset.provider,
+        baseUrl: '',
+        model: preset.model,
+        temperature: 0.3,
+        maxTokens: 2000,
+        enabled: true,
+        command: path,
+        args: ''
+      })
+    )
+    await detectClis()
+    set(notice, { tone: 'success', text: t('Added {name}. Use Test to check it is signed in.', { name: preset.label }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export function applyPreset(id: string): void {
+  const preset = presetById(id)
+  update(form, (current) =>
+    current
+      ? { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, command: '', args: '', name: current.id ? current.name : preset.label }
+      : current
+  )
+  const current = read(form)
+  if (current) void loadCatalog('form', formCatalogInput(current))
+}
+
+export const patchForm = (patch: Partial<Form>) => update(form, (current) => (current ? { ...current, ...patch } : current))
+
+export async function saveForm(): Promise<void> {
+  const current = read(form)
+  if (!current) return
+  set(busy, 'save')
+  try {
+    const { apiKey, ...rest } = current
+    // Editing: an empty key field keeps the saved key.
+    const input: ProfileInput = { ...rest, ...(apiKey.trim() || !current.id ? { apiKey: apiKey.trim() } : {}) }
+    set(models, await plugin.request('models.save', input))
+    set(form, null)
+    set(notice, { tone: 'success', text: t('Saved {name}.', { name: current.name }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
+  }
+}
+
+export async function modelAction(action: { remove: string } | { move: string; to: number }): Promise<void> {
+  try {
+    const next =
+      'remove' in action
+        ? await plugin.request('models.delete', { id: action.remove })
+        : await plugin.request('models.move', { id: action.move, to: action.to })
+    set(models, next)
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function toggleProfile(profile: ProfileView, enabled: boolean): Promise<void> {
+  try {
+    set(models, await plugin.request('models.save', { ...profile, enabled }))
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function testProfile(id: string): Promise<void> {
+  set(busy, 'test')
+  try {
+    const answer = await plugin.request('models.test', { id }, { timeoutMs: 40_000 })
+    set(notice, { tone: answer.ok ? 'success' : 'danger', text: answer.ok ? `${say(answer.text ?? answer.message)} (${answer.ms} ms)` : say(answer.text ?? answer.message) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
+  }
+}
+
+export async function setRoles(patch: { hookProfileId?: string | null; selectorProfileId?: string | null }): Promise<void> {
+  const current = read(models)
+  try {
+    set(
+      models,
+      await plugin.request('models.roles', {
+        hookProfileId: patch.hookProfileId !== undefined ? patch.hookProfileId : (current?.hookProfileId ?? null),
+        selectorProfileId: patch.selectorProfileId !== undefined ? patch.selectorProfileId : (current?.selectorProfileId ?? null)
+      })
+    )
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function switchModel(profile: ProfileView, model: string): Promise<void> {
+  try {
+    set(models, await plugin.request('models.save', { ...profile, model }))
+    set(notice, { tone: 'success', text: t('{name} now uses {model}.', { name: profile.name, model: model || t('CLI default') }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export async function refreshDataSummary(): Promise<void> {
+  set(dataSummary, await plugin.request('data.summary').catch(() => null))
+}
+
+export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<void> {
+  try {
+    await plugin.request('data.clear', { what })
+    if (what === 'history' || what === 'all') set(historyRaw, [])
+    if (what === 'catalogs' || what === 'all') set(catalogs, {})
+    if (what === 'all') {
+      for (const [now, , empty] of KEPT) set(now, empty as never)
+      forgetSaved()
+    }
+    set(confirmWipe, false)
+    set(notice, { tone: 'success', text: what === 'all' ? t('All plugin data deleted.') : what === 'history' ? t('History cleared.') : t('Model lists cleared.') })
+    await refreshModels()
+    await refreshDataSummary()
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
