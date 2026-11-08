@@ -1,9 +1,27 @@
 // Runs src/worker.ts's activate(orca) over a mock host, with fetch stubbed (no network).
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import * as main from './worker.ts'
+
+// Every temporary folder a test makes is removed when the file's tests are done.
+const tempDirs: string[] = []
+after(() => {
+  for (const folder of tempDirs) {
+    try {
+      rmSync(folder, { recursive: true, force: true })
+    } catch {
+      // still in use (Windows): the OS temp cleaner gets it
+    }
+  }
+})
+function tempDir(prefix: string): string {
+  const folder = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(folder)
+  return folder
+}
 
 type Captured = { url: string; body: Record<string, unknown>; headers: Record<string, string> }
 const realFetch = globalThis.fetch
@@ -52,7 +70,7 @@ function profile(id: string, preset: string, extra: Record<string, unknown> = {}
 }
 
 function project(): string {
-  const root = mkdtempSync(join(tmpdir(), 'enhance-prompt-'))
+  const root = tempDir('enhance-prompt-')
   writeFileSync(join(root, 'AGENTS.md'), '# Rules\nUse pnpm. Run pnpm test before finishing.')
   writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'demo', scripts: { test: 'vitest run' }, dependencies: { react: '1' } }))
   writeFileSync(join(root, '.env'), 'SECRET=hunter2')

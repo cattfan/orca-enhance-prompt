@@ -1,13 +1,37 @@
 // Real progress: the worker reports each step it actually reaches; the panel shows it, then ends the
 // run as done, failed or cancelled.
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assert, mockHost, mount, mountWorker, test } from 'orca/testing'
+import { afterEach, assert, mockHost, mount, mountWorker, test } from 'orca/testing'
 import * as panel from './panel.tsx'
 import { PRESETS, type ProfileView } from './presets.ts'
 import { createProgress, percent, planSteps, type ProgressSnapshot } from './progress.ts'
 import * as main from './worker.ts'
+
+// A test that stubs fetch never leaks it into the next one.
+const realFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = realFetch
+})
+
+// Every temporary folder a test makes is removed when the file's tests are done.
+const tempDirs: string[] = []
+after(() => {
+  for (const folder of tempDirs) {
+    try {
+      rmSync(folder, { recursive: true, force: true })
+    } catch {
+      // still in use (Windows): the OS temp cleaner gets it
+    }
+  }
+})
+function tempDir(prefix: string): string {
+  const folder = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(folder)
+  return folder
+}
 
 test('planSteps follows the level and Privacy', () => {
   assert.deepEqual(planSteps('off', true), ['model'])
@@ -34,7 +58,7 @@ test('createProgress sends a full snapshot on every change; percent counts finis
 })
 
 test('the worker reports the real steps of a Deep run, in order, to the asking panel only', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'progress-'))
+  const root = tempDir('progress-')
   writeFileSync(join(root, 'AGENTS.md'), 'Use pnpm.')
   writeFileSync(join(root, 'login.ts'), 'export const login = 1\n')
   globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })) as typeof fetch

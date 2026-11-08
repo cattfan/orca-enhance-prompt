@@ -1,12 +1,36 @@
 // The CLI provider with a stand-in CLI: a small Node script that reads stdin like `claude -p` does.
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assert, mockHost, mountWorker, test } from 'orca/testing'
+import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { cliArgs, runCli } from './cli.ts'
 import * as main from './worker.ts'
 
-const dir = mkdtempSync(join(tmpdir(), 'fake-cli-'))
+// A test that stubs fetch never leaks it into the next one.
+const realFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = realFetch
+})
+
+// Every temporary folder a test makes is removed when the file's tests are done.
+const tempDirs: string[] = []
+after(() => {
+  for (const folder of tempDirs) {
+    try {
+      rmSync(folder, { recursive: true, force: true })
+    } catch {
+      // still in use (Windows): the OS temp cleaner gets it
+    }
+  }
+})
+function tempDir(prefix: string): string {
+  const folder = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(folder)
+  return folder
+}
+
+const dir = tempDir('fake-cli-')
 const script = join(dir, 'fake.mjs').replace(/\\/g, '/')
 writeFileSync(
   script,
@@ -162,4 +186,21 @@ test('a cancel after the CLI already finished changes nothing; readCommand times
   assert.equal(await readCommand(cli.command, [cli.pidFile], 600), null)
   assert.ok(Date.now() - started < 3000, `settled after ${Date.now() - started} ms`)
   assert.ok(await gone(await pidFrom(cli.pidFile)))
+})
+
+test('a cancelled CLI run leaves no working folder behind', async () => {
+  const { readdirSync } = await import('node:fs')
+  const folders = () => new Set(readdirSync(tmpdir()).filter((name) => name.startsWith('enhance-prompt-')))
+  const before = folders()
+  const cli = slowCli()
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 600)
+  await assert.rejects(runCli({ kind: 'custom-cli', model: '', ...cli }, 's', 'u', controller.signal))
+  let left: string[] = []
+  for (let i = 0; i < 40; i++) {
+    left = [...folders()].filter((name) => !before.has(name))
+    if (left.length === 0) break
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  assert.deepEqual(left, [])
 })

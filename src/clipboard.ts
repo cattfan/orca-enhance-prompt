@@ -8,7 +8,8 @@ const utf8 = (text: string) => Buffer.from(text, 'utf8')
 // clip.exe reads UTF-16LE when the input starts with a byte-order mark.
 const utf16 = (text: string) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')])
 
-function tools(platform: NodeJS.Platform): Tool[] {
+/** The OS tools tried in order, with how each wants its input encoded. Exported for tests. */
+export function clipboardTools(platform: NodeJS.Platform): Tool[] {
   if (platform === 'win32') {
     return [{ command: 'clip.exe', args: [], encode: utf16 }]
   }
@@ -54,7 +55,7 @@ export async function copyToClipboard(
   platform: NodeJS.Platform = process.platform
 ): Promise<{ copied: boolean; error?: string }> {
   let lastError = 'no clipboard tool found'
-  for (const tool of tools(platform)) {
+  for (const tool of clipboardTools(platform)) {
     try {
       await run(tool, text)
       return { copied: true }

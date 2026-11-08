@@ -246,6 +246,9 @@ export async function runCli(
     if (!clean) throw new LlmError(`${options.kind} returned an empty answer.`)
     return clean
   } finally {
-    await rm(cwd, { recursive: true, force: true }).catch(() => undefined)
+    // After a cancel the killed CLI may still hold its working folder for a moment (Windows refuses
+    // to delete it): keep retrying in the background instead of leaving an empty folder behind.
+    const removal = rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => undefined)
+    if (!signal?.aborted) await removal
   }
 }

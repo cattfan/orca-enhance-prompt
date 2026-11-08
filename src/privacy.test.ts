@@ -1,9 +1,33 @@
 // The Privacy switches are enforced by the worker, not just hidden in the panel.
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { assert, mockHost, mountWorker, test } from 'orca/testing'
+import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import * as main from './worker.ts'
+
+// A test that stubs fetch never leaks it into the next one.
+const realFetch = globalThis.fetch
+afterEach(() => {
+  globalThis.fetch = realFetch
+})
+
+// Every temporary folder a test makes is removed when the file's tests are done.
+const tempDirs: string[] = []
+after(() => {
+  for (const folder of tempDirs) {
+    try {
+      rmSync(folder, { recursive: true, force: true })
+    } catch {
+      // still in use (Windows): the OS temp cleaner gets it
+    }
+  }
+})
+function tempDir(prefix: string): string {
+  const folder = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(folder)
+  return folder
+}
 
 const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
 
@@ -27,7 +51,7 @@ function hostWith(settings: Record<string, boolean | string>, root: string | nul
 
 test('project files off: Standard falls back to workspace and agent only', async () => {
   stubFetch()
-  const root = mkdtempSync(join(tmpdir(), 'privacy-'))
+  const root = tempDir('privacy-')
   writeFileSync(join(root, 'AGENTS.md'), 'secret rules')
   const worker = await mountWorker(main, { host: hostWith({ allowProjectFiles: false }, root) })
   const answer = await worker.request('prompt.enhance', { prompt: 'do it', level: 'standard' })
@@ -95,7 +119,7 @@ test('data summary and delete everything', async () => {
 })
 
 test('Preview context obeys the same Privacy switches as a run', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'privacy-preview-'))
+  const root = tempDir('privacy-preview-')
   writeFileSync(join(root, 'AGENTS.md'), 'secret rules')
   const filesOff = await mountWorker(main, { host: hostWith({ allowProjectFiles: false }, root) })
   const preview = await filesOff.request('context.preview', { prompt: 'do it', level: 'standard' })
@@ -122,7 +146,7 @@ test('Preview context obeys the same Privacy switches as a run', async () => {
 })
 
 test('auto-enhance (AI) leaves cached project context out while project files are off', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'privacy-hook-'))
+  const root = tempDir('privacy-hook-')
   writeFileSync(join(root, 'AGENTS.md'), 'Use pnpm, secret rules.')
   stubFetch()
   // Warm the cache with project files allowed.
