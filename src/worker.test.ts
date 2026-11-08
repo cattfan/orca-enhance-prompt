@@ -260,3 +260,40 @@ test('cycle command switches auto-enhance mode', async () => {
   assert.equal(await worker.command('auto-enhance.off'), 'Auto-enhance: off')
   await worker.deactivate()
 })
+
+test('a long send closes its bracketed paste when a later piece is refused or fails', async () => {
+  for (const failure of ['refuse', 'throw'] as const) {
+    let calls = 0
+    const host = mockHost({
+      results: {
+        'terminal.sendText': () => {
+          calls++
+          if (calls === 2) {
+            if (failure === 'throw') throw Object.assign(new Error('terminal gone'), { code: 'action_failed' })
+            return { accepted: false }
+          }
+          return { accepted: true }
+        }
+      }
+    })
+    const worker = await mountWorker(main, { host })
+    const run = worker.request('prompt.send', { terminalId: 't1', text: 'line\n'.repeat(2000) })
+    if (failure === 'throw') await assert.rejects(run, /terminal gone/)
+    else assert.deepEqual(await run, { accepted: false })
+    const texts = (host.callsOf('terminal.sendText') as { text: string }[]).map((call) => call.text)
+    assert.ok(texts[0].startsWith('\x1b[200~'))
+    assert.equal(texts.at(-1), '\x1b[201~', `${failure}: the paste is closed`)
+    await worker.deactivate()
+  }
+})
+
+test('a long send that succeeds writes every piece once and no extra paste end', async () => {
+  const host = mockHost({ results: { 'terminal.sendText': { accepted: true } } })
+  const worker = await mountWorker(main, { host })
+  const text = 'line\n'.repeat(2000)
+  assert.deepEqual(await worker.request('prompt.send', { terminalId: 't1', text }), { accepted: true })
+  const texts = (host.callsOf('terminal.sendText') as { text: string }[]).map((call) => call.text)
+  assert.ok(texts.length >= 3)
+  assert.equal(texts.join(''), '\x1b[200~' + text.trim() + '\x1b[201~')
+  await worker.deactivate()
+})

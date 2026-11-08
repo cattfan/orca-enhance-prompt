@@ -157,44 +157,68 @@ export const SEND_CHUNK = 4000
 export function terminalChunks(text: string, mode: string, max = SEND_CHUNK): string[] {
   const formatted = formatForTerminal(text, mode)
   if (formatted.length <= max) return formatted ? [formatted] : []
-  const start = '\x1b[200~'
-  const end = '\x1b[201~'
-  const pasted = formatted.startsWith(start) && formatted.endsWith(end)
-  const body = pasted ? formatted.slice(start.length, -end.length) : formatted
-  const room = max - (pasted ? end.length : 0)
+  const pasted = formatted.startsWith(PASTE_START) && formatted.endsWith(PASTE_END)
+  const body = pasted ? formatted.slice(PASTE_START.length, -PASTE_END.length) : formatted
+  const room = max - (pasted ? PASTE_END.length : 0)
   const pieces: string[] = []
-  let rest = body
-  while (rest.length > 0) {
-    const limit = pieces.length === 0 && pasted ? room - start.length : room
-    if (rest.length <= limit) {
-      pieces.push(rest)
+  let at = 0
+  while (at < body.length) {
+    const limit = pieces.length === 0 && pasted ? room - PASTE_START.length : room
+    if (body.length - at <= limit) {
+      pieces.push(body.slice(at))
       break
     }
-    let cut = rest.lastIndexOf('\n', limit - 1) + 1
+    // Prefer a line break in the last 40% of the piece; else cut at the limit.
+    let cut = body.lastIndexOf('\n', at + limit - 1) + 1 - at
     if (cut < limit * 0.6) cut = limit
-    // Do not split a surrogate pair (emoji, rare CJK).
-    const code = rest.charCodeAt(cut - 1)
-    if (code >= 0xd800 && code <= 0xdbff) cut -= 1
-    pieces.push(rest.slice(0, cut))
-    rest = rest.slice(cut)
+    // Never end a piece on the first half of a surrogate pair (emoji, rare CJK): each write is
+    // encoded on its own, and a lone half would arrive as U+FFFD.
+    if (isHighSurrogate(body.charCodeAt(at + cut - 1)) && cut > 1) cut -= 1
+    pieces.push(body.slice(at, at + cut))
+    at += cut
   }
   if (pasted) {
-    pieces[0] = start + pieces[0]
-    pieces[pieces.length - 1] = pieces[pieces.length - 1] + end
+    pieces[0] = PASTE_START + pieces[0]
+    pieces[pieces.length - 1] = pieces[pieces.length - 1] + PASTE_END
   }
   return pieces
 }
 
+export const PASTE_START = '\u001b[200~'
+export const PASTE_END = '\u001b[201~'
+
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff
+
+/**
+ * Text safe to type into a terminal: line breaks become \n, tabs stay, and every other control
+ * character (ESC, Ctrl-C, DEL, C1 codes such as CSI) is dropped. The enhanced prompt comes from a
+ * model, so it must not be able to send keystrokes or escape sequences to the agent's terminal.
+ */
+export function terminalSafe(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n')
+  let out = ''
+  let kept = 0
+  for (let index = 0; index < normalized.length; index++) {
+    const code = normalized.charCodeAt(index)
+    const control = (code < 0x20 && code !== 0x0a && code !== 0x09) || (code >= 0x7f && code <= 0x9f)
+    if (control) {
+      out += normalized.slice(kept, index)
+      kept = index + 1
+    }
+  }
+  return kept === 0 ? normalized : out + normalized.slice(kept)
+}
+
 /** Formats text for a terminal according to the `sendMode` setting. */
 export function formatForTerminal(text: string, mode: string): string {
-  const normalized = text.replace(/\r\n?/g, '\n').trim()
+  const normalized = terminalSafe(text).trim()
   if (mode === 'single-line') {
     return normalized.split('\n').map((line) => line.trim()).filter(Boolean).join(' ')
   }
   if (mode === 'raw' || !normalized.includes('\n')) {
     return normalized
   }
-  // Bracketed paste: agent TUIs keep the newlines instead of submitting at the first one.
-  const safe = normalized.replace(/\x1b\[20[01]~/g, '')
-  return `\x1b[200~${safe}\x1b[201~`
+  // Bracketed paste: agent TUIs keep the newlines instead of submitting at the first one. ESC is
+  // already gone, so the text cannot close the paste early.
+  return `${PASTE_START}${normalized}${PASTE_END}`
 }

@@ -19,7 +19,7 @@ import {
   type ChainOptions
 } from './models'
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
-import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, terminalChunks, type Style } from './prompts'
+import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts'
 import type { ModelsView } from './protocol'
 import { parsePrivacy, type Privacy } from './privacy'
 import { createProgress, planSteps, type StepReporter } from './progress'
@@ -306,6 +306,27 @@ async function setMode(orca: OrcaWorkerApi, mode: AutoMode): Promise<string> {
   return `Auto-enhance: ${MODE_LABEL[mode]}`
 }
 
+/**
+ * Writes the pieces in order. If a piece is refused or fails after a bracketed paste has started,
+ * the paste is closed, so the agent's input is not left waiting for the end of a paste.
+ */
+export async function sendPieces(orca: OrcaWorkerApi, terminalId: string, pieces: string[]): Promise<{ accepted: boolean }> {
+  const pasting = pieces.length > 1 && pieces[0].startsWith(PASTE_START) && pieces[pieces.length - 1].endsWith(PASTE_END)
+  let sent = 0
+  try {
+    for (const piece of pieces) {
+      const result = await orca.host.call('terminal.sendText', { terminalId, text: piece })
+      if (!result.accepted) break
+      sent++
+    }
+  } finally {
+    if (pasting && sent > 0 && sent < pieces.length) {
+      await orca.host.call('terminal.sendText', { terminalId, text: PASTE_END }).catch(() => undefined)
+    }
+  }
+  return { accepted: sent === pieces.length }
+}
+
 export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
     const started = Date.now()
@@ -361,11 +382,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     const pressEnter = enter ?? settings.sendPressEnter
     // Long prompts go in pieces: Orca accepts at most 4096 characters per call, and keeps writes to
     // one terminal in order.
-    let result = { accepted: true }
-    for (const piece of pieces) {
-      result = await orca.host.call('terminal.sendText', { terminalId, text: piece })
-      if (!result.accepted) break
-    }
+    const result = await sendPieces(orca, terminalId, pieces)
     if (pressEnter && result.accepted) {
       // Give the agent's TUI a beat to take the paste before submitting it.
       await new Promise((resolve) => setTimeout(resolve, 150))
