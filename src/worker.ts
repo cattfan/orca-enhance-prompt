@@ -21,6 +21,8 @@ import {
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
 import { buildSystemPrompt, buildUserMessage, cleanOutput, formatForTerminal, isStyle, type Style } from './prompts'
 import type { ModelsView } from './protocol'
+import { parsePrivacy, type Privacy } from './privacy'
+import { MODELS_KEY } from './presets'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
@@ -48,6 +50,7 @@ export type Settings = {
   autoEnhanceAppend: string
   autoEnhanceMinLength: number
   autoEnhanceContext: boolean
+  privacy: Privacy
 }
 
 const str = (value: JsonValue | undefined, fallback = '') => (typeof value === 'string' ? value : fallback)
@@ -82,7 +85,8 @@ export async function readSettings(orca: OrcaWorkerApi): Promise<Settings> {
     autoEnhanceMode: (AUTO_MODES as readonly string[]).includes(mode) ? (mode as AutoMode) : 'off',
     autoEnhanceAppend: str(all.autoEnhanceAppend),
     autoEnhanceMinLength: num(all.autoEnhanceMinLength, 8),
-    autoEnhanceContext: bool(all.autoEnhanceContext, true)
+    autoEnhanceContext: bool(all.autoEnhanceContext, true),
+    privacy: parsePrivacy(all)
   }
 }
 
@@ -102,6 +106,7 @@ function chainOptions(settings: Settings, signal?: AbortSignal, extra: Partial<C
 
 async function addHistory(orca: OrcaWorkerApi, limit: number, entry: Omit<HistoryEntry, 'id' | 'at'>): Promise<void> {
   if (limit <= 0) return
+  if ((await orca.settings.get('saveHistory').catch(() => true)) === false) return
   const list = parseHistory(await orca.storage.get(HISTORY_KEY))
   const at = Date.now()
   const next: HistoryEntry[] = [
@@ -155,7 +160,9 @@ export async function enhance(
   const settings = await readSettings(orca)
   const config = await loadModels(orca)
   const style: Style = isStyle(input.style) ? input.style : settings.defaultStyle
-  const level: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
+  const requested: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
+  // Privacy: without project files, nothing beyond workspace and agent names.
+  const level: ContextLevel = !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
 
   const gathered = await gatherContext(orca, {
     level,
@@ -165,8 +172,11 @@ export async function enhance(
     exclude: new Set(input.exclude ?? []),
     extraFiles: settings.extraContextFiles,
     excludePatterns: settings.excludePatterns,
-    pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal)
+    pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal),
+    allowGit: settings.privacy.allowGit,
+    allowTerminal: settings.privacy.allowTerminalRead
   })
+  if (level !== requested) gathered.notes.push('Project files are off in Privacy: workspace and agent only.')
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
   const system = buildSystemPrompt({
@@ -322,6 +332,7 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('prompt.send', async ({ terminalId, text, enter }) => {
     const settings = await readSettings(orca)
+    if (!settings.privacy.allowTerminalSend) throw hostError('Sending to terminals is off in Privacy.', 'not_permitted')
     const payload = formatForTerminal(text, settings.sendMode)
     if (!payload) throw hostError('Nothing to send.', 'invalid_params')
     const pressEnter = enter ?? settings.sendPressEnter
@@ -444,18 +455,50 @@ export default function activate(orca: OrcaWorkerApi): void {
       }
     }
     let catalog: Catalog
-    if (preset.id === 'claude-code') catalog = await claudeCatalog(command)
+    const online = (await readSettings(orca)).privacy.allowOnlineModelLists
+    if (preset.id === 'claude-code') catalog = await claudeCatalog(command, online)
     else if (preset.id === 'codex') catalog = await codexCatalog(command)
     else if (preset.id === 'gemini-cli') catalog = await geminiCatalog()
     else if (provider === 'cli') catalog = { models: [], source: 'custom CLI', fetchedAt: Date.now() }
     else {
       const key = input.apiKey?.trim() || (profile ? (await resolveKey(orca, profile)).key : null) || (preset.env ? (process.env[preset.env] ?? null) : null)
-      catalog = await apiCatalog(provider, baseUrl, key)
+      catalog = online
+        ? await apiCatalog(provider, baseUrl, key)
+        : { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
     }
     if (catalog.models.length > 0) {
       await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
     }
     return catalog
+  })
+
+  // Privacy tab: what is stored, and wiping it.
+  orca.panels.handle('data.summary', async () => {
+    const keys = await orca.storage.keys()
+    const config = await loadModels(orca)
+    const history = parseHistory(await orca.storage.get(HISTORY_KEY))
+    let secretsStored = 0
+    for (const profile of config.profiles) if (await orca.secrets.get(secretName(profile.id)).catch(() => null)) secretsStored++
+    return {
+      history: history.length,
+      profiles: config.fromEnv ? 0 : config.profiles.length,
+      keys: secretsStored,
+      catalogs: keys.filter((key) => key.startsWith('catalog:')).length
+    }
+  })
+
+  orca.panels.handle('data.clear', async ({ what }) => {
+    const keys = await orca.storage.keys()
+    if (what === 'history' || what === 'all') await orca.storage.delete(HISTORY_KEY)
+    if (what === 'catalogs' || what === 'all') {
+      for (const key of keys.filter((entry) => entry.startsWith('catalog:'))) await orca.storage.delete(key)
+    }
+    if (what === 'all') {
+      const config = await loadModels(orca)
+      for (const profile of config.profiles) await orca.secrets.delete(secretName(profile.id)).catch(() => undefined)
+      await orca.storage.delete(MODELS_KEY)
+    }
+    return { ok: true as const }
   })
 
   orca.panels.handle('models.detect', async () => {
@@ -533,7 +576,9 @@ export default function activate(orca: OrcaWorkerApi): void {
         const wantsHook = settings.autoEnhanceMode === 'ai' && settings.autoEnhanceContext
         if (!wantsHook && !atLeast(settings.contextLevel, 'standard')) return
         const workspace = await findFocusedWorkspace(orca, context)
-        if (workspace && workspace.hostId === null) await staticParts(workspace.path, settings.extraContextFiles, true)
+        if (workspace && workspace.hostId === null && settings.privacy.allowProjectFiles) {
+          await staticParts(workspace.path, settings.extraContextFiles, true, settings.privacy.allowGit)
+        }
       } catch (error) {
         orca.log(`context warm-up: ${(error as Error).message}`)
       }

@@ -32,6 +32,9 @@ export type GatherOptions = {
   excludePatterns: string
   /** Max level: asks a model to pick files from the tree. */
   pickFiles?: (tree: string[], prompt: string) => Promise<string[]>
+  /** Privacy switches: no git commands, no terminal output. */
+  allowGit?: boolean
+  allowTerminal?: boolean
 }
 
 export type GatherResult = { items: ContextItem[]; notes: string[]; root: string | null }
@@ -71,14 +74,15 @@ const staticCache = new Map<string, StaticParts>()
 const STATIC_TTL_MS = 90_000
 
 export function cachedStatic(root: string): StaticParts | null {
-  const hit = staticCache.get(root)
+  const hit = staticCache.get(`git:${root}`) ?? staticCache.get(`nogit:${root}`)
   return hit && Date.now() - hit.at < STATIC_TTL_MS * 4 ? hit : null
 }
 
-export async function staticParts(root: string, extraFiles: string[], fresh = false): Promise<StaticParts> {
-  const hit = staticCache.get(root)
+export async function staticParts(root: string, extraFiles: string[], fresh = false, allowGit = true): Promise<StaticParts> {
+  const cacheKey = `${allowGit ? 'git' : 'nogit'}:${root}`
+  const hit = staticCache.get(cacheKey)
   if (hit && !fresh && Date.now() - hit.at < STATIC_TTL_MS) return hit
-  const isGit = await isGitRepo(root)
+  const isGit = allowGit && (await isGitRepo(root))
   const listed = (isGit ? await gitFiles(root) : null) ?? (await walkFiles(root))
   const files = listed.filter((file) => !isSensitive(file))
   const items: ContextItem[] = []
@@ -89,7 +93,7 @@ export async function staticParts(root: string, extraFiles: string[], fresh = fa
   if (stack) items.push(item('stack', 'stack', 'Stack & commands', stack))
   if (files.length > 0) items.push(item('tree', 'tree', `Repository tree (${files.length} files)`, treeSummary(files)))
   const parts = { at: Date.now(), files, isGit, items }
-  staticCache.set(root, parts)
+  staticCache.set(cacheKey, parts)
   return parts
 }
 
@@ -126,14 +130,15 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   }
 
   if (root) {
-    const parts = await staticParts(root, options.extraFiles)
+    const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false)
     items.push(...parts.items)
     if (atLeast(level, 'deep')) {
       items.push(...(await dynamicParts(root, parts, options, notes)))
     }
   }
 
-  if (level === 'max' && options.terminalId && options.terminalLines > 0) {
+  if (level === 'max' && options.allowTerminal === false) notes.push('Terminal output is off in Privacy.')
+  if (level === 'max' && options.allowTerminal !== false && options.terminalId && options.terminalLines > 0) {
     const read = await orca.host
       .call('terminal.read', { terminalId: options.terminalId, maxLines: options.terminalLines })
       .catch(() => null)

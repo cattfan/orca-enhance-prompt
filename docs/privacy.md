@@ -2,6 +2,22 @@
 
 Enhance Prompt has no tracking, analytics or telemetry, and no server of its own.
 
+## Turn things off
+
+Orca approves a plugin's access as a whole: it shows everything the plugin may do and asks once. The panel's **Privacy** tab (and **Settings → Plugins → Enhance Prompt → Privacy: …**) decides what the plugin actually uses. The worker checks these switches before every read, send, save or download, so a switch that is off is never bypassed.
+
+| Switch | Off means |
+| --- | --- |
+| Read project files | No rules, README, manifests or file list; Standard and above fall back to workspace and agent names |
+| Run git | No `git` commands; files are listed by walking the folder |
+| Read terminal output | The Max level skips the terminal |
+| Send to terminals | **Send** is refused; use **Copy** |
+| Save history | Nothing is added to History |
+| Use API keys from environment variables | Only keys you saved in the Models tab |
+| Fetch model lists online | No `GET /models` or schema download; CLI lists still come from your machine |
+
+The same tab shows what is stored and has **Clear history**, **Clear model lists** and **Delete everything** (history, model lists, saved models and their keys; press twice).
+
 ## Where your prompt goes
 
 - Your prompt, plus the context items listed under **Context used**, is sent **only to the model you run**: the API endpoint of that model profile, or the subscription CLI on your machine, which talks to its own provider.
@@ -23,7 +39,7 @@ Enhance Prompt has no tracking, analytics or telemetry, and no server of its own
 | The plugin's own storage | Model profiles, history, cached model lists |
 | Orca settings | The options on the [Settings](settings.md) page |
 
-To clear it yourself: **Clear history** in the History tab, **Delete** on each model card (removes its key too), and **Reset** for the plugin's settings in Orca.
+Nothing else is written to disk. Project context is cached in memory only, and a subscription CLI runs in a temporary folder that is deleted afterwards. Clear any of it from the **Privacy** tab.
 
 ## Permissions
 

@@ -83,7 +83,7 @@ const images = {
       <p class="lead">Rewrite prompts for Claude Code, Codex and Gemini CLI with your repo's real files, rules and commands, then send them straight to an agent terminal.</p>
       <div><span class="chip">${icon('agent', 16)} Your subscription or API key</span><span class="chip">${icon('zap', 16)} Fallback across models</span><span class="chip">${icon('book', 16)} EN · VI · 中文</span></div>
     </div>
-    ${frame('shot-enhance', { height: 930, scale: 0.98 })}
+    ${frame('shot-enhance', { height: 600, scale: 1.4 })}
   </div>`),
   'screenshots/1-enhance': page(`<div class="stage">
     <div class="copy">${brand}
@@ -96,7 +96,7 @@ const images = {
         ['play', 'Send to the agent terminal, copy, or refine again']
       ])}
     </div>
-    ${frame('shot-enhance', { open: true, height: 930, scale: 0.98, offset: 240 })}
+    ${frame('shot-enhance', { open: true, height: 940, scale: 0.98 })}
   </div>`),
   'screenshots/2-models': page(`<div class="stage">
     <div class="copy">${brand}
@@ -117,20 +117,20 @@ const images = {
       <p class="lead" style="font-size:21px">The panel follows Orca's language or your choice, and the enhanced prompt can be written in English, Vietnamese or Chinese, per prompt.</p>
       ${points([['book', 'History with search, reuse and copy'], ['zap', 'Auto-enhance prompts Orca sends to agents']])}
     </div>
-    <div>${frame('shot-enhance-vi', { height: 930, scale: 0.92 })}<div class="caption">Tiếng Việt</div></div>
-    <div>${frame('shot-history-zh', { height: 930, scale: 0.92 })}<div class="caption">中文 · 历史</div></div>
+    <div>${frame('shot-enhance-vi', { height: 620, scale: 1.1 })}<div class="caption">Tiếng Việt</div></div>
+    <div>${frame('shot-history-zh', { height: 620, scale: 1.1 })}<div class="caption">中文 · 历史</div></div>
   </div>`)
 }
 
 // README feature pictures (docs/assets/readme-features), rendered at 2x for sharp text.
 const features = {
-  'enhance-and-send': feature(frame('shot-enhance', { height: 520, scale: 1.02, offset: 385 })),
-  'project-context': feature(frame('shot-enhance', { open: true, height: 640, scale: 0.82, offset: 95 })),
-  subscription: feature(frame('shot-models', { height: 500, scale: 1.04, offset: 95 })),
-  'models-fallback': feature(frame('shot-models', { height: 480, scale: 1.08, offset: 750 })),
+  'enhance-and-send': feature(frame('shot-enhance', { height: 600, scale: 0.9, offset: 0 })),
+  'project-context': feature(frame('shot-enhance', { open: true, height: 620, scale: 0.86, offset: 0 })),
+  subscription: feature(frame('shot-models', { height: 510, scale: 1.04, offset: 55 })),
+  'models-fallback': feature(frame('shot-models', { height: 440, scale: 1.12, offset: 600 })),
   languages: feature(
-    frame('shot-enhance-vi', { height: 640, scale: 0.84, offset: 0 }),
-    frame('shot-history-zh', { height: 640, scale: 0.84, offset: 0 })
+    frame('shot-enhance-vi', { height: 620, scale: 0.86, offset: 0 }),
+    frame('shot-history-zh', { height: 620, scale: 0.86, offset: 0 })
   ),
   history: feature(frame('shot-history', { height: 520, scale: 1.04, offset: 0 }))
 }

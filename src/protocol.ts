@@ -100,6 +100,10 @@ declare module 'orca' {
         error?: string
       }
     }
+    /** What the plugin keeps: history entries, saved models, saved keys, cached model lists. */
+    'data.summary': { output: { history: number; profiles: number; keys: number; catalogs: number } }
+    /** Deletes history, cached model lists, or everything (models and their keys too). */
+    'data.clear': { input: { what: 'history' | 'catalogs' | 'all' }; output: { ok: true } }
     /** Agent CLIs found on this machine (usable with the person's subscription). */
     'models.detect': { output: { found: { preset: string; label: string; path: string; added: boolean }[] } }
   }

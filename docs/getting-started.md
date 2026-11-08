@@ -28,13 +28,16 @@ Go back to the **Enhance** tab and describe what you want, as roughly as you lik
 login page is broken on mobile
 ```
 
-Next to **Enhance**, the model menu lists every model you can use right now, like the model menu in ChatGPT or Claude: **Auto** runs your models in order with fallback, or pick one, such as **Claude Code · Sonnet** or **Codex · GPT-6.1-Sol**. The lists come from each CLI or API and stay current; see [Model lists stay current](models.md#model-lists-stay-current).
+Under the prompt is one toolbar: the model menu, **Options** (⚙), **Preview context** (🔍) and **Enhance**.
 
-The line under the prompt shows the other options, for example **Balanced · Standard**. Click it to change them:
+The model menu lists every model you can use right now, like the model menu in ChatGPT or Claude: **Auto** runs your models in order with fallback, or pick one, such as **Claude Code · sonnet** or **Codex · GPT-6.1-Sol**. The lists come from each CLI or API and stay current; see [Model lists stay current](models.md#model-lists-stay-current).
+
+⚙ opens the other options (hover it to see the current ones):
 
 - **Style**: what kind of prompt you need. See [Styles](#styles).
 - **Context**: how much of your project the model sees. **Standard** is a good default; **Deep** finds the code that matches your request. See [Context levels](context-levels.md).
 - **Output**: the language of the result, or the same language as your request.
+- **Press Enter after sending**: off by default, so you can read the prompt in the agent first.
 
 Click **Enhance** or press `Ctrl+Enter` (`⌘Enter`). A model API takes a few seconds; a subscription CLI usually takes 5 to 15.
 
@@ -42,14 +45,13 @@ Click **Enhance** or press `Ctrl+Enter` (`⌘Enter`). A model API takes a few se
 
 The result opens in the **Enhanced prompt** card. Edit it freely, then:
 
-- Pick the agent's terminal under **Send to**. Agent terminals come first.
-- Click **Send to agent**. The prompt is pasted, not submitted, so you can read it in the agent before pressing Enter. Turn on **Press Enter after sending** to submit it right away.
+- Pick the agent's terminal at the bottom of the card. Agent terminals come first.
+- Click **Send**. The prompt is pasted, not submitted, unless **Press Enter after sending** is on (⚙).
 
 Other actions:
 
-- **Copy** and **Clear**: the two icons at the top of the card.
-- **Refine**: makes the result your new input, to enhance it again with another style or level.
-- **Context used**: lists everything the model saw. Untick an item to leave it out next time.
+- **Copy**, **Refine** and **Clear**: the icons at the top of the card. Refine makes the result your new input, to enhance it again with another style or level.
+- **Context**: lists everything the model saw. Untick an item to leave it out next time.
 - **Send as is**: before you enhance, sends your prompt unchanged to the selected terminal.
 
 ## 5. Reuse from history

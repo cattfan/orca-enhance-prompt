@@ -50,19 +50,15 @@ test('lists each model of each profile and sends the one you pick', async () => 
   const menu = view.find({ label: 'Model', type: 'Select' })!
   const labels = (menu.props.options as { label: string }[]).map((option) => option.label)
   assert.deepEqual(labels, [
-    'Auto (chain with fallback)',
-    'Claude Code · haiku — Haiku, newest (fastest) · default',
-    'Claude Code · sonnet — Sonnet, newest',
-    'Claude Code · opus — Opus, newest',
+    'Auto (fallback)',
+    'Claude Code · haiku · default',
+    'Claude Code · sonnet',
+    'Claude Code · opus',
     'Codex · CLI default',
     'Codex · GPT-6.1-Sol'
   ])
 
-  // The header names the model that will answer.
-  assert.ok(view.find({ type: 'Badge', text: 'Auto: Claude Code · haiku' }))
-
   await view.select(menu, 'claude|opus')
-  assert.ok(view.find({ type: 'Badge', text: 'Claude Code · opus' }))
   await view.type({ label: 'Your prompt' }, 'fix it')
   await view.press({ role: 'button', text: 'Enhance' })
   assert.equal(sent[0].profileId, 'claude')

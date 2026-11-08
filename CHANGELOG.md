@@ -3,6 +3,26 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.8.0] - 2026-11-08
+
+### Added
+- **Privacy tab with a switch for each kind of access**: read project files, run git, read terminal output,
+  send to terminals, save history, use environment API keys, fetch model lists online. Orca approves access
+  as a whole; these switches decide what the plugin actually uses, and the worker checks them before every
+  read, send, save or download. Also in Settings as "Privacy: …".
+- **What is stored, and wiping it**: counts of history entries, saved models, encrypted keys and cached model
+  lists, with Clear history, Clear model lists and Delete everything (press twice).
+
+### Changed
+- **Much more compact panel** (about half the height):
+  - No header; the language menu moved to the bottom of the Models tab.
+  - The prompt box has no label; one toolbar row holds the model menu, Options (⚙), Preview (🔍) and Enhance.
+  - Style, context, output language and "Press Enter after sending" open from ⚙.
+  - The result card has copy, refine and clear as icons, and one row for the terminal and **Send**.
+  - Model cards take two rows: position, name and actions; then the model menu and key status. Enable or
+    disable with the pause/play icon.
+  - The composer's model menu shows short names, such as "Claude Code · sonnet".
+
 ## [1.7.0] - 2026-11-08
 
 ### Changed
@@ -157,6 +177,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.0
 [1.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.7.0
 [1.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.2
 [1.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.1

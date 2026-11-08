@@ -38,9 +38,14 @@ function envProfiles(): ModelProfile[] {
   return out
 }
 
+/** Privacy: may API keys come from environment variables? */
+async function envKeysAllowed(orca: OrcaWorkerApi): Promise<boolean> {
+  return (await orca.settings.get('allowEnvKeys').catch(() => true)) !== false
+}
+
 export async function loadModels(orca: OrcaWorkerApi): Promise<ModelsConfig & { fromEnv: boolean }> {
   const config = parseModelsConfig(await orca.storage.get(MODELS_KEY))
-  if (config.profiles.length > 0) {
+  if (config.profiles.length > 0 || !(await envKeysAllowed(orca))) {
     return { ...config, fromEnv: false }
   }
   return { profiles: envProfiles(), hookProfileId: null, selectorProfileId: null, fromEnv: true }
@@ -79,7 +84,7 @@ export async function resolveKey(
     return { key: stored, source: 'secret' }
   }
   const env = presetById(profile.preset).env
-  if (env && process.env[env]) {
+  if (env && process.env[env] && (await envKeysAllowed(orca))) {
     return { key: process.env[env] ?? null, source: 'env' }
   }
   return { key: null, source: 'none' }

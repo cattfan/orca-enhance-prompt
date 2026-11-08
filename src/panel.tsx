@@ -13,6 +13,7 @@ import {
   Grid,
   Separator,
   IconButton,
+  KeyValue,
   Input,
   on,
   plugin,
@@ -45,6 +46,7 @@ import {
 } from './presets'
 import { isStyle, STYLE_LABELS, STYLES } from './prompts'
 import { t, UI_LANGUAGES, uiLanguageSetting } from './i18n'
+import { PRIVACY_KEYS } from './privacy'
 import type { AttemptView, ModelsView, ProfileInput } from './protocol'
 
 type Target = { terminalId: string; label: string; agent: string | null }
@@ -88,6 +90,13 @@ const CLI_DEFAULT = '__cli_default__'
 const toModel = (value: string) => (value === CLI_DEFAULT ? '' : value)
 /** The form's model picker is on "Other (type the id)". */
 const customModel = atom(false)
+/** What the Privacy tab shows: stored data counts and the switches. */
+const dataSummary = atom<{ history: number; profiles: number; keys: number; catalogs: number } | null>(null)
+const privacy = atom<Record<string, boolean>>({})
+/** "Delete everything" asks for a second press. */
+const confirmWipe = atom(false)
+/** The composer's options (style, context, output, Enter) are shown. */
+const optionsOpen = atom('optionsOpen', false, { persist: 'plugin' })
 
 const busy = atom<'enhance' | 'preview' | 'send' | 'test' | 'save' | null>(null)
 const notice = atom<Notice>(null)
@@ -138,6 +147,7 @@ async function refreshDefaults(): Promise<void> {
     autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off'
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
+  set(privacy, Object.fromEntries(PRIVACY_KEYS.map((key) => [key, all[key] !== false])))
 }
 
 async function changeUiLanguage(value: string): Promise<void> {
@@ -489,6 +499,7 @@ export function setup(ctx: PanelContext): void {
   void refreshModels()
   void refreshTargets()
   void detectClis()
+  void refreshDataSummary()
 }
 
 // ---------------------------------------------------------------- view
@@ -542,7 +553,7 @@ function ContextPanel() {
   const included = shown.filter((item) => !ex.has(item.id))
   const chars = included.reduce((sum, item) => sum + item.chars, 0)
   return (
-    <Collapsible title={t('Context used: {count} items, {chars} chars', { count: included.length, chars: chars.toLocaleString() })} description={t('Untick to leave an item out next time')}>
+    <Collapsible title={t('Context · {count} items · {chars} chars', { count: included.length, chars: chars.toLocaleString() })}>
       <Stack gap="xs">
         {shown.map((item) => (
           <Checkbox
@@ -585,25 +596,32 @@ function RunInfo() {
 const shortLabel = (label: string) => label.split(/[:：]/)[0].trim()
 
 /** Style, context, output and model, folded under a one-line summary of the current choice. */
-function PromptOptions() {
+/** One line naming the current options, used as the options button's tooltip. */
+function optionsSummary(): string {
   const styleValue = read(effectiveStyle)
   const levelValue = read(effectiveLevel)
   const output = outputOptions().find((option) => option.value === read(outputChoice))
-  const summary = [
+  return [
     t(STYLE_LABELS[isStyle(styleValue) ? styleValue : 'balanced']),
     shortLabel(t(CONTEXT_LEVEL_LABELS[isContextLevel(levelValue) ? levelValue : 'standard'])),
     read(outputChoice) !== 'default' && output ? output.label.replace(/^[^:：]+[:：]\s*/, '') : ''
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+/** Style, context, output language and the Enter switch, shown under the composer when opened. */
+function PromptOptions() {
+  if (!read(optionsOpen)) return null
   return (
-    <Collapsible title={summary} description={t('Style, context and output language')}>
+    <Box gap="sm" padding="sm" radius="md" background="muted">
       <Grid columns={2} gap="sm">
-        <Select label={t('Style')} value={styleValue} options={styleOptions()} onChange={(value) => set(style, value)} />
-        <Select label={t('Context')} value={levelValue} options={levelOptions()} onChange={(value) => set(level, value)} />
+        <Select label={t('Style')} value={read(effectiveStyle)} options={styleOptions()} onChange={(value) => set(style, value)} />
+        <Select label={t('Context')} value={read(effectiveLevel)} options={levelOptions()} onChange={(value) => set(level, value)} />
         <Select label={t('Output language')} value={read(outputChoice)} options={outputOptions()} onChange={(value) => set(outputChoice, value)} />
       </Grid>
-    </Collapsible>
+      <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
+    </Box>
   )
 }
 
@@ -622,10 +640,16 @@ function modelName(id: string, label: string): string {
   return squash(display) === squash(id) || display === id ? display : `${id} — ${display}`
 }
 
+/** The id, or the display name when it is just the id written nicely ("GPT-6.1-Sol"). */
+function shortModelName(id: string, label: string): string {
+  const display = modelDisplay(label)
+  return squash(display) === squash(id) ? display : id
+}
+
 /** Every model of every enabled profile, from its live list, plus Auto. */
 function modelMenu() {
   const options: { value: string; label: string }[] = [
-    { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (chain with fallback)') : t('Auto (first model)') }
+    { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (fallback)') : t('Auto') }
   ]
   for (const profile of read(enabledProfiles)) {
     const catalog = read(catalogs)[profile.id]
@@ -642,21 +666,9 @@ function modelMenu() {
     }
     if (profile.provider === 'cli' && !profile.model) add('', t('CLI default'))
     else if (profile.model && !listed.some((model) => model.id === profile.model)) add(profile.model, profile.model)
-    for (const model of listed) add(model.id, modelName(model.id, model.label))
+    for (const model of listed) add(model.id, shortModelName(model.id, model.label))
   }
   return options
-}
-
-/** The model that will answer, for the header badge: "Claude Code · sonnet", or Auto's first model. */
-function pickedModelLabel(): string {
-  const profiles = read(enabledProfiles)
-  const choice = read(profileChoice)
-  const profile = choice === 'auto' ? profiles[0] : profiles.find((entry) => entry.id === choice)
-  if (!profile) return t('Auto')
-  const id = (choice === 'auto' ? '' : read(modelChoice)) || profile.model
-  const listed = read(catalogs)[profile.id]?.models.find((model) => model.id === id)
-  const name = id ? (listed && squash(modelDisplay(listed.label)) === squash(id) ? modelDisplay(listed.label) : id) : t('CLI default')
-  return `${choice === 'auto' ? `${t('Auto')}: ` : ''}${profile.name} · ${name}`
 }
 
 function currentModelValue(): string {
@@ -699,36 +711,32 @@ function ComposerModelPicker() {
 function ResultCard({ output }: { output: string }) {
   const working = read(busy)
   return (
-    <Box gap="sm" padding="md" border radius="lg">
+    <Box gap="sm" padding="sm" border radius="lg">
       <Row justify="between">
-        <Text weight="semibold">{t('Enhanced prompt')}</Text>
+        <Text weight="semibold" size="sm">
+          {t('Enhanced prompt')}
+        </Text>
         <Row gap="none">
           <IconButton icon="copy" label={t('Copy')} size="sm" variant="ghost" onPress={() => void copy(output)} />
+          <IconButton
+            icon="refresh"
+            label={t('Refine: use the enhanced prompt as the new input')}
+            size="sm"
+            variant="ghost"
+            onPress={() => {
+              set(draft, output)
+              set(result, '')
+            }}
+          />
           <IconButton icon="delete" label={t('Clear')} size="sm" variant="ghost" onPress={() => set(result, '')} />
         </Row>
       </Row>
-      <Textarea label={t('Enhanced prompt')} labelHidden rows={12} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
+      <Textarea label={t('Enhanced prompt')} labelHidden rows={10} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
       <RunInfo />
-      <Separator />
-      <Text weight="semibold" size="sm">
-        {t('Send to')}
-      </Text>
-      <TargetPicker />
-      <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
-      <Row gap="xs" wrap>
+      <Row gap="xs">
+        <TargetPicker />
         <Button variant="solid" icon="play" onPress={() => void send(output)} disabled={!read(target) || working !== null}>
-          {t('Send to agent')}
-        </Button>
-        <Button
-          variant="outline"
-          icon="refresh"
-          tooltip={t('Use the enhanced prompt as the new input')}
-          onPress={() => {
-            set(draft, output)
-            set(result, '')
-          }}
-        >
-          {t('Refine')}
+          {t('Send')}
         </Button>
       </Row>
     </Box>
@@ -744,42 +752,35 @@ function EnhanceTab() {
   const noModel = view !== null && profiles.length === 0
   const allKeyless = profiles.length > 0 && profiles.every((p) => p.keySource === 'none')
   return (
-    <Stack gap="md">
+    <Stack gap="sm">
       {noModel || allKeyless ? (
         <Callout tone="warning" title={noModel ? t('No model yet') : t('No API key yet')}>
-          <Stack gap="xs">
-            <Text size="sm">{t('Add a model and its API key in the Models tab (keys are stored encrypted by Orca).')}</Text>
-            <Row>
-              <Button size="sm" variant="outline" icon="settings" onPress={() => set(tab, 'models')}>
-                {t('Open Models')}
-              </Button>
-            </Row>
-          </Stack>
+          <Row gap="xs" justify="between">
+            <Text size="sm">{t('Add one in the Models tab.')}</Text>
+            <Button size="sm" variant="outline" icon="settings" onPress={() => set(tab, 'models')}>
+              {t('Open Models')}
+            </Button>
+          </Row>
         </Callout>
       ) : null}
       <Textarea
         label={t('Your prompt')}
+        labelHidden
         placeholder={t('Describe what you want the agent to do…')}
-        rows={5}
+        rows={4}
         value={text}
         onChange={(value) => set(draft, value)}
         onSubmit={() => void enhanceNow()}
       />
-      <PromptOptions />
-      <ComposerModelPicker />
-      <Row gap="xs">
-        {working === 'enhance' ? (
-          <Row gap="xs">
-            <Spinner label={t('Enhancing')} />
-            <Button variant="ghost" icon="stop" onPress={cancel}>
-              {t('Cancel')}
-            </Button>
-          </Row>
-        ) : (
-          <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
-            {t('Enhance')}
-          </Button>
-        )}
+      <Row gap="xs" justify="between" wrap>
+        <ComposerModelPicker />
+        <Row gap="xs">
+        <IconButton
+          icon="settings"
+          label={`${t('Options')}: ${optionsSummary()}`}
+          variant={read(optionsOpen) ? 'outline' : 'ghost'}
+          onPress={() => update(optionsOpen, (open) => !open)}
+        />
         <IconButton
           icon="search"
           label={working === 'preview' ? t('Gathering…') : t('Preview context')}
@@ -787,23 +788,34 @@ function EnhanceTab() {
           onPress={() => void previewContext()}
           disabled={working !== null}
         />
+        {working === 'enhance' ? (
+          <Button variant="ghost" icon="stop" onPress={cancel}>
+            {t('Cancel')}
+          </Button>
+        ) : (
+          <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
+            {t('Enhance')}
+          </Button>
+        )}
+        </Row>
       </Row>
+      <PromptOptions />
+      {working === 'enhance' ? <Spinner label={t('Enhancing')} /> : null}
       <NoticeBar />
       <ContextPanel />
       {output ? (
         <ResultCard output={output} />
       ) : (
-        <EmptyState
-          icon="lightbulb"
-          title={t('Your enhanced prompt appears here')}
-          description={t('Nothing reaches the agent until you click Send.')}
-        >
+        <Row gap="xs" justify="between">
+          <Text muted size="xs">
+            {t('Nothing reaches the agent until you click Send.')}
+          </Text>
           {text.trim() && read(target) ? (
             <Button variant="ghost" size="sm" icon="play" onPress={() => void send(text)} disabled={working !== null}>
               {t('Send as is')}
             </Button>
           ) : null}
-        </EmptyState>
+        </Row>
       )}
     </Stack>
   )
@@ -996,29 +1008,22 @@ function ProfileForm() {
 
 /** The profile's model, switchable in place from the live list. */
 function QuickModel({ profile, fromEnv }: { profile: ProfileView; fromEnv: boolean }) {
-  const catalog = read(catalogs)[profile.id]
-  const where = profile.provider === 'cli' ? `${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI` : profile.baseUrl
-  const options = modelOptions(catalog, profile.model)
+  const options = modelOptions(read(catalogs)[profile.id], profile.model)
   if (fromEnv || options.length < 2) {
     return (
       <Text muted size="xs" truncate>
-        {`${profile.model || t('CLI default')} · ${where}`}
+        {profile.model || t('CLI default')}
       </Text>
     )
   }
   return (
-    <Row gap="xs">
-      <Select
-        label={t('Model')}
-        labelHidden
-        value={profile.model || CLI_DEFAULT}
-        options={[...(profile.provider === 'cli' ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options]}
-        onChange={(value) => void switchModel(profile, toModel(value))}
-      />
-      <Text muted size="xs" truncate>
-        {where}
-      </Text>
-    </Row>
+    <Select
+      label={t('Model')}
+      labelHidden
+      value={profile.model || CLI_DEFAULT}
+      options={[...(profile.provider === 'cli' ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options]}
+      onChange={(value) => void switchModel(profile, toModel(value))}
+    />
   )
 }
 
@@ -1032,6 +1037,7 @@ async function switchModel(profile: ProfileView, model: string): Promise<void> {
 }
 
 function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView; index: number; count: number; fromEnv: boolean }) {
+  const where = profile.provider === 'cli' ? `${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI` : profile.baseUrl
   return (
     <Box gap="xs" padding="sm" border radius="md" background={profile.enabled ? 'none' : 'muted'}>
       <Row justify="between" gap="xs">
@@ -1047,28 +1053,32 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
               onChange={(value) => void modelAction({ move: profile.id, to: Number(value) })}
             />
           )}
-          <Text weight="medium" truncate>
+          <Text weight="medium" truncate muted={!profile.enabled}>
             {profile.name}
           </Text>
         </Row>
-        <Badge tone={profile.keySource === 'none' ? 'warning' : 'success'}>{t(KEY_LABEL[profile.keySource])}</Badge>
-      </Row>
-      <QuickModel profile={profile} fromEnv={fromEnv} />
-      <Row justify="between" gap="xs">
-        {fromEnv ? (
-          <Text muted size="xs">{t('From environment')}</Text>
-        ) : (
-          <Switch label={t('Enabled')} checked={profile.enabled} onChange={(value) => void toggleProfile(profile, value)} />
-        )}
         <Row gap="none">
-          <IconButton icon="check" label={t('Test')} size="sm" variant="ghost" onPress={() => void testProfile(profile.id)} disabled={read(busy) === 'test'} />
+          <IconButton icon="check" label={`${t('Test')} · ${where}`} size="sm" variant="ghost" onPress={() => void testProfile(profile.id)} disabled={read(busy) === 'test'} />
           {fromEnv ? null : (
             <Row gap="none">
+              <IconButton
+                icon={profile.enabled ? 'pause' : 'play'}
+                label={profile.enabled ? t('Disable') : t('Enable')}
+                size="sm"
+                variant="ghost"
+                onPress={() => void toggleProfile(profile, !profile.enabled)}
+              />
               <IconButton icon="edit" label={t('Edit')} size="sm" variant="ghost" onPress={() => openForm(profile)} />
               <IconButton icon="delete" label={t('Delete')} size="sm" variant="ghost" tone="danger" onPress={() => void modelAction({ remove: profile.id })} />
             </Row>
           )}
         </Row>
+      </Row>
+      <Row gap="xs" justify="between">
+        <QuickModel profile={profile} fromEnv={fromEnv} />
+        <Badge tone={profile.keySource === 'none' ? 'warning' : profile.enabled ? 'success' : 'neutral'}>
+          {profile.enabled ? t(KEY_LABEL[profile.keySource]) : t('off')}
+        </Badge>
       </Row>
     </Box>
   )
@@ -1080,17 +1090,89 @@ function SubscriptionCallout() {
   if (available.length === 0) return null
   return (
     <Callout tone="success" title={t('Use your subscription, no API key')} icon="agent">
-      <Stack gap="xs">
-        <Text size="sm">{t('Found on this machine. Uses the account the CLI is signed in with.')}</Text>
-        <Row gap="xs" wrap>
-          {available.map((entry) => (
-            <Button key={entry.preset} size="sm" variant="outline" icon="add" tooltip={entry.path} onPress={() => void addDetected(entry.preset, entry.path)}>
-              {entry.label}
-            </Button>
-          ))}
-        </Row>
-      </Stack>
+      <Row gap="xs" wrap>
+        {available.map((entry) => (
+          <Button key={entry.preset} size="sm" variant="outline" icon="add" tooltip={`${t('Found on this machine. Uses the account the CLI is signed in with.')} ${entry.path}`} onPress={() => void addDetected(entry.preset, entry.path)}>
+            {entry.label.replace(/ \(.*\)$/, '')}
+          </Button>
+        ))}
+      </Row>
     </Callout>
+  )
+}
+
+async function refreshDataSummary(): Promise<void> {
+  set(dataSummary, await plugin.request('data.summary').catch(() => null))
+}
+
+async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<void> {
+  try {
+    await plugin.request('data.clear', { what })
+    if (what === 'history' || what === 'all') set(historyRaw, [])
+    if (what === 'catalogs' || what === 'all') set(catalogs, {})
+    set(confirmWipe, false)
+    set(notice, { tone: 'success', text: what === 'all' ? t('All plugin data deleted.') : what === 'history' ? t('History cleared.') : t('Model lists cleared.') })
+    await refreshModels()
+    await refreshDataSummary()
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+const PRIVACY_ROWS: { key: (typeof PRIVACY_KEYS)[number]; label: string; hint: string }[] = [
+  { key: 'allowProjectFiles', label: 'Read project files', hint: 'Agent rules, README, manifest files and the file list of the focused workspace (Standard level and above). Off: only workspace and agent names are used.' },
+  { key: 'allowGit', label: 'Run git', hint: 'Read-only git status, log, diff, ls-files and grep in the focused workspace (Deep and Max levels).' },
+  { key: 'allowTerminalRead', label: 'Read terminal output', hint: 'The last lines of the terminal you picked, at the Max level only.' },
+  { key: 'allowTerminalSend', label: 'Send to terminals', hint: 'Type the prompt into the terminal you pick when you click Send. Off: use Copy instead.' },
+  { key: 'saveHistory', label: 'Save history', hint: 'Keep your prompts and enhanced prompts in the History tab, on this machine only.' },
+  { key: 'allowEnvKeys', label: 'Use API keys from environment variables', hint: 'OPENAI_API_KEY, ANTHROPIC_API_KEY and the others, when a model has no saved key.' },
+  { key: 'allowOnlineModelLists', label: 'Fetch model lists online', hint: "GET /models from your API providers and the public Claude Code settings schema, to keep model menus current. CLI lists are always local." }
+]
+
+function PrivacyTab() {
+  const flags = read(privacy)
+  const data = read(dataSummary)
+  return (
+    <Stack gap="md">
+      <Section title={t('What it may use')} hint={t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.')}>
+        <Stack gap="xs">
+          {PRIVACY_ROWS.map((row) => (
+            <Row key={row.key} gap="xs" justify="between">
+              <Switch label={t(row.label)} checked={flags[row.key] !== false} onChange={(value) => { update(privacy, (map) => ({ ...map, [row.key]: value })); void setSetting(row.key, value) }} />
+              <Hint text={t(row.hint)} />
+            </Row>
+          ))}
+        </Stack>
+      </Section>
+      <Separator />
+      <Section title={t('Stored on this machine')} hint={t('Nothing is sent anywhere except your prompt and the context you allow, to the model you run. No tracking or analytics.')}>
+        {data ? (
+          <KeyValue
+            label={t('Stored on this machine')}
+            items={[
+              { label: t('History'), value: String(data.history) },
+              { label: t('Saved models'), value: String(data.profiles) },
+              { label: t('API keys (encrypted by Orca)'), value: String(data.keys) },
+              { label: t('Cached model lists'), value: String(data.catalogs) }
+            ]}
+          />
+        ) : (
+          <Spinner label={t('Loading')} />
+        )}
+        <Row gap="xs" wrap>
+          <Button size="sm" variant="outline" icon="delete" onPress={() => void clearData('history')}>
+            {t('Clear history')}
+          </Button>
+          <Button size="sm" variant="outline" icon="refresh" onPress={() => void clearData('catalogs')}>
+            {t('Clear model lists')}
+          </Button>
+          <Button size="sm" variant={read(confirmWipe) ? 'solid' : 'ghost'} tone="danger" icon="warning" onPress={() => (read(confirmWipe) ? void clearData('all') : set(confirmWipe, true))}>
+            {read(confirmWipe) ? t('Press again to delete everything') : t('Delete everything')}
+          </Button>
+        </Row>
+      </Section>
+      <NoticeBar />
+    </Stack>
   )
 }
 
@@ -1120,7 +1202,7 @@ function ModelsTab() {
     ...view.profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
   ]
   return (
-    <Stack gap="lg">
+    <Stack gap="md">
       <Section title={t('Your models')} hint={t('Models are tried top to bottom. Disabled models are skipped.')}>
         {view.fromEnv && view.profiles.length > 0 ? (
           <Callout tone="accent" title={t('Using API keys from your environment')}>
@@ -1154,16 +1236,18 @@ function ModelsTab() {
       <Separator />
       <Section title={t('Fallback')}>
         <Switch label={t('Fallback to the next model when one fails')} checked={prefs.fallbackEnabled} onChange={(value) => void setSetting('fallbackEnabled', value)} />
+        {prefs.fallbackEnabled ? (
         <Select
           label={t('Fall back on')}
+          labelHidden
           value={prefs.fallbackOn}
-          disabled={!prefs.fallbackEnabled}
           options={[
             { value: 'any', label: t('Any error (bad key, unknown model, network…)') },
             { value: 'transient', label: t('Only network, timeout, rate limit, 5xx') }
           ]}
           onChange={(value) => void setSetting('fallbackOn', value)}
         />
+        ) : null}
       </Section>
       <Separator />
       <Section
@@ -1203,11 +1287,20 @@ function ModelsTab() {
           </Section>
         </Stack>
       ) : null}
-      <Row gap="xs" justify="end">
+      <Row gap="xs" justify="between">
+        <Select
+          label={t('Language')}
+          labelHidden
+          value={read(uiLanguageSetting)}
+          options={UI_LANGUAGES.map((value) => ({ value, label: UI_LANGUAGE_LABELS[value] }))}
+          onChange={(value) => void changeUiLanguage(value)}
+        />
+        <Row gap="none">
         <Text muted size="xs">
           {t('More settings and privacy')}
         </Text>
         <Hint text={t('Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context you choose go only to the endpoints above; .env files, keys and credentials are never read.')} />
+        </Row>
       </Row>
     </Stack>
   )
@@ -1215,37 +1308,28 @@ function ModelsTab() {
 
 export default function Panel() {
   const view = read(models)
-  const first = read(enabledProfiles)[0]
   return (
-    <Box gap="md">
-      <Row justify="between">
-        <Text weight="semibold">Enhance Prompt</Text>
-        <Row gap="xs">
-          {view ? (
-            <Badge tone={first && first.keySource !== 'none' ? 'accent' : 'warning'}>
-              {first ? pickedModelLabel() : t('no model')}
-            </Badge>
-          ) : null}
-          <Select
-            label={t('Language')}
-            labelHidden
-            value={read(uiLanguageSetting)}
-            options={UI_LANGUAGES.map((value) => ({ value, label: UI_LANGUAGE_LABELS[value] }))}
-            onChange={(value) => void changeUiLanguage(value)}
-          />
-        </Row>
-      </Row>
-      <Tabs label="Enhance Prompt" value={read(tab)} onChange={(value) => set(tab, value)}>
-        <Tab value="enhance" label={t('Enhance')} icon="lightbulb">
-          <EnhanceTab />
-        </Tab>
-        <Tab value="history" label={t('History ({count})', { count: read(history).length })} icon="book">
-          <HistoryTab />
-        </Tab>
-        <Tab value="models" label={t('Models ({count})', { count: view?.profiles.length ?? 0 })} icon="agent">
-          <ModelsTab />
-        </Tab>
-      </Tabs>
-    </Box>
+    <Tabs
+      label="Enhance Prompt"
+      value={read(tab)}
+      onChange={(value) => {
+        set(tab, value)
+        if (value === 'privacy') void refreshDataSummary()
+      }}
+    >
+      <Tab value="enhance" label={t('Enhance')} icon="lightbulb">
+        <EnhanceTab />
+      </Tab>
+      <Tab value="history" label={t('History ({count})', { count: read(history).length })} icon="book">
+        <HistoryTab />
+      </Tab>
+      <Tab value="models" label={t('Models ({count})', { count: view?.profiles.length ?? 0 })} icon="agent">
+        <ModelsTab />
+      </Tab>
+      <Tab value="privacy" label={t('Privacy')} icon="info">
+        <PrivacyTab />
+      </Tab>
+    </Tabs>
   )
 }
+

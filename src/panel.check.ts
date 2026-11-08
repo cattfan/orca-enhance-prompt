@@ -154,6 +154,16 @@ const scenarios = {
     },
     persisted: { plugin: { tab: 'models' } }
   },
+  'shot-privacy': {
+    settings: { uiLanguage: 'en', allowTerminalRead: false },
+    requests: {
+      'models.get': models([base, gpt]),
+      'targets.list': agents,
+      'models.detect': detect(true),
+      'data.summary': { history: 12, profiles: 2, keys: 1, catalogs: 2 }
+    },
+    persisted: { plugin: { tab: 'privacy' } }
+  },
   'shot-history': {
     settings: { uiLanguage: 'en' },
     requests: { 'models.get': models([base, gpt]), 'targets.list': agents, 'models.detect': detect(true) },

@@ -80,7 +80,7 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs = 8000): Prom
   }
 }
 
-export async function claudeCatalog(command: string): Promise<Catalog> {
+export async function claudeCatalog(command: string, online = true): Promise<Catalog> {
   const aliases = new Set<string>(['default', 'opus', 'sonnet', 'haiku'])
   const sources: string[] = ['built-in']
   const binary = resolveBinary(command || CLI_BINARIES['claude-code'])
@@ -92,7 +92,7 @@ export async function claudeCatalog(command: string): Promise<Catalog> {
       sources.push('claude --help')
     }
   }
-  try {
+  if (online) try {
     const schema = (await fetchJson(CLAUDE_SCHEMA_URL, {})) as { properties?: Record<string, { description?: string }> }
     for (const [key, property] of Object.entries(schema.properties ?? {})) {
       if (/model/i.test(key) && property.description) aliasesFromText(property.description).forEach((alias) => aliases.add(alias))

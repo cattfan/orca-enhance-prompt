@@ -60,15 +60,15 @@ test('enhances with context, then sends to the chosen agent', async () => {
   assert.ok(view.find({ text: /Fell back after: Down \(503: overloaded\)/ }))
 
   // Exclude the tree, enhance again: the worker is told.
-  await view.toggle({ label: /^Context used/ })
+  await view.toggle({ label: /^Context ·/ })
   await view.toggle({ label: 'Repository tree' })
 
-  // The options fold shows the current choice as its title.
-  assert.ok(view.find({ label: 'Balanced · Standard' }))
+  // The options button names the current choice.
+  assert.ok(view.find({ label: 'Options: Balanced · Standard' }))
   await view.press({ role: 'button', text: 'Enhance' })
   assert.deepEqual(enhanceInputs[1].exclude, ['tree'])
 
-  await view.press({ role: 'button', text: 'Send to agent' })
+  await view.press({ role: 'button', text: 'Send' })
   assert.deepEqual(sent, [{ terminalId: 't1', text: 'Better: add tests', enter: false }])
   assert.ok(view.find({ text: /Sent to Claude/ }))
   assert.deepEqual(view.errors, [])
