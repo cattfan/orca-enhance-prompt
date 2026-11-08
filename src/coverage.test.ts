@@ -21,7 +21,13 @@ afterEach(() => {
 })
 const tempDirs: string[] = []
 after(() => {
-  for (const folder of tempDirs) rmSync(folder, { recursive: true, force: true })
+  for (const folder of tempDirs) {
+    try {
+      rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {
+      // a just-killed process may still hold it (Windows): the OS temp cleaner gets it
+    }
+  }
 })
 function tempDir(prefix: string): string {
   const folder = mkdtempSync(join(tmpdir(), prefix))

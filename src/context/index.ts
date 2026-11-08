@@ -5,7 +5,7 @@
 //   deep      + git status/log/diff, files relevant to the prompt (paths, grep, snippets)
 //   max       + AI-picked files from the tree, recent output of the agent terminal
 import type { OrcaWorkerApi } from 'orca/worker'
-import { messageOf } from '../llm.ts'
+import { LlmError, messageOf } from '../llm.ts'
 import { english, msg, raw, type Message } from '../messages.ts'
 import type { ContextItemView, ContextLevel } from '../presets.ts'
 import type { StepReporter } from '../progress.ts'
@@ -40,6 +40,13 @@ export type GatherOptions = {
   allowTerminal?: boolean
   /** Progress: called when a step starts, finishes or is skipped. */
   onStep?: StepReporter
+  /** Cancel: running git commands are stopped and the gather ends with a cancelled error. */
+  signal?: AbortSignal
+}
+
+/** Ends a gather that was cancelled (between steps, and after any step a cancel cut short). */
+function stopIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new LlmError(msg('error.cancelled'), 'cancelled')
 }
 
 export type GatherResult = { items: ContextItem[]; notes: Message[]; root: string | null }
@@ -85,12 +92,14 @@ export function cachedStatic(root: string): StaticParts | null {
   return hit && Date.now() - hit.at < STATIC_TTL_MS * 4 ? hit : null
 }
 
-export async function staticParts(root: string, extraFiles: string[], fresh = false, allowGit = true): Promise<StaticParts> {
+export async function staticParts(root: string, extraFiles: string[], fresh = false, allowGit = true, signal?: AbortSignal): Promise<StaticParts> {
   const cacheKey = `${allowGit ? 'git' : 'nogit'}:${root}`
   const hit = staticCache.get(cacheKey)
   if (hit && !fresh && Date.now() - hit.at < STATIC_TTL_MS) return hit
-  const isGit = allowGit && (await isGitRepo(root))
-  const listed = (isGit ? await gitFiles(root) : null) ?? (await walkFiles(root))
+  const isGit = allowGit && (await isGitRepo(root, signal))
+  const listed = (isGit ? await gitFiles(root, signal) : null) ?? (await walkFiles(root, undefined, undefined, signal))
+  // A cancelled read is incomplete: never cache it.
+  stopIfCancelled(signal)
   const files = listed.filter((file) => !isSensitive(file))
   const items: ContextItem[] = []
   for (const rule of await readRuleFiles(root, files, extraFiles, 9000)) {
@@ -99,6 +108,7 @@ export async function staticParts(root: string, extraFiles: string[], fresh = fa
   const stack = await detectStack(root, files)
   if (stack) items.push(item('stack', 'stack', msg('label.stack'), stack))
   if (files.length > 0) items.push(item('tree', 'tree', msg('label.tree', { count: files.length }), treeSummary(files)))
+  stopIfCancelled(signal)
   const parts = { at: Date.now(), files, isGit, items }
   staticCache.set(cacheKey, parts)
   return parts
@@ -113,6 +123,8 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   const notes: Message[] = []
   if (level === 'off') return { items, notes, root: null }
 
+  const { signal } = options
+  stopIfCancelled(signal)
   step('workspace', 'running')
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (focused) {
@@ -141,7 +153,8 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   }
 
   if (root) {
-    const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false)
+    stopIfCancelled(signal)
+    const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false, signal)
     items.push(...parts.items)
     step('project', 'done', String(parts.files.length))
     if (atLeast(level, 'deep')) {
@@ -163,9 +176,11 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   if (level === 'max' && !readTerminal) step('terminal', 'skipped')
   if (readTerminal && options.terminalId) {
     step('terminal', 'running')
+    stopIfCancelled(signal)
     const read = await orca.host
-      .call('terminal.read', { terminalId: options.terminalId, maxLines: options.terminalLines })
+      .call('terminal.read', { terminalId: options.terminalId, maxLines: options.terminalLines }, signal ? { signal } : undefined)
       .catch(() => null)
+    stopIfCancelled(signal)
     const lines = (read?.lines ?? []).map((line) => line.trimEnd()).filter(Boolean)
     if (lines.length > 0) {
       const title = focused?.terminals.find((t) => t.id === options.terminalId)?.title ?? 'agent terminal'
@@ -174,6 +189,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     step('terminal', 'done', String(lines.length))
   }
 
+  stopIfCancelled(signal)
   return { items: fitBudget(items.filter((entry) => !options.exclude.has(entry.id)), BUDGET[level]), notes, root }
 }
 
@@ -195,11 +211,14 @@ async function dynamicParts(
   let changed = new Set<string>()
   const step: StepReporter = options.onStep ?? (() => undefined)
 
+  const { signal } = options
+  stopIfCancelled(signal)
   if (parts.isGit) {
     step('git', 'running')
     const skip = (id: string) => options.exclude.has(id)
     // Status also ranks changed files higher, so it is read even when its item is unticked.
-    const status = await gitStatus(root)
+    const status = await gitStatus(root, signal)
+    stopIfCancelled(signal)
     if (status && !skip('git:status') && (status.changed.length > 0 || status.branchLine)) {
       const shown = status.changed.filter((line) => !statusLinePaths(line).some((path) => isSensitive(path) || isExcluded(path, patterns)))
       out.push(
@@ -212,9 +231,11 @@ async function dynamicParts(
       )
     }
     if (status) changed = new Set(changedPaths(status.changed))
-    const log = skip('git:log') ? null : await gitLog(root, 6)
+    const log = skip('git:log') ? null : await gitLog(root, 6, signal)
+    stopIfCancelled(signal)
     if (log?.trim()) out.push(item('git:log', 'git', msg('label.log'), log.trim()))
-    const diff = skip('git:diff') ? null : await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns))
+    const diff = skip('git:diff') ? null : await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns), signal)
+    stopIfCancelled(signal)
     if (diff) out.push(item('git:diff', 'git', msg('label.diff'), `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {
@@ -222,12 +243,14 @@ async function dynamicParts(
     step('git', 'skipped')
   }
 
+  stopIfCancelled(signal)
   step('search', 'running')
   const weighted = weightedKeywords(options.prompt)
   const keywords = weighted.map((entry) => entry.word)
   const grepTargets = weighted.filter((entry) => entry.word.length >= 4).slice(0, 8)
   const grepWords = grepTargets.map((entry) => entry.word)
-  const perWord = parts.isGit ? await Promise.all(grepWords.map((word) => gitGrepCount(root, word))) : []
+  const perWord = parts.isGit ? await Promise.all(grepWords.map((word) => gitGrepCount(root, word, signal))) : []
+  stopIfCancelled(signal)
   const content = contentScores(perWord, files.length, grepTargets.map((entry) => entry.weight))
   const mentionsTests = /\btest|spec|kiểm thử/i.test(options.prompt)
   const scored = scoreFiles(files, weighted, content, changed, mentionsTests)
@@ -249,13 +272,16 @@ async function dynamicParts(
       }
       step('pick', 'done', String(picked.length))
     } catch (error) {
+      stopIfCancelled(signal)
       notes.push(msg('note.picker_skipped', { reason: messageOf(error) }))
       step('pick', 'skipped')
     }
   }
 
   // Line numbers of the keywords inside the chosen files, for focused snippets.
-  const lines = parts.isGit ? await gitGrep(root, grepWords, picked.map((entry) => entry.path)) : new Map<string, number[]>()
+  stopIfCancelled(signal)
+  const lines = parts.isGit ? await gitGrep(root, grepWords, picked.map((entry) => entry.path), undefined, signal) : new Map<string, number[]>()
+  stopIfCancelled(signal)
   for (const entry of picked) entry.hits = lines.get(entry.path) ?? []
 
   const perFile = options.level === 'max' ? 1800 : 1400

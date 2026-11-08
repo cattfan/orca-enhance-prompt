@@ -50,10 +50,10 @@ export function isExcluded(path: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(path))
 }
 
-export async function walkFiles(root: string, maxFiles = 8000, maxDepth = 6): Promise<string[]> {
+export async function walkFiles(root: string, maxFiles = 8000, maxDepth = 6, signal?: AbortSignal): Promise<string[]> {
   const out: string[] = []
   async function visit(dir: string, depth: number): Promise<void> {
-    if (out.length >= maxFiles || depth > maxDepth) {
+    if (out.length >= maxFiles || depth > maxDepth || signal?.aborted) {
       return
     }
     let entries

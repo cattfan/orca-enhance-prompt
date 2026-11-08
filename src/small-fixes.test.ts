@@ -22,7 +22,13 @@ const tempDir = (name: string) => {
   return dir
 }
 after(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
+  for (const dir of dirs) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+    } catch {
+      // a just-killed process may still hold it (Windows): the OS temp cleaner gets it
+    }
+  }
 })
 
 const config = { provider: 'openai' as const, baseUrl: 'https://api.example.com/v1', model: 'm', apiKey: 'k', temperature: 0.3, maxTokens: 100 }

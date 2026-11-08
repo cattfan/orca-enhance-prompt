@@ -18,7 +18,7 @@ const tempDirs: string[] = []
 after(() => {
   for (const folder of tempDirs) {
     try {
-      rmSync(folder, { recursive: true, force: true })
+      rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
     } catch {
       // still in use (Windows): the OS temp cleaner gets it
     }

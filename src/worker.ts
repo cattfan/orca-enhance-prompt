@@ -219,7 +219,8 @@ export async function enhance(
     pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal, Math.min(RUN_LIMITS.pickerMs, (left() ?? Infinity) / 2)),
     allowGit: settings.privacy.allowGit,
     allowTerminal: settings.privacy.allowTerminalRead,
-    onStep: step
+    onStep: step,
+    signal
   })
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
@@ -433,7 +434,7 @@ export async function enhanceRequest(
 function registerRunHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => enhanceRequest(orca, input, signal, panel.id))
 
-  orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude }) => {
+  orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude }, { signal }) => {
     const settings = await readSettings(orca)
     const requested: ContextLevel = isContextLevel(level) ? level : settings.contextLevel
     // Preview reads exactly what a run would: the same Privacy switches apply.
@@ -447,7 +448,8 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
       extraFiles: settings.extraContextFiles,
       excludePatterns: settings.excludePatterns,
       allowGit: settings.privacy.allowGit,
-      allowTerminal: settings.privacy.allowTerminalRead
+      allowTerminal: settings.privacy.allowTerminalRead,
+      signal
     })
     const notes = [...gathered.notes]
     if (allowed !== requested) notes.push(PROJECT_FILES_OFF)
