@@ -7,6 +7,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { LlmError } from './llm.ts'
+import { msg, raw, type Message } from './messages.ts'
 
 export type CliKind = 'claude-code' | 'codex' | 'gemini-cli' | 'custom-cli'
 
@@ -100,7 +101,7 @@ export function cliArgs(kind: CliKind, model: string, outFile: string, customArg
 
 /** cmd.exe quoting for fixed tokens; refuses anything cmd would interpret. */
 function cmdQuote(arg: string): string {
-  if (/["%^&|<>!\r\n]/.test(arg)) throw new LlmError('Unsafe argument for a .cmd launcher.', 'invalid_params')
+  if (/["%^&|<>!\r\n]/.test(arg)) throw new LlmError(msg('error.unsafe_argument'), 'invalid_params')
   return arg === '' || /\s/.test(arg) ? `"${arg}"` : arg
 }
 
@@ -176,10 +177,7 @@ export async function runCli(
 ): Promise<string> {
   const binary = resolveBinary(options.command || (options.kind === 'custom-cli' ? '' : CLI_BINARIES[options.kind]))
   if (!binary) {
-    throw new LlmError(
-      `${options.command || options.kind} was not found. Install it and sign in, or set its full path in the model.`,
-      'unavailable'
-    )
+    throw new LlmError(msg('error.cli_missing', { name: options.command || options.kind }), 'unavailable')
   }
   // A neutral working directory: no project rules, hooks or files of its own get loaded.
   const cwd = await mkdtemp(join(tmpdir(), 'enhance-prompt-'))
@@ -187,7 +185,7 @@ export async function runCli(
   const args = cliArgs(options.kind, options.model, outFile, options.customArgs)
   const input = `<instructions>\n${system}\n</instructions>\n\n${user}`
   const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
-  const cancelled = () => new LlmError('The request was cancelled or timed out.', 'timeout')
+  const cancelled = () => new LlmError(msg('error.timeout'), 'timeout')
   try {
     const stdout = await new Promise<string>((resolve, reject) => {
       if (signal?.aborted) {
@@ -219,7 +217,7 @@ export async function runCli(
       signal?.addEventListener('abort', onAbort, { once: true })
       child.on('error', (error) => {
         signal?.removeEventListener('abort', onAbort)
-        reject(new LlmError(`Could not start ${binary}: ${error.message}`, 'unavailable'))
+        reject(new LlmError(msg('error.cli_start', { binary, detail: error.message }), 'unavailable'))
       })
       child.on('close', (code) => {
         signal?.removeEventListener('abort', onAbort)
@@ -230,9 +228,12 @@ export async function runCli(
         } else {
           const detail = (err || out).trim().split('\n').slice(-3).join(' ').slice(0, 300)
           const auth = /log ?in|auth|sign in|credential|unauthori[sz]ed|401/i.test(detail)
+          const exited: Message = detail
+            ? msg('error.cli_exit_detail', { kind: options.kind, code: String(code), detail: raw(detail) })
+            : msg('error.cli_exit', { kind: options.kind, code: String(code) })
           reject(
             new LlmError(
-              `${options.kind} exited with ${code}${detail ? `: ${detail}` : ''}${auth ? ' (run it once in a terminal to sign in)' : ''}`,
+              auth ? msg('error.cli_sign_in', { text: exited }) : exited,
               /limit|quota|429|rate/i.test(detail) ? 'rate_limited' : 'action_failed'
             )
           )
@@ -243,7 +244,7 @@ export async function runCli(
     })
     const text = options.kind === 'codex' ? await readFile(outFile, 'utf8').catch(() => stdout) : stdout
     const clean = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    if (!clean) throw new LlmError(`${options.kind} returned an empty answer.`)
+    if (!clean) throw new LlmError(msg('error.cli_empty', { kind: options.kind }))
     return clean
   } finally {
     // After a cancel the killed CLI may still hold its working folder for a moment (Windows refuses

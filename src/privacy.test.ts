@@ -56,7 +56,7 @@ test('project files off: Standard falls back to workspace and agent only', async
   const worker = await mountWorker(main, { host: hostWith({ allowProjectFiles: false }, root) })
   const answer = await worker.request('prompt.enhance', { prompt: 'do it', level: 'standard' })
   assert.deepEqual(answer.context.map((item) => item.id), ['workspace'])
-  assert.ok(answer.notes.some((note) => /Privacy/.test(note)))
+  assert.ok(answer.notes.some((note) => note.code === 'note.project_files_off'))
   await worker.deactivate()
 })
 
@@ -124,7 +124,7 @@ test('Preview context obeys the same Privacy switches as a run', async () => {
   const filesOff = await mountWorker(main, { host: hostWith({ allowProjectFiles: false }, root) })
   const preview = await filesOff.request('context.preview', { prompt: 'do it', level: 'standard' })
   assert.deepEqual(preview.context.map((item) => item.id), ['workspace'])
-  assert.ok(preview.notes.some((note) => /Privacy/.test(note)))
+  assert.ok(preview.notes.some((note) => note.code === 'note.project_files_off'))
   await filesOff.deactivate()
 
   const terminalOff = await mountWorker(main, {

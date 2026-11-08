@@ -1,4 +1,5 @@
 // Model presets and profile parsing, shared by the panel and the worker (no Node imports).
+import type { Message } from './messages.ts'
 import type { JsonValue } from 'orca'
 
 /** `cli` runs an installed agent CLI (Claude Code, Codex, Gemini CLI) on the person's subscription. */
@@ -158,4 +159,8 @@ export function isContextLevel(value: unknown): value is ContextLevel {
 }
 
 /** One piece of context the rewriter saw; `id` is stable so the person can exclude it. */
-export type ContextItemView = { id: string; kind: string; label: string; chars: number; note?: string }
+/**
+ * A context item as the panel lists it. `label` and `note` are English (the model reads them);
+ * `title` and `why` are the same as Messages, for the panel's language.
+ */
+export type ContextItemView = { id: string; kind: string; label: string; chars: number; note?: string; title?: Message; why?: Message }

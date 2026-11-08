@@ -1,10 +1,11 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
+import type { Message } from './messages.ts'
 import type { ContextItemView, ProfileView, Preset, Provider } from './presets.ts'
 
 /** The longest a panel may wait for its worker (Orca caps `timeoutMs` at 120000). */
 export const PANEL_REQUEST_LIMIT_MS = 120_000
 
-export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
+export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; errorText?: Message; ms: number }
 export type ProfileInput = {
   id?: string
   name: string
@@ -56,13 +57,13 @@ declare module 'orca' {
         ms: number
         attempts: AttemptView[]
         context: ContextItemView[]
-        notes: string[]
+        notes: Message[]
       }
     }
     /** What context would be sent, without calling a model (no AI file picking). */
     'context.preview': {
       input: { prompt: string; terminalId?: string | null; level?: string; exclude?: string[] }
-      output: { context: ContextItemView[]; notes: string[]; chars: number }
+      output: { context: ContextItemView[]; notes: Message[]; chars: number }
     }
     /** Types `text` into an agent terminal. */
     'prompt.send': {
@@ -83,7 +84,7 @@ declare module 'orca' {
     'models.move': { input: { id: string; direction?: 'up' | 'down'; to?: number }; output: ModelsView }
     'models.roles': { input: { hookProfileId: string | null; selectorProfileId: string | null }; output: ModelsView }
     /** Sends a tiny request through one profile. */
-    'models.test': { input: { id: string }; output: { ok: boolean; message: string; ms: number } }
+    'models.test': { input: { id: string }; output: { ok: boolean; message: string; text?: Message; ms: number } }
     /**
      * The models a preset or saved profile can use, kept current from the CLI or the API itself.
      * Cached for a day; `refresh` fetches again. `apiKey` lets an unsaved form list API models.

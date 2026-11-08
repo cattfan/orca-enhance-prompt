@@ -24,6 +24,8 @@ import { PANEL_REQUEST_LIMIT_MS, type ModelsView } from './protocol.ts'
 import { parsePrivacy, type Privacy } from './privacy.ts'
 import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
+import { messageOf } from './llm.ts'
+import { english, msg, type Message } from './messages.ts'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
@@ -98,8 +100,12 @@ export async function readSettings(orca: OrcaWorkerApi): Promise<Settings> {
   }
 }
 
-function hostError(message: string, code: string): Error {
-  return Object.assign(new Error(message), { code })
+/**
+ * An error for the panel: English message (logs), a code, and `text`, the message as a code and
+ * parameters that the panel shows in its language (extra fields reach the panel as they are).
+ */
+function hostError(text: Message, code: string): Error {
+  return Object.assign(new Error(english(text)), { code, text })
 }
 
 function chainOptions(settings: Settings, signal?: AbortSignal, extra: Partial<ChainOptions> = {}): ChainOptions {
@@ -171,7 +177,7 @@ export function allowedLevel(requested: ContextLevel, settings: Settings): Conte
   return !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
 }
 
-const PROJECT_FILES_OFF = 'Project files are off in Privacy: workspace and agent only.'
+const PROJECT_FILES_OFF = msg('note.project_files_off')
 
 export async function enhance(
   orca: OrcaWorkerApi,
@@ -193,7 +199,7 @@ export async function enhance(
   /** What is left of the run's budget; undefined without one. */
   const left = () => (deadline === undefined ? undefined : Math.max(0, deadline - Date.now()))
   const prompt = input.prompt.trim()
-  if (!prompt) throw hostError('Write a prompt first.', 'invalid_params')
+  if (!prompt) throw hostError(msg('error.no_prompt'), 'invalid_params')
   const settings = await readSettings(orca)
   const config = await loadModels(orca)
   const style: Style = isStyle(input.style) ? input.style : settings.defaultStyle
@@ -254,7 +260,7 @@ export async function enhance(
     }
   } catch (error) {
     step('model', 'failed', (error as Error).message.slice(0, 160))
-    if (error instanceof ChainError) throw hostError(error.message, error.code)
+    if (error instanceof ChainError) throw hostError(error.text, error.code)
     throw error
   }
 }
@@ -403,7 +409,7 @@ export async function enhanceRequest(
     : undefined
   const result = await enhance(orca, input, signal, progress, RUN_LIMITS.budgetMs)
   // The panel gave up while the model was answering: it shows an error, so keep no trace either.
-  if (signal.aborted) throw hostError('Cancelled.', 'cancelled')
+  if (signal.aborted) throw hostError(msg('error.cancelled'), 'cancelled')
   const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
   await addHistory(orca, result.settings, {
     original: input.prompt.trim(),
@@ -445,15 +451,15 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     })
     const notes = [...gathered.notes]
     if (allowed !== requested) notes.push(PROJECT_FILES_OFF)
-    if (allowed === 'max') notes.push('Preview skips the AI file picker.')
+    if (allowed === 'max') notes.push(msg('note.preview_no_picker'))
     return { context: view(gathered.items), notes, chars: gathered.items.reduce((sum, entry) => sum + entry.chars, 0) }
   })
 
   orca.panels.handle('prompt.send', async ({ terminalId, text, enter }) => {
     const settings = await readSettings(orca)
-    if (!settings.privacy.allowTerminalSend) throw hostError('Sending to terminals is off in Privacy.', 'not_permitted')
+    if (!settings.privacy.allowTerminalSend) throw hostError(msg('error.send_off'), 'not_permitted')
     const pieces = terminalChunks(text, settings.sendMode)
-    if (pieces.length === 0) throw hostError('Nothing to send.', 'invalid_params')
+    if (pieces.length === 0) throw hostError(msg('error.nothing_to_send'), 'invalid_params')
     const pressEnter = enter ?? settings.sendPressEnter
     // Long prompts go in pieces: Orca accepts at most 4096 characters per call, and keeps writes to
     // one terminal in order.
@@ -500,7 +506,7 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
     const existing = input.id ? config.profiles.findIndex((profile) => profile.id === input.id) : -1
     const id = existing >= 0 ? config.profiles[existing].id : newProfileId(input.name || input.preset)
     const profile = normalizeProfile({ ...input, id })
-    if (!profile) throw hostError('Invalid model profile.', 'invalid_params')
+    if (!profile) throw hostError(msg('error.invalid_profile'), 'invalid_params')
     if (existing >= 0) config.profiles[existing] = profile
     else config.profiles.push(profile)
     await saveModels(orca, config)
@@ -548,7 +554,7 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('models.test', async ({ id }, { signal }) => {
     const config = await loadModels(orca)
     const profile = config.profiles.find((entry) => entry.id === id)
-    if (!profile) return { ok: false, message: 'Unknown profile.', ms: 0 }
+    if (!profile) return { ok: false, message: english(msg('error.unknown_profile')), text: msg('error.unknown_profile'), ms: 0 }
     const settings = await readSettings(orca)
     const started = Date.now()
     try {
@@ -560,9 +566,11 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
         chainOptions(settings, signal, { timeoutMs: 30_000, fallback: false })
       )
       const keySource = (await resolveKey(orca, profile)).source
-      return { ok: true, message: `${profile.name} · ${attempts[0]?.model} answered (key: ${keySource}).`, ms: Date.now() - started }
+      const text = msg('result.test_ok', { name: profile.name, model: attempts[0]?.model || 'default', key: keySource })
+      return { ok: true, message: english(text), text, ms: Date.now() - started }
     } catch (error) {
-      return { ok: false, message: (error as Error).message, ms: Date.now() - started }
+      const text = messageOf(error)
+      return { ok: false, message: english(text), text, ms: Date.now() - started }
     }
   })
 

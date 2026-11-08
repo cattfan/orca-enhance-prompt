@@ -36,6 +36,7 @@ import {
   type PanelContext
 } from 'orca'
 import { HISTORY_KEY, parseHistory, type HistoryEntry } from './history.ts'
+import { isMessage, render, type Message } from './messages.ts'
 import {
   CONTEXT_LEVEL_LABELS,
   CONTEXT_LEVELS,
@@ -120,7 +121,8 @@ type LastRun = { model: string; profileName: string; ms: number; attempts: Attem
 const lastRun = atom<LastRun>(null)
 /** Every context item seen for the current draft, so excluded ones stay listed (unchecked). */
 const contextShown = atom<ContextItemView[]>([])
-const contextNotes = atom<string[]>([])
+/** Notes are Messages; an older version saved plain strings. */
+const contextNotes = atom<(Message | string)[]>([])
 
 /**
  * The draft, the last result and what the last run used are kept across panel runs (Orca writes
@@ -133,7 +135,7 @@ const KEPT: [Atom<never>, Atom<never>, unknown][] = [
   [result, atom('result', '', { persist: 'plugin' }), ''],
   [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
   [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
-  [contextNotes, atom<string[]>('contextNotes', [], { persist: 'plugin' }), []]
+  [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []]
 ] as never
 
 const mayKeep = () => read(privacy).saveHistory !== false
@@ -181,7 +183,17 @@ const enabledProfiles = derived(() => (read(models)?.profiles ?? []).filter((pro
 
 let inFlight: AbortController | null = null
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+/** A worker Message in the panel's language; a plain string (saved by an older version) as is. */
+function say(text: Message | string): string {
+  return typeof text === 'string' ? text : render(text, (template, params) => t(template, params))
+}
+
+/** An error in the panel's language: the worker's Message when it sent one, else its text. */
+const message = (error: unknown) => {
+  const text = error && typeof error === 'object' && 'text' in error ? (error as { text: unknown }).text : null
+  if (isMessage(text)) return say(text)
+  return error instanceof Error ? error.message : String(error)
+}
 
 // ---------------------------------------------------------------- data
 
@@ -287,7 +299,7 @@ async function refreshTargets(): Promise<void> {
   }
 }
 
-function showContext(items: ContextItemView[], notes: string[]): void {
+function showContext(items: ContextItemView[], notes: (Message | string)[]): void {
   const ex = new Set(read(excluded))
   const keptExcluded = read(contextShown).filter((item) => ex.has(item.id) && !items.some((i) => i.id === item.id))
   put(contextShown, [...items, ...keptExcluded])
@@ -558,7 +570,7 @@ async function testProfile(id: string): Promise<void> {
   set(busy, 'test')
   try {
     const answer = await plugin.request('models.test', { id }, { timeoutMs: 40_000 })
-    set(notice, { tone: answer.ok ? 'success' : 'danger', text: answer.ok ? `${answer.message} (${answer.ms} ms)` : answer.message })
+    set(notice, { tone: answer.ok ? 'success' : 'danger', text: answer.ok ? `${say(answer.text ?? answer.message)} (${answer.ms} ms)` : say(answer.text ?? answer.message) })
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   } finally {
@@ -646,24 +658,6 @@ function TargetPicker() {
 }
 
 /** Context item names and kinds come from the worker in English; show them in the panel's language. */
-function contextLabel(label: string): string {
-  const fixed: Record<string, () => string> = {
-    Workspace: () => t('Workspace'),
-    'Target agent': () => t('Target agent'),
-    'Stack & commands': () => t('Stack & commands'),
-    'Recent commits': () => t('Recent commits'),
-    'Uncommitted changes': () => t('Uncommitted changes')
-  }
-  if (fixed[label]) return fixed[label]()
-  let match = /^Repository tree \((\d+) files\)$/.exec(label)
-  if (match) return t('Repository tree ({count} files)', { count: match[1] })
-  match = /^Git status \((\d+) changed\)$/.exec(label)
-  if (match) return t('Git status ({count} changed)', { count: match[1] })
-  match = /^Recent output: (.+)$/.exec(label)
-  if (match) return t('Recent output: {name}', { name: match[1] })
-  return label
-}
-
 function contextKind(kind: string): string {
   const kinds: Record<string, () => string> = {
     workspace: () => t('workspace'),
@@ -678,21 +672,10 @@ function contextKind(kind: string): string {
   return kinds[kind]?.() ?? kind
 }
 
-/** Notes from the worker (why something was skipped), in the panel's language. */
-function noteText(note: string): string {
-  const fixed: Record<string, () => string> = {
-    'No focused workspace.': () => t('No focused workspace.'),
-    'Could not tell which folder the workspace is in; project files skipped.': () => t('Could not tell which folder the workspace is in; project files skipped.'),
-    'Remote (SSH/WSL) workspace: project files are not readable from the plugin.': () => t('Remote (SSH/WSL) workspace: project files are not readable from the plugin.'),
-    'Terminal output is off in Privacy.': () => t('Terminal output is off in Privacy.'),
-    'Not a git repository: no git context.': () => t('Not a git repository: no git context.'),
-    'No files matched the prompt; the agent will be told to locate them.': () => t('No files matched the prompt; the agent will be told to locate them.'),
-    'Project files are off in Privacy: workspace and agent only.': () => t('Project files are off in Privacy: workspace and agent only.'),
-    'Preview skips the AI file picker.': () => t('Preview skips the AI file picker.')
-  }
-  if (fixed[note]) return fixed[note]()
-  const match = /^AI file picker skipped: (.+)$/.exec(note)
-  return match ? t('AI file picker skipped: {reason}', { reason: match[1] }) : note
+/** Why an item is in the context (keyword match, picked by AI, trimmed), after a separator. */
+function itemWhy(item: ContextItemView): string {
+  if (item.why) return ` · ${say(item.why)}`
+  return item.note ? ` · ${item.note}` : ''
 }
 
 function ContextPanel() {
@@ -708,15 +691,15 @@ function ContextPanel() {
         {shown.map((item) => (
           <Checkbox
             key={item.id}
-            label={contextLabel(item.label)}
-            description={`${t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}${item.note ? ` · ${item.note === 'keyword match' ? t('keyword match') : item.note === 'picked by AI' ? t('picked by AI') : item.note === 'trimmed' ? t('trimmed') : item.note}` : ''}`}
+            label={item.title ? say(item.title) : item.label}
+            description={`${t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}${itemWhy(item)}`}
             checked={!ex.has(item.id)}
             onChange={(checked) => toggleItem(item.id, checked)}
           />
         ))}
         {notes.map((note) => (
-          <Text key={note} muted size="xs">
-            {noteText(note)}
+          <Text key={JSON.stringify(note)} muted size="xs">
+            {say(note)}
           </Text>
         ))}
       </Stack>
@@ -735,7 +718,7 @@ function RunInfo() {
       </Text>
       {failed.length > 0 ? (
         <Text tone="warning" size="xs">
-          {t('Fell back after: {list}', { list: failed.map((attempt) => `${attempt.name} (${attempt.error ?? 'failed'})`).join(', ') })}
+          {t('Fell back after: {list}', { list: failed.map((attempt) => `${attempt.name} (${attempt.errorText ? say(attempt.errorText) : (attempt.error ?? 'failed')})`).join(', ') })}
         </Text>
       ) : null}
     </Stack>

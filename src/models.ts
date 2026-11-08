@@ -1,7 +1,8 @@
 // Model profiles in storage, their keys in secrets, and the fallback chain.
 import type { OrcaWorkerApi } from 'orca/worker'
 import { runCli, type CliKind } from './cli.ts'
-import { complete, isLocalUrl, isTransient, LlmError } from './llm.ts'
+import { complete, isLocalUrl, isTransient, LlmError, messageOf } from './llm.ts'
+import { english, msg, type Message } from './messages.ts'
 import {
   MODELS_KEY,
   modelsToJson,
@@ -107,7 +108,8 @@ export async function viewProfiles(orca: OrcaWorkerApi, profiles: ModelProfile[]
   )
 }
 
-export type Attempt = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
+/** `error` is English (logs, history); `errorText` the same as a Message for the panel. */
+export type Attempt = { profileId: string; name: string; model: string; ok: boolean; error?: string; errorText?: Message; ms: number }
 
 export type ChainOptions = {
   /** The person's cancel. */
@@ -125,8 +127,11 @@ export type ChainOptions = {
 export class ChainError extends Error {
   code: string
   attempts: Attempt[]
-  constructor(message: string, code: string, attempts: Attempt[]) {
-    super(message)
+  /** The message as a code and parameters, for the panel to show in its language. */
+  text: Message
+  constructor(text: Message, code: string, attempts: Attempt[]) {
+    super(english(text))
+    this.text = text
     this.code = code
     this.attempts = attempts
   }
@@ -152,7 +157,7 @@ export async function runChain(
 ): Promise<{ text: string; profile: ModelProfile; attempts: Attempt[] }> {
   const attempts: Attempt[] = []
   if (list.length === 0) {
-    throw new ChainError('No model configured. Add one in the Models tab.', 'invalid_params', attempts)
+    throw new ChainError(msg('error.no_model'), 'invalid_params', attempts)
   }
   const started = Date.now()
   let lastError: unknown = null
@@ -169,8 +174,8 @@ export async function runChain(
     options.onAttempt?.(profile, model, attempts.length + 1, list.length)
     const { key } = await resolveKey(orca, profile)
     if (!key && needsKey(profile)) {
-      attempts.push({ profileId: profile.id, name: profile.name, model, ok: false, error: 'no API key', ms: 0 })
-      lastError = new LlmError(`${profile.name}: no API key`, 'invalid_params')
+      attempts.push({ profileId: profile.id, name: profile.name, model, ok: false, error: 'no API key', errorText: msg('error.no_key'), ms: 0 })
+      lastError = new LlmError(msg('error.profile_no_key', { name: profile.name }), 'invalid_params')
       continue
     }
     const controller = new AbortController()
@@ -210,6 +215,7 @@ export async function runChain(
         model,
         ok: false,
         error: (error as Error).message,
+        errorText: messageOf(error),
         ms: Date.now() - attemptStart
       })
       if (options.signal?.aborted) {
@@ -224,13 +230,12 @@ export async function runChain(
     }
   }
   if (options.signal?.aborted) {
-    throw new ChainError('Cancelled.', 'cancelled', attempts)
+    throw new ChainError(msg('error.cancelled'), 'cancelled', attempts)
   }
-  const tried = attempts.map((a) => `${a.name}: ${a.error ?? 'skipped'}`).join(' · ')
+  const tried: Message[] = attempts.map((a) => msg('error.attempt', { name: a.name, reason: a.errorText ?? a.error ?? 'skipped' }))
   const code = lastError instanceof LlmError ? lastError.code : 'action_failed'
-  throw new ChainError(
-    attempts.length > 1 ? `All models failed. ${tried}` : ((lastError as Error | null)?.message ?? 'Out of time.'),
-    code,
-    attempts
-  )
+  let text: Message = msg('error.out_of_time')
+  if (attempts.length > 1) text = msg('error.all_failed', { list: tried })
+  else if (lastError) text = messageOf(lastError)
+  throw new ChainError(text, code, attempts)
 }

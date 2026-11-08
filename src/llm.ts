@@ -1,6 +1,7 @@
 // Minimal clients for OpenAI-compatible /chat/completions and Anthropic /v1/messages.
 // Uses the worker's global fetch; the prompt goes only to the endpoint the person configured.
 
+import { english, msg, raw, type Message } from './messages.ts'
 import type { Provider } from './presets.ts'
 
 export type { Provider }
@@ -20,11 +21,24 @@ export class LlmError extends Error {
   code: string
   /** HTTP status when the endpoint answered with an error. */
   status?: number
-  constructor(message: string, code = 'action_failed', status?: number) {
-    super(message)
+  /** The message as a code and parameters, for the panel to show in its language. */
+  text: Message
+  constructor(message: Message | string, code = 'action_failed', status?: number) {
+    const text = typeof message === 'string' ? raw(message) : message
+    super(english(text))
+    this.text = text
     this.code = code
     this.status = status
   }
+}
+
+/** An error's message as a Message: its own when it has one, else its text as is. */
+export function messageOf(error: unknown): Message {
+  if (error && typeof error === 'object' && 'text' in error && (error as { text: unknown }).text) {
+    const text = (error as { text: Message }).text
+    if (typeof text === 'object' && typeof text.code === 'string') return text
+  }
+  return raw(error instanceof Error ? error.message : String(error))
 }
 
 /** Errors worth retrying on another model: network, timeout, rate limit, server side. */
@@ -57,14 +71,14 @@ export function endpointUrl(base: string, path: '/chat/completions' | '/v1/messa
   try {
     url = new URL(base)
   } catch {
-    throw new LlmError(`Invalid API base URL: ${base}`, 'invalid_params')
+    throw new LlmError(msg('error.bad_url', { url: base }), 'invalid_params')
   }
   const local = isLocalUrl(base)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
-    throw new LlmError('The API base URL must use https (http is allowed only for localhost).', 'invalid_params')
+    throw new LlmError(msg('error.https_only'), 'invalid_params')
   }
   if (url.username || url.password) {
-    throw new LlmError('Put the API key in the Setup tab, not in the URL.', 'invalid_params')
+    throw new LlmError(msg('error.key_in_url'), 'invalid_params')
   }
   url.search = ''
   url.hash = ''
@@ -97,16 +111,16 @@ async function readJson(response: Response, baseUrl: string, signal?: AbortSigna
   try {
     body = await response.text()
   } catch (error) {
-    if (signal?.aborted) throw new LlmError('The request was cancelled or timed out.', 'timeout')
-    throw new LlmError(`${baseUrl} stopped answering: ${(error as Error).message}`, 'unavailable')
+    if (signal?.aborted) throw new LlmError(msg('error.timeout'), 'timeout')
+    throw new LlmError(msg('error.stopped', { url: baseUrl, detail: (error as Error).message }), 'unavailable')
   }
   try {
     return JSON.parse(body) as unknown
   } catch {
     const type = response.headers.get('content-type')?.split(';')[0] || 'no content type'
     const text = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
-    const what = body.trim() ? `${type}: "${text}"` : 'an empty answer'
-    throw new LlmError(`${baseUrl} did not answer with JSON (${what}). A proxy or sign-in page may be in the way.`, 'unavailable')
+    const what = body.trim() ? raw(`${type}: "${text}"`) : msg('error.empty_body')
+    throw new LlmError(msg('error.not_json', { url: baseUrl, what }), 'unavailable')
   }
 }
 
@@ -118,7 +132,7 @@ export async function complete(
 ): Promise<string> {
   if (!config.apiKey && !(config.provider === 'openai' && isLocalUrl(config.baseUrl))) {
     throw new LlmError(
-      `No API key. Add one in the Enhance Prompt panel (Models tab)${config.envName ? ` or set ${config.envName}` : ''}.`,
+      config.envName ? msg('error.no_key_env', { env: config.envName }) : msg('error.no_key'),
       'invalid_params'
     )
   }
@@ -165,13 +179,13 @@ export async function complete(
       throw error
     }
     if (signal?.aborted) {
-      throw new LlmError('The request was cancelled or timed out.', 'timeout')
+      throw new LlmError(msg('error.timeout'), 'timeout')
     }
-    throw new LlmError(`Could not reach ${config.baseUrl}: ${(error as Error).message}`, 'unavailable')
+    throw new LlmError(msg('error.unreachable', { url: config.baseUrl, detail: (error as Error).message }), 'unavailable')
   }
   if (!response.ok) {
     const code = response.status === 429 ? 'rate_limited' : 'action_failed'
-    throw new LlmError(`${response.status}: ${await readError(response)}`, code, response.status)
+    throw new LlmError(msg('error.http', { status: response.status, detail: await readError(response) }), code, response.status)
   }
   const data = (await readJson(response, config.baseUrl, signal)) as {
     content?: { type: string; text?: string }[]
@@ -187,7 +201,7 @@ export async function complete(
   // Reasoning models served through compatible APIs sometimes inline their thinking.
   text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
   if (!text) {
-    throw new LlmError('The model returned an empty answer.')
+    throw new LlmError(msg('error.empty_answer'))
   }
   return text
 }

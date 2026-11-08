@@ -5,6 +5,8 @@
 //   deep      + git status/log/diff, files relevant to the prompt (paths, grep, snippets)
 //   max       + AI-picked files from the tree, recent output of the agent terminal
 import type { OrcaWorkerApi } from 'orca/worker'
+import { messageOf } from '../llm.ts'
+import { english, msg, raw, type Message } from '../messages.ts'
 import type { ContextItemView, ContextLevel } from '../presets.ts'
 import type { StepReporter } from '../progress.ts'
 import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files.ts'
@@ -40,15 +42,17 @@ export type GatherOptions = {
   onStep?: StepReporter
 }
 
-export type GatherResult = { items: ContextItem[]; notes: string[]; root: string | null }
+export type GatherResult = { items: ContextItem[]; notes: Message[]; root: string | null }
 
-const item = (id: string, kind: string, label: string, content: string, note?: string): ContextItem => ({
+/** `label` is a Message for the panel; the model reads its English text. A file's label is its path. */
+const item = (id: string, kind: string, label: Message, content: string, why?: Message): ContextItem => ({
   id,
   kind,
-  label,
+  label: english(label),
   content,
   chars: content.length,
-  ...(note ? { note } : {})
+  ...(label.code === 'raw' ? {} : { title: label }),
+  ...(why ? { note: english(why), why } : {})
 })
 
 /** The focused workspace's entry in workspace.list, matched by name and branch. */
@@ -90,11 +94,11 @@ export async function staticParts(root: string, extraFiles: string[], fresh = fa
   const files = listed.filter((file) => !isSensitive(file))
   const items: ContextItem[] = []
   for (const rule of await readRuleFiles(root, files, extraFiles, 9000)) {
-    items.push(item(`rules:${rule.name}`, 'rules', rule.name, rule.content))
+    items.push(item(`rules:${rule.name}`, 'rules', raw(rule.name), rule.content))
   }
   const stack = await detectStack(root, files)
-  if (stack) items.push(item('stack', 'stack', 'Stack & commands', stack))
-  if (files.length > 0) items.push(item('tree', 'tree', `Repository tree (${files.length} files)`, treeSummary(files)))
+  if (stack) items.push(item('stack', 'stack', msg('label.stack'), stack))
+  if (files.length > 0) items.push(item('tree', 'tree', msg('label.tree', { count: files.length }), treeSummary(files)))
   const parts = { at: Date.now(), files, isGit, items }
   staticCache.set(cacheKey, parts)
   return parts
@@ -106,20 +110,20 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   const { level } = options
   const step: StepReporter = options.onStep ?? (() => undefined)
   const items: ContextItem[] = []
-  const notes: string[] = []
+  const notes: Message[] = []
   if (level === 'off') return { items, notes, root: null }
 
   step('workspace', 'running')
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (focused) {
-    items.push(item('workspace', 'workspace', 'Workspace', `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`))
+    items.push(item('workspace', 'workspace', msg('label.workspace'), `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`))
   } else {
-    notes.push('No focused workspace.')
+    notes.push(msg('note.no_workspace'))
   }
   if (options.terminalId) {
     const agents = await orca.host.call('agents.list', {}).catch(() => null)
     const agent = agents?.agents.find((entry) => entry.terminalId === options.terminalId)
-    if (agent?.agent) items.push(item('agent', 'agent', 'Target agent', `${agent.agent} (${agent.state})`))
+    if (agent?.agent) items.push(item('agent', 'agent', msg('label.agent'), `${agent.agent} (${agent.state})`))
   }
   step('workspace', 'done', focused?.displayName)
 
@@ -128,9 +132,9 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   if (focused && atLeast(level, 'standard')) {
     const workspace = await findFocusedWorkspace(orca, focused)
     if (!workspace) {
-      notes.push('Could not tell which folder the workspace is in; project files skipped.')
+      notes.push(msg('note.workspace_unknown'))
     } else if (workspace.hostId !== null) {
-      notes.push('Remote (SSH/WSL) workspace: project files are not readable from the plugin.')
+      notes.push(msg('note.remote'))
     } else {
       root = workspace.path
     }
@@ -152,7 +156,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     if (level === 'max') step('pick', 'skipped')
   }
 
-  if (level === 'max' && options.allowTerminal === false) notes.push('Terminal output is off in Privacy.')
+  if (level === 'max' && options.allowTerminal === false) notes.push(msg('note.terminal_off'))
   // An unticked item is not read at all (not just left out afterwards).
   const readTerminal =
     level === 'max' && options.allowTerminal !== false && Boolean(options.terminalId) && options.terminalLines > 0 && !options.exclude.has('terminal')
@@ -165,7 +169,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     const lines = (read?.lines ?? []).map((line) => line.trimEnd()).filter(Boolean)
     if (lines.length > 0) {
       const title = focused?.terminals.find((t) => t.id === options.terminalId)?.title ?? 'agent terminal'
-      items.push(item('terminal', 'terminal', `Recent output: ${title}`, lines.join('\n')))
+      items.push(item('terminal', 'terminal', msg('label.terminal', { name: title }), lines.join('\n')))
     }
     step('terminal', 'done', String(lines.length))
   }
@@ -177,7 +181,7 @@ async function dynamicParts(
   root: string,
   parts: StaticParts,
   options: GatherOptions,
-  notes: string[]
+  notes: Message[]
 ): Promise<ContextItem[]> {
   const out: ContextItem[] = []
   const patterns = compilePatterns(options.excludePatterns)
@@ -202,19 +206,19 @@ async function dynamicParts(
         item(
           'git:status',
           'git',
-          `Git status (${shown.length} changed)`,
+          msg('label.status', { count: shown.length }),
           [status.branchLine && `## ${status.branchLine}`, ...shown.slice(0, 60)].filter(Boolean).join('\n')
         )
       )
     }
     if (status) changed = new Set(changedPaths(status.changed))
     const log = skip('git:log') ? null : await gitLog(root, 6)
-    if (log?.trim()) out.push(item('git:log', 'git', 'Recent commits', log.trim()))
+    if (log?.trim()) out.push(item('git:log', 'git', msg('label.log'), log.trim()))
     const diff = skip('git:diff') ? null : await gitDiff(root, options.level === 'max' ? 9000 : 5000, (path) => !isExcluded(path, patterns))
-    if (diff) out.push(item('git:diff', 'git', 'Uncommitted changes', `${diff.stat}\n\n${diff.diff}`))
+    if (diff) out.push(item('git:diff', 'git', msg('label.diff'), `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {
-    notes.push('Not a git repository: no git context.')
+    notes.push(msg('note.not_git'))
     step('git', 'skipped')
   }
 
@@ -227,9 +231,9 @@ async function dynamicParts(
   const content = contentScores(perWord, files.length, grepTargets.map((entry) => entry.weight))
   const mentionsTests = /\btest|spec|kiểm thử/i.test(options.prompt)
   const scored = scoreFiles(files, weighted, content, changed, mentionsTests)
-  const picked: { path: string; hits: number[]; why: string }[] = scored
+  const picked: { path: string; hits: number[]; why: Message }[] = scored
     .slice(0, RELEVANT_FILES[options.level])
-    .map((entry) => ({ path: entry.path, hits: [], why: 'keyword match' }))
+    .map((entry) => ({ path: entry.path, hits: [], why: msg('why.keyword') }))
 
   step('search', 'done', String(picked.length))
   if (options.level === 'max' && !options.pickFiles) step('pick', 'skipped')
@@ -240,12 +244,12 @@ async function dynamicParts(
       const chosen = await options.pickFiles(shortlist, options.prompt)
       for (const path of chosen.filter((p) => files.includes(p)).slice(0, 8)) {
         if (!picked.some((entry) => entry.path === path)) {
-          picked.push({ path, hits: [], why: 'picked by AI' })
+          picked.push({ path, hits: [], why: msg('why.ai') })
         }
       }
       step('pick', 'done', String(picked.length))
     } catch (error) {
-      notes.push(`AI file picker skipped: ${(error as Error).message}`)
+      notes.push(msg('note.picker_skipped', { reason: messageOf(error) }))
       step('pick', 'skipped')
     }
   }
@@ -259,10 +263,10 @@ async function dynamicParts(
     if (options.exclude.has(`file:${entry.path}`)) continue
     const text = await readText(root, entry.path)
     if (!text) continue
-    out.push(item(`file:${entry.path}`, 'file', entry.path, snippet(text, entry.hits, perFile), entry.why))
+    out.push(item(`file:${entry.path}`, 'file', raw(entry.path), snippet(text, entry.hits, perFile), entry.why))
   }
   if (keywords.length > 0 && picked.length === 0) {
-    notes.push('No files matched the prompt; the agent will be told to locate them.')
+    notes.push(msg('note.no_files'))
   }
   return out
 }
@@ -282,7 +286,7 @@ export function fitBudget(items: ContextItem[], budget: number): ContextItem[] {
       used += entry.chars
     } else if (budget - used > 400) {
       const content = `${entry.content.slice(0, budget - used)}\n…(trimmed to fit)`
-      out.push({ ...entry, content, chars: content.length, note: 'trimmed' })
+      out.push({ ...entry, content, chars: content.length, note: english(msg('why.trimmed')), why: msg('why.trimmed') })
       used = budget
     }
   }
