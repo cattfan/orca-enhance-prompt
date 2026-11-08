@@ -105,16 +105,28 @@ function chainOptions(settings: Settings, signal?: AbortSignal, extra: Partial<C
   }
 }
 
-async function addHistory(orca: OrcaWorkerApi, limit: number, entry: Omit<HistoryEntry, 'id' | 'at'>): Promise<void> {
-  if (limit <= 0) return
-  if ((await orca.settings.get('saveHistory').catch(() => true)) === false) return
-  const list = parseHistory(await orca.storage.get(HISTORY_KEY))
-  const at = Date.now()
-  const next: HistoryEntry[] = [
-    { id: `${at.toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, ...entry },
-    ...list
-  ].slice(0, limit)
-  await orca.storage.set(HISTORY_KEY, next.map(toJson))
+/**
+ * History is read, changed and written back, so two writers at once (a panel run and the hook, or
+ * Clear history) would lose one change. Every history change runs after the previous one.
+ */
+let historyQueue: Promise<unknown> = Promise.resolve()
+export function withHistory<T>(change: () => Promise<T>): Promise<T> {
+  const next = historyQueue.then(change, change)
+  historyQueue = next.catch(() => undefined)
+  return next
+}
+
+async function addHistory(orca: OrcaWorkerApi, settings: Settings, entry: Omit<HistoryEntry, 'id' | 'at'>): Promise<void> {
+  if (settings.historyLimit <= 0 || !settings.privacy.saveHistory) return
+  await withHistory(async () => {
+    const list = parseHistory(await orca.storage.get(HISTORY_KEY))
+    const at = Date.now()
+    const next: HistoryEntry[] = [{ id: `${at.toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, ...entry }, ...list].slice(
+      0,
+      settings.historyLimit
+    )
+    await orca.storage.set(HISTORY_KEY, next.map(toJson))
+  })
 }
 
 /** Asks a model to choose relevant files from a list; answers a JSON array of paths. */
@@ -142,6 +154,13 @@ async function pickFilesWithModel(
   return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string').slice(0, 8) : []
 }
 
+/** Privacy: without project files, nothing beyond workspace and agent names. */
+export function allowedLevel(requested: ContextLevel, settings: Settings): ContextLevel {
+  return !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
+}
+
+const PROJECT_FILES_OFF = 'Project files are off in Privacy: workspace and agent only.'
+
 export async function enhance(
   orca: OrcaWorkerApi,
   input: {
@@ -163,8 +182,7 @@ export async function enhance(
   const config = await loadModels(orca)
   const style: Style = isStyle(input.style) ? input.style : settings.defaultStyle
   const requested: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
-  // Privacy: without project files, nothing beyond workspace and agent names.
-  const level: ContextLevel = !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
+  const level = allowedLevel(requested, settings)
   const step = progress?.(level, settings.privacy.allowProjectFiles) ?? (() => undefined)
 
   const gathered = await gatherContext(orca, {
@@ -180,7 +198,7 @@ export async function enhance(
     allowTerminal: settings.privacy.allowTerminalRead,
     onStep: step
   })
-  if (level !== requested) gathered.notes.push('Project files are off in Privacy: workspace and agent only.')
+  if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
   const system = buildSystemPrompt({
@@ -243,12 +261,13 @@ async function editableModels(orca: OrcaWorkerApi): Promise<ModelsConfig> {
 }
 
 /** Prompt-independent context for the hook: whatever the cache holds for the focused workspace. */
-async function hookContext(orca: OrcaWorkerApi): Promise<ContextItem[]> {
+async function hookContext(orca: OrcaWorkerApi, allowProjectFiles: boolean): Promise<ContextItem[]> {
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (!focused) return []
   const items: ContextItem[] = []
   const label = `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`
   items.push({ id: 'workspace', kind: 'workspace', label: 'Workspace', content: label, chars: label.length })
+  if (!allowProjectFiles) return items
   const workspace = await findFocusedWorkspace(orca, focused)
   const cached = workspace && workspace.hostId === null ? cachedStatic(workspace.path) : null
   if (cached) items.push(...cached.items.filter((entry) => entry.kind !== 'tree'))
@@ -342,7 +361,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       : undefined
     const result = await enhance(orca, input, signal, progress)
     const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
-    await addHistory(orca, result.settings.historyLimit, {
+    await addHistory(orca, result.settings, {
       original: input.prompt.trim(),
       enhanced: result.enhanced,
       style: result.style,
@@ -362,17 +381,23 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude }) => {
     const settings = await readSettings(orca)
+    const requested: ContextLevel = isContextLevel(level) ? level : settings.contextLevel
+    // Preview reads exactly what a run would: the same Privacy switches apply.
+    const allowed = allowedLevel(requested, settings)
     const gathered = await gatherContext(orca, {
-      level: isContextLevel(level) ? level : settings.contextLevel,
+      level: allowed,
       prompt,
       terminalId: terminalId ?? null,
       terminalLines: settings.terminalLines,
       exclude: new Set(exclude ?? []),
       extraFiles: settings.extraContextFiles,
-      excludePatterns: settings.excludePatterns
+      excludePatterns: settings.excludePatterns,
+      allowGit: settings.privacy.allowGit,
+      allowTerminal: settings.privacy.allowTerminalRead
     })
     const notes = [...gathered.notes]
-    if (level === 'max') notes.push('Preview skips the AI file picker.')
+    if (allowed !== requested) notes.push(PROJECT_FILES_OFF)
+    if (allowed === 'max') notes.push('Preview skips the AI file picker.')
     return { context: view(gathered.items), notes, chars: gathered.items.reduce((sum, entry) => sum + entry.chars, 0) }
   })
 
@@ -553,7 +578,7 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('data.clear', async ({ what }) => {
     const keys = await orca.storage.keys()
-    if (what === 'history' || what === 'all') await orca.storage.delete(HISTORY_KEY)
+    if (what === 'history' || what === 'all') await withHistory(() => orca.storage.delete(HISTORY_KEY))
     if (what === 'catalogs' || what === 'all') {
       for (const key of keys.filter((entry) => entry.startsWith('catalog:'))) await orca.storage.delete(key)
     }
@@ -593,7 +618,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
     try {
       const config = await loadModels(orca)
-      const items = settings.autoEnhanceContext ? await hookContext(orca) : []
+      const items = settings.autoEnhanceContext ? await hookContext(orca, settings.privacy.allowProjectFiles) : []
       const system = buildSystemPrompt({
         style: settings.defaultStyle,
         language: settings.outputLanguage,
@@ -614,7 +639,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       )
       const enhanced = cleanOutput(result.text)
       const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
-      void addHistory(orca, settings.historyLimit, {
+      void addHistory(orca, settings, {
         original: prompt,
         enhanced,
         style: settings.defaultStyle,

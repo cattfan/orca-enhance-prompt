@@ -11,7 +11,7 @@ function stubFetch(): void {
   globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })) as typeof fetch
 }
 
-function hostWith(settings: Record<string, boolean>, root: string | null = null) {
+function hostWith(settings: Record<string, boolean | string>, root: string | null = null) {
   return mockHost({
     settings,
     storage: { models: { profiles: [profile] } },
@@ -92,4 +92,89 @@ test('data summary and delete everything', async () => {
   assert.deepEqual(await worker.request('data.summary'), { history: 0, profiles: 0, keys: 0, catalogs: 0 })
   assert.equal(host.data().secrets['apiKey.oa'], undefined)
   await worker.deactivate()
+})
+
+test('Preview context obeys the same Privacy switches as a run', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'privacy-preview-'))
+  writeFileSync(join(root, 'AGENTS.md'), 'secret rules')
+  const filesOff = await mountWorker(main, { host: hostWith({ allowProjectFiles: false }, root) })
+  const preview = await filesOff.request('context.preview', { prompt: 'do it', level: 'standard' })
+  assert.deepEqual(preview.context.map((item) => item.id), ['workspace'])
+  assert.ok(preview.notes.some((note) => /Privacy/.test(note)))
+  await filesOff.deactivate()
+
+  const terminalOff = await mountWorker(main, {
+    host: mockHost({
+      settings: { allowTerminalRead: false, allowGit: false },
+      results: {
+        'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [{ id: 't1', title: 'Claude' }] },
+        'workspace.list': { workspaces: [{ id: 'w', kind: 'folder', name: 'demo', path: root, branch: 'main', hostId: null }], truncated: false },
+        'agents.list': { agents: [] },
+        'terminal.read': { lines: ['secret output'], truncated: false }
+      }
+    })
+  })
+  const max = await terminalOff.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1' })
+  const ids = max.context.map((item) => item.id)
+  assert.ok(!ids.includes('terminal'), ids.join(','))
+  assert.ok(!ids.some((id) => id.startsWith('git:')), ids.join(','))
+  await terminalOff.deactivate()
+})
+
+test('auto-enhance (AI) leaves cached project context out while project files are off', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'privacy-hook-'))
+  writeFileSync(join(root, 'AGENTS.md'), 'Use pnpm, secret rules.')
+  stubFetch()
+  // Warm the cache with project files allowed.
+  const warm = await mountWorker(main, { host: hostWith({}, root) })
+  await warm.request('prompt.enhance', { prompt: 'warm up', level: 'standard' })
+  await warm.deactivate()
+
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(String(init?.body))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'rewritten' } }] }), { status: 200 })
+  }) as typeof fetch
+  const hook = await mountWorker(main, { host: hostWith({ autoEnhanceMode: 'ai', allowProjectFiles: false }, root) })
+  const decision = await hook.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 't1', prompt: 'add a login page', inputKind: 'launch' })
+  assert.equal(decision.kind === 'continue' && decision.event.prompt, 'rewritten')
+  assert.equal(bodies.length, 1)
+  assert.ok(!bodies[0].includes('secret rules'))
+  await hook.deactivate()
+})
+
+test('history keeps both entries when two runs finish at the same time', async () => {
+  globalThis.fetch = (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+  }) as typeof fetch
+  const host = hostWith({})
+  const worker = await mountWorker(main, { host })
+  await Promise.all([
+    worker.request('prompt.enhance', { prompt: 'first', level: 'off' }),
+    worker.request('prompt.enhance', { prompt: 'second', level: 'off' }),
+    worker.request('prompt.enhance', { prompt: 'third', level: 'off' })
+  ])
+  const history = host.data().storage.history as { original: string }[]
+  assert.deepEqual(history.map((entry) => entry.original).sort(), ['first', 'second', 'third'])
+  await worker.deactivate()
+})
+
+test('history changes run one after another, so a slow writer is never overtaken', async () => {
+  const { withHistory } = await import('./worker')
+  let store: string[] = []
+  const append = (name: string, delay: number) =>
+    withHistory(async () => {
+      const read = [...store]
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      store = [name, ...read]
+    })
+  await Promise.all([append('slow', 30), append('fast', 0), append('third', 5)])
+  assert.deepEqual(store, ['third', 'fast', 'slow'])
+  // A failing change does not block the next one.
+  await assert.rejects(withHistory(async () => Promise.reject(new Error('boom'))))
+  await withHistory(async () => {
+    store = ['after', ...store]
+  })
+  assert.equal(store[0], 'after')
 })

@@ -308,13 +308,14 @@ export function applyProgress(snapshot: { runId: string; startedAt: number; step
   }
 }
 
-/** Ends a run: every step still running is marked failed (or left as is when cancelled). */
+/** What a step still running becomes when the run ends this way. */
+const OPEN_STEP_ENDS: Record<Run['status'], Step['status']> = { running: 'running', done: 'done', error: 'failed', cancelled: 'skipped' }
+
+/** Ends a run: a step still running is done, failed or (when cancelled) skipped. */
 function finishRun(runId: string, status: Run['status'], error?: string): void {
   const current = read(run)
   if (!current || current.runId !== runId || current.status !== 'running') return
-  const steps: Step[] = current.steps.map((entry) =>
-    entry.status === 'running' ? { ...entry, status: status === 'done' ? 'done' : 'failed' } : entry
-  )
+  const steps: Step[] = current.steps.map((entry) => (entry.status === 'running' ? { ...entry, status: OPEN_STEP_ENDS[status] } : entry))
   set(run, { ...current, steps, status, finishedAt: Date.now(), ...(error ? { error } : {}) })
 }
 
@@ -526,6 +527,8 @@ async function setRoles(patch: { hookProfileId?: string | null; selectorProfileI
 }
 
 export function setup(ctx: PanelContext): void {
+  // Closing or reloading the panel ends its run: stop the request so the worker stops the model too.
+  ctx.signal.addEventListener('abort', () => inFlight?.abort())
   ctx.subscriptions.push(
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
