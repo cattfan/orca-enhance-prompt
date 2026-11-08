@@ -3,6 +3,14 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.6.2] - 2026-11-08
+
+### Changed
+- Long help texts moved behind an info icon (ⓘ): hover to read, press to show it as a notice. Applies to the
+  Models tab sections, its footer (now "More settings and privacy ⓘ") and the subscription CLI note in the
+  model form.
+- The live preview takes `?scenario=<name>` in its URL.
+
 ## [1.6.1] - 2026-11-08
 
 ### Added
@@ -138,6 +146,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.2
 [1.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.1
 [1.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.0
 [1.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.5.0

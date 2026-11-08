@@ -923,9 +923,12 @@ function ProfileForm() {
       ) : null}
       {cli ? (
         <Stack gap="sm">
-          <Text muted size="xs">
-            {t('Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an API (a few seconds per call), so it is skipped by auto-enhance.')}
-          </Text>
+          <Row gap="xs">
+            <Text muted size="xs">
+              {t('Uses your subscription')}
+            </Text>
+            <Hint text={t('Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an API (a few seconds per call), so it is skipped by auto-enhance.')} />
+          </Row>
           <Input
             label={t('Command')}
             placeholder={current.preset === 'custom-cli' ? 'my-llm' : t('Found on PATH automatically; or a full path')}
@@ -1069,17 +1072,18 @@ function SubscriptionCallout() {
   )
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children?: OrcaNode }) {
+/** Help text behind an info icon: hover shows it, a press shows it as a notice (touch, keyboard). */
+function Hint({ text }: { text: string }) {
+  return <IconButton icon="info" label={text} size="sm" variant="ghost" onPress={() => set(notice, { tone: 'neutral', text })} />
+}
+
+function Section({ title, hint, children }: { title: string; hint?: string; children?: OrcaNode }) {
   return (
     <Stack gap="sm">
-      <Stack gap="none">
+      <Row gap="xs">
         <Heading level={3}>{title}</Heading>
-        {description ? (
-          <Text muted size="xs">
-            {description}
-          </Text>
-        ) : null}
-      </Stack>
+        {hint ? <Hint text={hint} /> : null}
+      </Row>
       {children}
     </Stack>
   )
@@ -1095,7 +1099,7 @@ function ModelsTab() {
   ]
   return (
     <Stack gap="lg">
-      <Section title={t('Your models')} description={t('Models are tried top to bottom. Disabled models are skipped.')}>
+      <Section title={t('Your models')} hint={t('Models are tried top to bottom. Disabled models are skipped.')}>
         {view.fromEnv && view.profiles.length > 0 ? (
           <Callout tone="accent" title={t('Using API keys from your environment')}>
             <Text size="sm">{t('Add a model below to customize; then only your saved models are used.')}</Text>
@@ -1142,7 +1146,7 @@ function ModelsTab() {
       <Separator />
       <Section
         title={t('Auto-enhance')}
-        description={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
+        hint={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
       >
         <Select
           label={t('Auto-enhance prompts Orca sends to agents')}
@@ -1177,9 +1181,12 @@ function ModelsTab() {
           </Section>
         </Stack>
       ) : null}
-      <Text muted size="xs">
-        {t('Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context you choose go only to the endpoints above; .env files, keys and credentials are never read.')}
-      </Text>
+      <Row gap="xs" justify="end">
+        <Text muted size="xs">
+          {t('More settings and privacy')}
+        </Text>
+        <Hint text={t('Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context you choose go only to the endpoints above; .env files, keys and credentials are never read.')} />
+      </Row>
     </Stack>
   )
 }

@@ -126,7 +126,7 @@ const PAGE = `<!doctype html>
   }
   async function load() {
     data = await (await fetch('/api/state')).json()
-    const sel = $('scenario'), current = sel.value || prefs.scenario || '*'
+    const sel = $('scenario'), current = new URLSearchParams(location.search).get('scenario') || sel.value || prefs.scenario || '*'
     sel.innerHTML = '<option value="*">All</option>' + data.scenarios.filter((s) => !s.name.endsWith('-dark')).map((s) => '<option>' + esc(s.name) + '</option>').join('')
     sel.value = [...sel.options].some((o) => o.value === current) ? current : '*'
     const st = $('status')
