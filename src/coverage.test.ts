@@ -119,12 +119,12 @@ test('Codex model list: listed models by priority, the configured one marked or 
 
 test('Gemini model list: built-in models plus the one in ~/.gemini/settings.json', async () => {
   const home = fakeHome()
-  const plain = await geminiCatalog()
+  const plain = await geminiCatalog('', false)
   assert.ok(plain.models.length >= 3)
   assert.ok(plain.models.every((model) => !model.isDefault))
   mkdirSync(join(home, '.gemini'))
   writeFileSync(join(home, '.gemini', 'settings.json'), JSON.stringify({ model: { name: 'gemini-9-ultra' } }))
-  const configured = await geminiCatalog()
+  const configured = await geminiCatalog('', false)
   assert.deepEqual(configured.models[0], { id: 'gemini-9-ultra', label: 'gemini-9-ultra', isDefault: true })
 })
 
@@ -144,4 +144,34 @@ test('clipboard: the right tool per OS, UTF-16 with a BOM for clip.exe; no tool 
     assert.equal(result.copied, false)
     assert.ok(result.error)
   }
+})
+
+test('Gemini model list comes from `gemini models list` when the CLI can list, else the known models', async () => {
+  fakeHome()
+  const listing = JSON.stringify([
+    { modelId: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast' },
+    { modelId: 'gemini-2.5-pro', name: 'gemini-2.5-pro' }
+  ])
+  const gemini = fakeCommand('gemini', `Loaded cached credentials.\n${listing}\n`)
+  const listed = await geminiCatalog(gemini, true)
+  assert.deepEqual(listed.models, [
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (gemini-3.5-flash)', description: 'Fast' },
+    { id: 'gemini-2.5-pro', label: 'gemini-2.5-pro' }
+  ])
+  assert.match(listed.source, /gemini models list/)
+  // An older CLI without `models list`: the known models.
+  const old = await geminiCatalog(fakeCommand('gemini', 'Unknown command: models'), true)
+  assert.match(old.source, /built-in/)
+  assert.ok(old.models.some((model) => model.id === 'gemini-2.5-pro'))
+  // Online lists off in Privacy: the CLI is not even started.
+  const dir = tempDir('gemini-off-')
+  const marker = join(dir, 'ran').replace(/\\/g, '/')
+  const script = join(dir, 'mark.mjs').replace(/\\/g, '/')
+  writeFileSync(script, `import { writeFileSync } from 'node:fs'\nwriteFileSync(${JSON.stringify(marker)}, '1')\nprocess.stdout.write(${JSON.stringify(listing)})\n`)
+  const command = join(dir, process.platform === 'win32' ? 'gemini.cmd' : 'gemini')
+  writeFileSync(command, process.platform === 'win32' ? `@"${process.execPath}" "${script}" %*\r\n` : `#!/bin/sh\n"${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 })
+  const offline = await geminiCatalog(command, false)
+  assert.match(offline.source, /built-in/)
+  const { existsSync } = await import('node:fs')
+  assert.ok(!existsSync(marker), 'gemini ran while online lists are off')
 })

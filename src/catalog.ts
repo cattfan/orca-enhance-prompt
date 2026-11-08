@@ -2,7 +2,8 @@
 //   Claude Code  aliases from `claude --help` and the Claude Code settings schema (schemastore.org),
 //                which always point at the newest model; restricted by your `availableModels`.
 //   Codex CLI    `codex debug models`: the catalog Codex itself shows (visibility "list").
-//   Gemini CLI   known models plus the one in ~/.gemini/settings.json.
+//   Gemini CLI   `gemini models list --output-format json` (Gemini CLI 0.67 and later), else known
+//                models; plus the one in ~/.gemini/settings.json.
 //   APIs         GET /models (OpenAI-compatible) or /v1/models (Anthropic) with the profile's key.
 import { open, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -259,14 +260,48 @@ export async function codexCatalog(command: string): Promise<Catalog> {
   return { models, source: 'codex debug models', fetchedAt: Date.now() }
 }
 
-export async function geminiCatalog(): Promise<Catalog> {
+/** Models from `gemini models list --output-format json`; null when the CLI cannot list them. Exported for tests. */
+export function parseGeminiModels(out: string | null): CatalogModel[] | null {
+  if (!out) return null
+  // The CLI may print a line or two before the JSON.
+  const start = out.indexOf('[')
+  if (start < 0) return null
+  try {
+    const list = JSON.parse(out.slice(start)) as { modelId?: string; id?: string; name?: string; displayName?: string; description?: string }[]
+    if (!Array.isArray(list)) return null
+    const models: CatalogModel[] = []
+    for (const entry of list) {
+      const id = entry.modelId ?? entry.id
+      if (typeof id !== 'string' || !id) continue
+      const name = entry.displayName ?? entry.name
+      const model: CatalogModel = { id, label: name && name !== id ? `${name} (${id})` : id }
+      if (entry.description) model.description = entry.description
+      models.push(model)
+    }
+    return models.length > 0 ? models : null
+  } catch {
+    return null
+  }
+}
+
+/** Used when the CLI cannot list its models (not installed, older than 0.67, or lists offline). */
+const GEMINI_KNOWN = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite']
+
+/**
+ * Gemini CLI's models. Listing may sign in and fetch the account's model settings, so it runs only
+ * while online model lists are allowed in Privacy; otherwise the known models are shown.
+ */
+export async function geminiCatalog(command = '', online = true): Promise<Catalog> {
   const settings = await readJson(join(homedir(), '.gemini', 'settings.json'))
   const configured = (settings?.model as { name?: string } | undefined)?.name
-  const ids = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite']
-  if (configured && !ids.includes(configured)) ids.unshift(configured)
+  const binary = online ? resolveBinary(command || CLI_BINARIES['gemini-cli']) : null
+  const listed = binary ? parseGeminiModels(await readCommand(binary, ['models', 'list', '--output-format', 'json'], 20_000)) : null
+  const models: CatalogModel[] = listed ?? GEMINI_KNOWN.map((id) => ({ id, label: id }))
+  if (configured && !models.some((model) => model.id === configured)) models.unshift({ id: configured, label: configured })
+  for (const model of models) if (model.id === configured) model.isDefault = true
   return {
-    models: ids.map((id) => ({ id, label: id, ...(id === configured ? { isDefault: true } : {}) })),
-    source: 'built-in + ~/.gemini/settings.json',
+    models,
+    source: listed ? 'gemini models list + ~/.gemini/settings.json' : 'built-in + ~/.gemini/settings.json',
     fetchedAt: Date.now()
   }
 }

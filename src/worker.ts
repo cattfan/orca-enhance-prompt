@@ -380,7 +380,7 @@ async function fetchCatalog(
   const online = privacy.allowOnlineModelLists
   if (source.presetId === 'claude-code') return claudeCatalog(source.command, online)
   if (source.presetId === 'codex') return codexCatalog(source.command)
-  if (source.presetId === 'gemini-cli') return geminiCatalog()
+  if (source.presetId === 'gemini-cli') return geminiCatalog(source.command, online)
   if (source.provider === 'cli') return { models: [], source: 'custom CLI', fetchedAt: Date.now() }
   if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
   // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
