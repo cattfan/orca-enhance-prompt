@@ -2,7 +2,7 @@
 // fallback, sends prompts to agent terminals, keeps history, manages model profiles, and runs the
 // optional agent.prompt.before auto-enhance hook.
 import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
-import { apiCatalog, claudeCatalog, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
+import { apiCatalog, claudeCatalog, claudeProgramSignature, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
 import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
 import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index.ts'
@@ -584,7 +584,10 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
     const baseUrl = (input.baseUrl ?? profile?.baseUrl ?? '').trim() || preset.baseUrl
     const command = (input.command ?? profile?.command ?? '').trim()
     // CLIs share one catalog per preset; APIs one per endpoint (keys differ per profile, lists rarely do).
-    const cacheKey = provider === 'cli' ? `catalog:v2:${preset.id}` : `catalog:v2:${provider}:${baseUrl}`
+    const cliKey = `catalog:v2:${preset.id}`
+    // Claude Code's list is read from its program: a new version (other size or date) is a new list.
+    const cacheKey =
+      provider !== 'cli' ? `catalog:v2:${provider}:${baseUrl}` : preset.id === 'claude-code' ? `${cliKey}:${await claudeProgramSignature(command)}` : cliKey
     if (!input.refresh) {
       const cached = parseCatalog(await orca.storage.get(cacheKey))
       if (cached && cached.models.length > 0 && Date.now() - cached.fetchedAt < CATALOG_TTL_MS) {
@@ -600,6 +603,12 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
       const catalog = await fetchCatalog(orca, { presetId: preset.id, env: preset.env, provider, baseUrl, command, profile, typedKey: input.apiKey?.trim() })
       if (catalog.models.length > 0) {
         await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
+        // Lists of earlier Claude Code versions are never read again.
+        if (preset.id === 'claude-code') {
+          for (const key of await orca.storage.keys()) {
+            if ((key === cliKey || key.startsWith(`${cliKey}:`)) && key !== cacheKey) await orca.storage.delete(key)
+          }
+        }
       }
       return catalog
     })()

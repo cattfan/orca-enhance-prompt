@@ -178,6 +178,16 @@ async function claudeHelpAliases(binary: string): Promise<string[] | null> {
   return aliases
 }
 
+/**
+ * Which Claude Code program a cached list came from: its size and modification time. Part of the
+ * cache key, so updating Claude Code fetches its new list instead of waiting out the day.
+ */
+export async function claudeProgramSignature(command: string): Promise<string> {
+  const binary = resolveBinary(command || CLI_BINARIES['claude-code'])
+  const info = binary ? await stat(binary).catch(() => null) : null
+  return info ? `${info.size}-${Math.round(info.mtimeMs)}` : 'none'
+}
+
 export async function claudeCatalog(command: string, online = true): Promise<Catalog> {
   const aliases = new Set<string>(['default', 'opus', 'sonnet', 'haiku'])
   const sources: string[] = ['built-in']

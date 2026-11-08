@@ -115,3 +115,35 @@ test('model lists: an environment key is not used while that Privacy switch is o
     else process.env.GROQ_API_KEY = previous
   }
 })
+
+test('Claude Code list: cached per program version, fetched again after Claude Code is updated', async () => {
+  const { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const dir = mkdtempSync(join(tmpdir(), 'claude-version-'))
+  try {
+    const runs = join(dir, 'runs.txt').replace(/\\/g, '/')
+    const script = join(dir, 'help.mjs').replace(/\\/g, '/')
+    writeFileSync(runs, '')
+    writeFileSync(script, `import { appendFileSync } from 'node:fs'\nappendFileSync(${JSON.stringify(runs)}, 'x')\nprocess.stdout.write("--model <m>  an alias such as 'sonnet'")\n`)
+    const claude = join(dir, process.platform === 'win32' ? 'claude.cmd' : 'claude')
+    writeFileSync(claude, process.platform === 'win32' ? `@"${process.execPath}" "${script}" %*\r\n` : `#!/bin/sh\n"${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 })
+    const host = mockHost({ settings: { allowOnlineModelLists: false }, storage: { 'catalog:v2:claude-code': { models: [{ id: 'old', label: 'old' }], source: 'old', fetchedAt: Date.now() } } })
+    const worker = await mountWorker(main, { host })
+    const ask = () => worker.request('models.catalog', { preset: 'claude-code', command: claude })
+    const first = await ask()
+    assert.ok(!first.models.some((model) => model.id === 'old'), 'a list from before versions were keyed was used')
+    assert.equal(readFileSync(runs, 'utf8').length, 1)
+    await ask()
+    assert.equal(readFileSync(runs, 'utf8').length, 1, 'the same version was read again')
+    // "Update" Claude Code: the program file changes size.
+    appendFileSync(claude, process.platform === 'win32' ? 'rem updated\r\n' : '# updated\n')
+    await ask()
+    assert.equal(readFileSync(runs, 'utf8').length, 2, 'the new version was not read')
+    const keys = Object.keys(host.data().storage).filter((key) => key.startsWith('catalog:v2:claude-code'))
+    assert.equal(keys.length, 1, keys.join(', '))
+    await worker.deactivate()
+  } finally {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
+})

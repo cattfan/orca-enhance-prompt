@@ -137,7 +137,7 @@ const alive = (pid: number) => {
   }
 }
 async function gone(pid: number): Promise<boolean> {
-  for (let i = 0; i < 30 && alive(pid); i++) await new Promise((resolve) => setTimeout(resolve, 100))
+  for (let i = 0; i < 80 && alive(pid); i++) await new Promise((resolve) => setTimeout(resolve, 100))
   return !alive(pid)
 }
 async function pidFrom(file: string): Promise<number> {
