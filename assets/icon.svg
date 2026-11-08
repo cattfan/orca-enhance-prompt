@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="0.55" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.28" r="0.6">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#glow)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#shine)"/>
+  <!-- prompt chevron and cursor -->
+  <path d="M62 92 L106 128 L62 164" fill="none" stroke="#fff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="120" y="152" width="58" height="18" rx="9" fill="#fff" fill-opacity="0.92"/>
+  <!-- sparkles: the prompt gets enhanced -->
+  <path d="M184 48 C187 70 192 75 214 78 C192 81 187 86 184 108 C181 86 176 81 154 78 C176 75 181 70 184 48 Z" fill="#fff"/>
+  <path d="M146 100 C147.5 111 150 113.5 161 115 C150 116.5 147.5 119 146 130 C144.5 119 142 116.5 131 115 C142 113.5 144.5 111 146 100 Z" fill="#fff" fill-opacity="0.85"/>
+</svg>

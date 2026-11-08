@@ -91,6 +91,17 @@ const history = [
   { id: 'e', at: now - 50 * 3600_000, original: 'review my changes before the PR', enhanced: 'Review…', style: 'review', model: 'haiku', source: 'panel' }
 ]
 
+/** Sample live model lists, as `models.catalog` answers them. */
+function catalogFor(preset: string) {
+  const lists: Record<string, string[]> = {
+    'claude-code': ['haiku', 'sonnet', 'opus', 'fable', 'default'],
+    openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-5-mini', 'o4-mini'],
+    groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen-2.5-coder-32b'],
+    ollama: ['qwen2.5-coder', 'llama3.2', 'deepseek-r1']
+  }
+  return { models: (lists[preset] ?? []).map((id) => ({ id, label: id })), source: 'sample', fetchedAt: now }
+}
+
 const enhanceScenario = (lang: 'en' | 'vi') => ({
   settings: { uiLanguage: lang },
   requests: { 'models.get': models([base, gpt, groq]), 'targets.list': agents, 'models.detect': detect(true) },
@@ -120,9 +131,20 @@ const scenarios = {
   'shot-enhance': enhanceScenario('en'),
   'shot-enhance-vi': enhanceScenario('vi'),
   'shot-models': {
-    settings: { uiLanguage: 'en' },
-    requests: { 'models.get': models([base, gpt, groq, ollama], 'groq'), 'targets.list': agents, 'models.detect': detect(true) },
+    settings: { uiLanguage: 'en', autoEnhanceMode: 'ai' },
+    requests: {
+      'models.get': models([base, gpt, groq, ollama], 'groq'),
+      'targets.list': agents,
+      'models.detect': detect(true),
+      'models.catalog': ({ preset }: { preset: string }) => catalogFor(preset)
+    },
     persisted: { plugin: { tab: 'models' } }
+  },
+  'shot-history': {
+    settings: { uiLanguage: 'en' },
+    requests: { 'models.get': models([base, gpt]), 'targets.list': agents, 'models.detect': detect(true) },
+    storage: { history },
+    persisted: { plugin: { tab: 'history' } }
   },
   'shot-models-new': {
     settings: { uiLanguage: 'en' },

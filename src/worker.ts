@@ -2,6 +2,7 @@
 // fallback, sends prompts to agent terminals, keeps history, manages model profiles, and runs the
 // optional agent.prompt.before auto-enhance hook.
 import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
+import { apiCatalog, claudeCatalog, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog'
 import { CLI_BINARIES, detectClis } from './cli'
 import { copyToClipboard } from './clipboard'
 import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index'
@@ -25,6 +26,8 @@ const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
 /** Orca waits 2 s for a hook; leave room to answer. */
 const HOOK_BUDGET_MS = 1700
+/** Model lists are fetched again after a day, or on Refresh. */
+const CATALOG_TTL_MS = 24 * 3600_000
 
 export type Settings = {
   defaultStyle: Style
@@ -224,24 +227,27 @@ async function hookContext(orca: OrcaWorkerApi): Promise<ContextItem[]> {
 
 const MODE_LABEL: Record<AutoMode, string> = { off: 'off', rules: 'rules', ai: 'AI' }
 
+/** Orca's default shortcut for the right sidebar (`sidebar.right.toggle`, Mod+L). */
+const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
+
 /** Status bar wording per panel language ('auto' stays English: the worker cannot see Orca's locale). */
 const STATUS_TEXT: Record<string, { prefix: string; modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
   en: {
     prefix: 'Enhance',
     modes: { off: 'off', rules: 'rules', ai: 'AI' },
     tooltip: (mode) =>
-      `Auto-enhance: ${mode}. Click to cycle off / rules / AI. More options: Settings → Plugins → Enhance Prompt ("Status bar item" hides it).`
+      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "Enhance Prompt".\nAuto-enhance: ${mode} (change it in the panel's Models tab or the command palette).\nSettings and updates: Settings → Plugins → Enhance Prompt.`
   },
   vi: {
     prefix: 'Enhance',
     modes: { off: 'tắt', rules: 'luật', ai: 'AI' },
     tooltip: (mode) =>
-      `Tự cải thiện: ${mode}. Bấm để đổi tắt / luật / AI. Tuỳ chọn khác: Settings → Plugins → Enhance Prompt (mục "Status bar item" để ẩn).`
+      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "Enhance Prompt".\nTự cải thiện: ${mode} (đổi trong tab Model của panel hoặc command palette).\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
   },
   zh: {
     prefix: '优化',
     modes: { off: '关', rules: '规则', ai: 'AI' },
-    tooltip: (mode) => `自动优化：${mode}。点击切换 关 / 规则 / AI。更多选项：Settings → Plugins → Enhance Prompt（“Status bar item” 可隐藏）。`
+    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “Enhance Prompt”。\n自动优化：${mode}（在面板的“模型”标签或命令面板中更改）。\n设置与更新：Settings → Plugins → Enhance Prompt。`
   }
 }
 
@@ -415,6 +421,36 @@ export default function activate(orca: OrcaWorkerApi): void {
     } catch (error) {
       return { ok: false, message: (error as Error).message, ms: Date.now() - started }
     }
+  })
+
+  orca.panels.handle('models.catalog', async (input) => {
+    const preset = presetById(input.preset)
+    const config = await loadModels(orca)
+    const profile = input.profileId ? config.profiles.find((entry) => entry.id === input.profileId) : undefined
+    const provider = profile?.provider ?? (input.provider === 'anthropic' ? 'anthropic' : preset.provider)
+    const baseUrl = (input.baseUrl ?? profile?.baseUrl ?? '').trim() || preset.baseUrl
+    const command = (input.command ?? profile?.command ?? '').trim()
+    // CLIs share one catalog per preset; APIs one per endpoint (keys differ per profile, lists rarely do).
+    const cacheKey = provider === 'cli' ? `catalog:${preset.id}` : `catalog:${provider}:${baseUrl}`
+    if (!input.refresh) {
+      const cached = parseCatalog(await orca.storage.get(cacheKey))
+      if (cached && cached.models.length > 0 && Date.now() - cached.fetchedAt < CATALOG_TTL_MS) {
+        return cached
+      }
+    }
+    let catalog: Catalog
+    if (preset.id === 'claude-code') catalog = await claudeCatalog(command)
+    else if (preset.id === 'codex') catalog = await codexCatalog(command)
+    else if (preset.id === 'gemini-cli') catalog = await geminiCatalog()
+    else if (provider === 'cli') catalog = { models: [], source: 'custom CLI', fetchedAt: Date.now() }
+    else {
+      const key = input.apiKey?.trim() || (profile ? (await resolveKey(orca, profile)).key : null) || (preset.env ? (process.env[preset.env] ?? null) : null)
+      catalog = await apiCatalog(provider, baseUrl, key)
+    }
+    if (catalog.models.length > 0) {
+      await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
+    }
+    return catalog
   })
 
   orca.panels.handle('models.detect', async () => {

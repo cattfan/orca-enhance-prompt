@@ -17,6 +17,22 @@ export function resolveLanguage(setting: string, locale: string): UiLanguage {
 }
 
 const VI: Record<string, string> = {
+  'your default': 'mặc định của bạn',
+  'Choose a model': 'Chọn model',
+  'Other (type the id)…': 'Khác (tự gõ id)…',
+  'Refresh model list': 'Làm mới danh sách model',
+  'Model id': 'Id model',
+  'Loading the model list…': 'Đang tải danh sách model…',
+  'Could not load the list ({error}). Type the model id.': 'Không tải được danh sách ({error}). Hãy gõ id model.',
+  '{count} models from {source}, refreshed daily.': '{count} model từ {source}, tự làm mới mỗi ngày.',
+  'Uses the model set in the CLI itself.': 'Dùng model đang đặt trong chính CLI.',
+  'Add the API key to list the models.': 'Nhập API key để hiện danh sách model.',
+  '{name} now uses {model}.': '{name} giờ dùng {model}.',
+  'Auto-enhance prompts Orca sends to agents': 'Tự cải thiện prompt Orca gửi cho agent',
+  Off: 'Tắt',
+  'Rules: append your text': 'Luật: nối thêm đoạn của bạn',
+  'AI rewrite (fast API model, 2 s limit)': 'AI viết lại (model API nhanh, tối đa 2 giây)',
+  'Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.': 'Áp dụng cho prompt khi launch, task và orchestration. Prompt bạn tự gõ không bao giờ bị đổi. Đoạn văn cho chế độ Luật nằm ở Settings → Plugins → Enhance Prompt.',
   // tabs, header
   Enhance: 'Cải thiện',
   'History ({count})': 'Lịch sử ({count})',
@@ -158,6 +174,22 @@ const VI: Record<string, string> = {
 }
 
 const ZH: Record<string, string> = {
+  'your default': '你的默认',
+  'Choose a model': '选择模型',
+  'Other (type the id)…': '其他（输入 id）…',
+  'Refresh model list': '刷新模型列表',
+  'Model id': '模型 id',
+  'Loading the model list…': '正在加载模型列表…',
+  'Could not load the list ({error}). Type the model id.': '无法加载列表（{error}）。请输入模型 id。',
+  '{count} models from {source}, refreshed daily.': '{count} 个模型，来自 {source}，每天自动刷新。',
+  'Uses the model set in the CLI itself.': '使用 CLI 自身设置的模型。',
+  'Add the API key to list the models.': '填写 API key 后即可列出模型。',
+  '{name} now uses {model}.': '{name} 现在使用 {model}。',
+  'Auto-enhance prompts Orca sends to agents': '自动优化 Orca 发给 agent 的提示词',
+  Off: '关闭',
+  'Rules: append your text': '规则：追加你的文字',
+  'AI rewrite (fast API model, 2 s limit)': 'AI 改写（快速 API 模型，限 2 秒）',
+  'Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.': '适用于启动、任务和编排提示词。你自己输入的提示词不会被修改。“规则”模式的文字在 Settings → Plugins → Enhance Prompt 中设置。',
   Enhance: '优化',
   'History ({count})': '历史 ({count})',
   'Models ({count})': '模型 ({count})',

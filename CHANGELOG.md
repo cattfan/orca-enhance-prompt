@@ -3,6 +3,34 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.4.0] - 2026-11-08
+
+### Added
+- **Model lists that stay current**: the Model field is a list of what each source offers today, so you no
+  longer type model ids.
+  - Claude Code: its aliases (`haiku`, `sonnet`, `opus`, `fable`…), which always point at the newest model.
+    Read from `claude --help` and the Claude Code settings schema on schemastore.org, limited to your
+    `availableModels`, with your default marked.
+  - Codex CLI: `codex debug models`, the catalog Codex itself shows, with your `config.toml` model marked.
+  - Gemini CLI: known models plus your `~/.gemini/settings.json` model.
+  - APIs: the provider's `GET /models` (Anthropic `/v1/models`), newest first.
+  - Cached for a day, with a Refresh button, and **Other (type the id)…** for anything unlisted.
+- **Switch a model in place** from the menu on each model card.
+- **Auto-enhance mode in the panel** (Models tab), next to fallback.
+- **New icon**, from `assets/icon.svg`.
+- **Docs in Orca's format**: a README with the same layout as Orca's (feature table, supported models,
+  install), Vietnamese and Chinese READMEs, and pages for getting started, context levels, models,
+  auto-enhance, settings, privacy and troubleshooting.
+
+### Changed
+- **Clicking the status bar item now opens the right sidebar**, where the panel lives; its tooltip explains
+  where the panel, settings and updates are. To cycle auto-enhance, use the panel or the command palette.
+- New command **Enhance Prompt: Show / hide the right sidebar**.
+
+### Fixed
+- The "CLI default" model option was dropped by Orca because its value was empty.
+- Two strings in the model form were not translated.
+
 ## [1.3.0] - 2026-11-08
 
 ### Added
@@ -75,6 +103,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.4.0
 [1.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.3.0
 [1.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.2.0
 [1.1.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.1.0

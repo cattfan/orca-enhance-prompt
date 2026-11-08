@@ -104,6 +104,39 @@ function cmdQuote(arg: string): string {
   return arg === '' || /\s/.test(arg) ? `"${arg}"` : arg
 }
 
+/** Runs a binary with fixed arguments and returns stdout; null on any failure. For read-only queries. */
+export function readCommand(binary: string, args: string[], timeoutMs = 20_000): Promise<string | null> {
+  const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
+  return new Promise((resolve) => {
+    let child
+    try {
+      child = isCmd
+        ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `"${[cmdQuote(binary), ...args.map(cmdQuote)].join(' ')}"`], {
+            windowsHide: true,
+            windowsVerbatimArguments: true,
+            stdio: ['ignore', 'pipe', 'ignore']
+          })
+        : spawn(binary, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch {
+      resolve(null)
+      return
+    }
+    let out = ''
+    const timer = setTimeout(() => child.kill(), timeoutMs)
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      if (out.length < 8_000_000) out += chunk
+    })
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      resolve(code === 0 ? out : null)
+    })
+  })
+}
+
 export async function runCli(
   options: { kind: CliKind; command: string; model: string; customArgs: string },
   system: string,

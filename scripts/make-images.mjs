@@ -65,8 +65,13 @@ ${PANEL_CSS}`
 
 const page = (body) =>
   `<!doctype html><html><head><meta charset="utf-8"><style>${PAGE_CSS}</style></head><body>${body}</body></html>`
-const frame = (scenario, { dark = false, open = false, height = 900, scale = 1, width = 420 } = {}) =>
-  `<div class="frame${dark ? ' dark' : ''}" style="width:${width * scale}px;height:${height * scale}px"><div style="transform:scale(${scale});transform-origin:0 0">${renderPanel(tree(scenario), { dark, open, width })}</div></div>`
+const frame = (scenario, { dark = false, open = false, height = 900, scale = 1, width = 420, offset = 0 } = {}) =>
+  `<div class="frame${dark ? ' dark' : ''}" style="width:${width * scale}px;height:${height * scale}px"><div style="transform:scale(${scale});transform-origin:0 0;margin-top:${-offset * scale}px">${renderPanel(tree(scenario), { dark, open, width })}</div></div>`
+
+/** A README feature picture: one or more panel crops on the brand background, 960x600. */
+const feature = (...frames) =>
+  `<!doctype html><html><head><meta charset="utf-8"><style>${PAGE_CSS}
+html,body{width:960px;height:600px}.stage{justify-content:center;padding:0;gap:28px}</style></head><body><div class="stage">${frames.join('')}</div></body></html>`
 const brand = `<div class="brand"><img src="${iconData}" alt="">Enhance Prompt for Orca</div>`
 const points = (items) => `<ul class="points">${items.map(([ic, text]) => `<li>${icon(ic, 22)}<span>${text}</span></li>`).join('')}</ul>`
 
@@ -116,21 +121,41 @@ const images = {
   </div>`)
 }
 
+// README feature pictures (docs/assets/readme-features), rendered at 2x for sharp text.
+const features = {
+  'enhance-and-send': feature(frame('shot-enhance', { height: 400, scale: 1.1, offset: 535 })),
+  'project-context': feature(frame('shot-enhance', { open: true, height: 500, scale: 1.05, offset: 488 })),
+  subscription: feature(frame('shot-models', { height: 520, scale: 1, offset: 395 })),
+  'models-fallback': feature(frame('shot-models', { height: 540, scale: 1, offset: 0 })),
+  languages: feature(
+    frame('shot-enhance-vi', { height: 600, scale: 0.86, offset: 0 }),
+    frame('shot-history-zh', { height: 600, scale: 0.86, offset: 0 })
+  ),
+  history: feature(frame('shot-history', { height: 528, scale: 1, offset: 0 }))
+}
+
 const work = mkdtempSync(join(tmpdir(), 'enhance-images-'))
 mkdirSync(join(root, 'assets/screenshots'), { recursive: true })
-for (const [name, html] of Object.entries(images)) {
-  const file = join(work, `${name.replace('/', '-')}.html`)
+mkdirSync(join(root, 'docs/assets/readme-features'), { recursive: true })
+const shoot = (html, out, size, dpr) => {
+  const file = join(work, `${Math.random().toString(36).slice(2)}.html`)
   writeFileSync(file, html)
-  const out = join(root, 'assets', `${name}.png`)
   execFileSync(browser, [
     '--headless=new',
     '--disable-gpu',
     '--hide-scrollbars',
-    '--force-device-scale-factor=1',
-    '--window-size=1600,1000',
+    `--force-device-scale-factor=${dpr}`,
+    `--window-size=${size}`,
     `--screenshot=${out}`,
     pathToFileURL(file).href
   ], { stdio: 'ignore' })
+}
+for (const [name, html] of Object.entries(images)) {
+  shoot(html, join(root, 'assets', `${name}.png`), '1600,1000', 1)
   console.log(`assets/${name}.png`)
+}
+for (const [name, html] of Object.entries(features)) {
+  shoot(html, join(root, 'docs/assets/readme-features', `${name}.png`), '960,600', 2)
+  console.log(`docs/assets/readme-features/${name}.png`)
 }
 rmSync(work, { recursive: true, force: true })

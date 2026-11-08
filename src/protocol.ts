@@ -76,6 +76,27 @@ declare module 'orca' {
     'models.roles': { input: { hookProfileId: string | null; selectorProfileId: string | null }; output: ModelsView }
     /** Sends a tiny request through one profile. */
     'models.test': { input: { id: string }; output: { ok: boolean; message: string; ms: number } }
+    /**
+     * The models a preset or saved profile can use, kept current from the CLI or the API itself.
+     * Cached for a day; `refresh` fetches again. `apiKey` lets an unsaved form list API models.
+     */
+    'models.catalog': {
+      input: {
+        preset: string
+        profileId?: string
+        baseUrl?: string
+        provider?: string
+        command?: string
+        apiKey?: string
+        refresh?: boolean
+      }
+      output: {
+        models: { id: string; label: string; description?: string; isDefault?: boolean }[]
+        source: string
+        fetchedAt: number
+        error?: string
+      }
+    }
     /** Agent CLIs found on this machine (usable with the person's subscription). */
     'models.detect': { output: { found: { preset: string; label: string; path: string; added: boolean }[] } }
   }

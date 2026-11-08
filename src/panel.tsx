@@ -45,7 +45,15 @@ import type { AttemptView, ModelsView, ProfileInput } from './protocol'
 
 type Target = { terminalId: string; label: string; agent: string | null }
 type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string } | null
-type Defaults = { style: string; level: string; pressEnter: boolean; fallbackEnabled: boolean; fallbackOn: string; outputLanguage: string }
+type Defaults = {
+  style: string
+  level: string
+  pressEnter: boolean
+  fallbackEnabled: boolean
+  fallbackOn: string
+  outputLanguage: string
+  autoEnhanceMode: string
+}
 type Form = Omit<ProfileInput, 'apiKey'> & { apiKey: string }
 
 // Keyed atoms survive hot reloads; `persist: 'plugin'` ones survive panel runs.
@@ -64,6 +72,16 @@ const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
 const historyFilter = atom('historyFilter', '')
 const form = atom<Form | null>('form', null)
 const detected = atom<{ preset: string; label: string; path: string; added: boolean }[]>([])
+type Catalog = { models: { id: string; label: string; description?: string; isDefault?: boolean }[]; source: string; fetchedAt: number; error?: string }
+/** Model lists by profile id, or 'form' for the add/edit form. */
+const catalogs = atom<Record<string, Catalog>>({})
+const catalogLoading = atom<Record<string, boolean>>({})
+const CUSTOM_MODEL = '__custom__'
+/** Select values cannot be empty: this stands for "the CLI's own default model" (stored as ''). */
+const CLI_DEFAULT = '__cli_default__'
+const toModel = (value: string) => (value === CLI_DEFAULT ? '' : value)
+/** The form's model picker is on "Other (type the id)". */
+const customModel = atom(false)
 
 const busy = atom<'enhance' | 'preview' | 'send' | 'test' | 'save' | null>(null)
 const notice = atom<Notice>(null)
@@ -73,7 +91,15 @@ const contextShown = atom<ContextItemView[]>('contextShown', [], { persist: 'plu
 const contextNotes = atom<string[]>('contextNotes', [], { persist: 'plugin' })
 const targets = atom<Target[]>([])
 const models = atom<ModelsView | null>(null)
-const defaults = atom<Defaults>({ style: 'balanced', level: 'standard', pressEnter: false, fallbackEnabled: true, fallbackOn: 'any', outputLanguage: 'auto' })
+const defaults = atom<Defaults>({
+  style: 'balanced',
+  level: 'standard',
+  pressEnter: false,
+  fallbackEnabled: true,
+  fallbackOn: 'any',
+  outputLanguage: 'auto',
+  autoEnhanceMode: 'off'
+})
 
 const history = derived(() => parseHistory(read(historyRaw)))
 const filteredHistory = derived(() => {
@@ -102,7 +128,8 @@ async function refreshDefaults(): Promise<void> {
     pressEnter: all.sendPressEnter === true,
     fallbackEnabled: all.fallbackEnabled !== false,
     fallbackOn: all.fallbackOn === 'transient' ? 'transient' : 'any',
-    outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto'
+    outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto',
+    autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off'
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
 }
@@ -131,10 +158,52 @@ function outputOptions() {
 
 async function refreshModels(): Promise<void> {
   try {
-    set(models, await plugin.request('models.get'))
+    const view = await plugin.request('models.get')
+    set(models, view)
+    // Lists come from cache (a day) or the CLI/API; cards use them for quick model switching.
+    for (const profile of view.profiles) {
+      if (!read(catalogs)[profile.id]) void loadCatalog(profile.id, { preset: profile.preset, profileId: profile.id })
+    }
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   }
+}
+
+async function loadCatalog(
+  key: string,
+  input: { preset: string; profileId?: string; baseUrl?: string; provider?: string; command?: string; apiKey?: string },
+  refresh = false
+): Promise<void> {
+  update(catalogLoading, (map) => ({ ...map, [key]: true }))
+  try {
+    const clean = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined && value !== ''))
+    const catalog = await plugin.request('models.catalog', { preset: input.preset, ...clean, refresh }, { timeoutMs: 40_000 })
+    update(catalogs, (map) => ({ ...map, [key]: catalog }))
+  } catch (error) {
+    update(catalogs, (map) => ({ ...map, [key]: { models: [], source: '', fetchedAt: Date.now(), error: message(error) } }))
+  } finally {
+    update(catalogLoading, (map) => ({ ...map, [key]: false }))
+  }
+}
+
+function formCatalogInput(current: Form) {
+  return {
+    preset: current.preset,
+    ...(current.id ? { profileId: current.id } : {}),
+    baseUrl: current.baseUrl,
+    provider: current.provider,
+    command: current.command ?? '',
+    apiKey: current.apiKey
+  }
+}
+
+function modelOptions(catalog: Catalog | undefined, current: string) {
+  const options = (catalog?.models ?? []).map((model) => ({
+    value: model.id,
+    label: model.isDefault ? `${model.label} · ${t('your default')}` : model.label
+  }))
+  if (current && !options.some((option) => option.value === current)) options.unshift({ value: current, label: current })
+  return options
 }
 
 async function refreshTargets(): Promise<void> {
@@ -263,6 +332,7 @@ async function setSetting(key: string, value: JsonValue): Promise<void> {
 // ---- model profiles
 
 function openForm(profile?: ProfileView): void {
+  set(customModel, false)
   if (profile) {
     set(form, {
       id: profile.id,
@@ -282,6 +352,8 @@ function openForm(profile?: ProfileView): void {
     const preset = presetById('openai')
     set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', apiKey: '' })
   }
+  const current = read(form)
+  if (current) void loadCatalog('form', formCatalogInput(current))
 }
 
 async function detectClis(): Promise<void> {
@@ -326,6 +398,8 @@ function applyPreset(id: string): void {
       ? { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, command: '', args: '', name: current.id ? current.name : preset.label }
       : current
   )
+  const current = read(form)
+  if (current) void loadCatalog('form', formCatalogInput(current))
 }
 
 const patchForm = (patch: Partial<Form>) => update(form, (current) => (current ? { ...current, ...patch } : current))
@@ -643,6 +717,63 @@ function HistoryTab() {
   )
 }
 
+/** A list of the models the CLI or API offers now, with "Other" to type any id. */
+function ModelPicker({ current }: { current: Form }) {
+  const catalog = read(catalogs).form
+  const loading = read(catalogLoading).form === true
+  const cli = current.provider === 'cli'
+  const options = modelOptions(catalog, current.model)
+  const inList = options.some((option) => option.value === current.model)
+  const typing = read(customModel) || (current.model !== '' && !inList)
+  const label = cli ? t('Model (optional)') : t('Model')
+  return (
+    <Stack gap="xs">
+      <Row gap="xs">
+        {options.length > 0 ? (
+          <Select
+            label={label}
+            placeholder={cli ? t('CLI default') : t('Choose a model')}
+            value={typing ? CUSTOM_MODEL : current.model || (cli ? CLI_DEFAULT : undefined)}
+            options={[...(cli ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options, { value: CUSTOM_MODEL, label: t('Other (type the id)…') }]}
+            onChange={(value) => {
+              set(customModel, value === CUSTOM_MODEL)
+              if (value !== CUSTOM_MODEL) patchForm({ model: toModel(value) })
+            }}
+          />
+        ) : (
+          <Input
+            label={label}
+            placeholder={presetById(current.preset).model || (cli ? t('CLI default') : 'model-id')}
+            value={current.model}
+            onChange={(value) => patchForm({ model: value })}
+          />
+        )}
+        <IconButton
+          icon="refresh"
+          label={t('Refresh model list')}
+          variant="ghost"
+          disabled={loading}
+          onPress={() => void loadCatalog('form', formCatalogInput(current), true)}
+        />
+      </Row>
+      {options.length > 0 && typing ? (
+        <Input label={t('Model id')} labelHidden placeholder="model-id" value={current.model} onChange={(value) => patchForm({ model: value })} />
+      ) : null}
+      <Text muted size="xs">
+        {loading
+          ? t('Loading the model list…')
+          : catalog?.error
+            ? t('Could not load the list ({error}). Type the model id.', { error: catalog.error })
+            : catalog && catalog.models.length > 0
+              ? t('{count} models from {source}, refreshed daily.', { count: catalog.models.length, source: catalog.source })
+              : cli
+                ? t('Uses the model set in the CLI itself.')
+                : t('Add the API key to list the models.')}
+      </Text>
+    </Stack>
+  )
+}
+
 function ProfileForm() {
   const current = read(form)
   const view = read(models)
@@ -674,8 +805,7 @@ function ProfileForm() {
       {cli ? (
         <Stack gap="sm">
           <Text muted size="xs">
-            Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an
-            API (a few seconds per call), so it is skipped by auto-enhance.
+            {t('Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an API (a few seconds per call), so it is skipped by auto-enhance.')}
           </Text>
           <Input
             label={t('Command')}
@@ -690,12 +820,7 @@ function ProfileForm() {
       ) : (
         <Input label={t('Base URL')} placeholder="https://…" value={current.baseUrl} onChange={(value) => patchForm({ baseUrl: value })} />
       )}
-      <Input
-        label={cli ? 'Model (optional)' : 'Model'}
-        placeholder={presetById(current.preset).model || (cli ? t('CLI default') : 'model-id')}
-        value={current.model}
-        onChange={(value) => patchForm({ model: value })}
-      />
+      <ModelPicker current={current} />
       {cli ? null : (
         <Input label={t('API key')} type="password" placeholder={keyHint} value={current.apiKey} onChange={(value) => patchForm({ apiKey: value })} />
       )}
@@ -733,6 +858,43 @@ function ProfileForm() {
   )
 }
 
+/** The profile's model, switchable in place from the live list. */
+function QuickModel({ profile, fromEnv }: { profile: ProfileView; fromEnv: boolean }) {
+  const catalog = read(catalogs)[profile.id]
+  const where = profile.provider === 'cli' ? `${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI` : profile.baseUrl
+  const options = modelOptions(catalog, profile.model)
+  if (fromEnv || options.length < 2) {
+    return (
+      <Text muted size="xs" truncate>
+        {`${profile.model || t('CLI default')} · ${where}`}
+      </Text>
+    )
+  }
+  return (
+    <Row gap="xs">
+      <Select
+        label={t('Model')}
+        labelHidden
+        value={profile.model || CLI_DEFAULT}
+        options={[...(profile.provider === 'cli' ? [{ value: CLI_DEFAULT, label: t('CLI default') }] : []), ...options]}
+        onChange={(value) => void switchModel(profile, toModel(value))}
+      />
+      <Text muted size="xs" truncate>
+        {where}
+      </Text>
+    </Row>
+  )
+}
+
+async function switchModel(profile: ProfileView, model: string): Promise<void> {
+  try {
+    set(models, await plugin.request('models.save', { ...profile, model }))
+    set(notice, { tone: 'success', text: t('{name} now uses {model}.', { name: profile.name, model: model || t('CLI default') }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
 function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView; index: number; count: number; fromEnv: boolean }) {
   return (
     <Box gap="xs" padding="sm" border radius="md" background={profile.enabled ? 'none' : 'muted'}>
@@ -745,11 +907,7 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
         </Row>
         <Badge tone={profile.keySource === 'none' ? 'warning' : 'success'}>{t(KEY_LABEL[profile.keySource])}</Badge>
       </Row>
-      <Text muted size="xs" truncate>
-        {profile.provider === 'cli'
-          ? `${profile.model || t('CLI default')} · ${presetById(profile.preset).label.replace(/ \(.*\)$/, '')} CLI`
-          : `${profile.model} · ${profile.baseUrl}`}
-      </Text>
+      <QuickModel profile={profile} fromEnv={fromEnv} />
       <Row justify="between" gap="xs">
         {fromEnv ? (
           <Text muted size="xs">{t('From environment')}</Text>
@@ -815,6 +973,21 @@ function ModelsTab() {
           onChange={(value) => void setSetting('fallbackOn', value)}
         />
         <Text muted size="xs">{t('Models are tried top to bottom. Disabled models are skipped.')}</Text>
+      </Box>
+      <Box gap="sm" padding="sm" radius="md" background="muted">
+        <Select
+          label={t('Auto-enhance prompts Orca sends to agents')}
+          value={prefs.autoEnhanceMode}
+          options={[
+            { value: 'off', label: t('Off') },
+            { value: 'rules', label: t('Rules: append your text') },
+            { value: 'ai', label: t('AI rewrite (fast API model, 2 s limit)') }
+          ]}
+          onChange={(value) => void setSetting('autoEnhanceMode', value)}
+        />
+        <Text muted size="xs">
+          {t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
+        </Text>
       </Box>
       {view.fromEnv && view.profiles.length > 0 ? (
         <Callout tone="accent" title={t('Using API keys from your environment')}>

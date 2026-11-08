@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",
@@ -31,6 +31,11 @@
     ],
     "commands": [
       {
+        "id": "panel.open",
+        "title": "Enhance Prompt: Show / hide the right sidebar (panel lives there)",
+        "action": "sidebar.right.toggle"
+      },
+      {
         "id": "auto-enhance.cycle",
         "title": "Enhance Prompt: Cycle auto-enhance (off / rules / AI)"
       },
@@ -56,8 +61,8 @@
         "id": "auto-enhance",
         "text": "Enhance: off",
         "icon": "lightbulb",
-        "tooltip": "Auto-enhance prompts Orca sends to agents. Click to cycle off / rules / AI.",
-        "command": "auto-enhance.cycle"
+        "tooltip": "Enhance Prompt: click to open the right sidebar (Ctrl+L), then the lightbulb tab.",
+        "command": "panel.open"
       }
     ],
     "hooks": [
