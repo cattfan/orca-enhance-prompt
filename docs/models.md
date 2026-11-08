@@ -57,7 +57,10 @@ Lists are cached for a day. Click **Refresh model list** (↻) next to the field
 
 ## Fallback
 
-Models are tried from top to bottom. Use the arrows on each card to reorder them, and the switch to skip one.
+Models are tried from top to bottom. The **#** menu on each card sets its position (pick **#1** to try it first), and the switch skips it.
+
+> [!NOTE]
+> Orca's plugin UI has no drag and drop, so the position is a menu: one click instead of a drag.
 
 - **Fallback to the next model when one fails** (on by default).
 - **Fall back on**:

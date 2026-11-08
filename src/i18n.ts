@@ -17,6 +17,7 @@ export function resolveLanguage(setting: string, locale: string): UiLanguage {
 }
 
 const VI: Record<string, string> = {
+  Order: 'Thứ tự',
   'More settings and privacy': 'Cài đặt khác và quyền riêng tư',
   'Uses your subscription': 'Dùng gói subscription của bạn',
   'Style, context and output language': 'Kiểu, ngữ cảnh và ngôn ngữ đầu ra',
@@ -189,6 +190,7 @@ const VI: Record<string, string> = {
 }
 
 const ZH: Record<string, string> = {
+  Order: '顺序',
   'More settings and privacy': '更多设置与隐私',
   'Uses your subscription': '使用你的订阅',
   'Style, context and output language': '风格、上下文和输出语言',

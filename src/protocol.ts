@@ -74,7 +74,8 @@ declare module 'orca' {
     /** Adds or updates a profile (and its key). */
     'models.save': { input: ProfileInput; output: ModelsView }
     'models.delete': { input: { id: string }; output: ModelsView }
-    'models.move': { input: { id: string; direction: 'up' | 'down' }; output: ModelsView }
+    /** Moves a profile one step, or straight to position `to` (0 = tried first). */
+    'models.move': { input: { id: string; direction?: 'up' | 'down'; to?: number }; output: ModelsView }
     'models.roles': { input: { hookProfileId: string | null; selectorProfileId: string | null }; output: ModelsView }
     /** Sends a tiny request through one profile. */
     'models.test': { input: { id: string }; output: { ok: boolean; message: string; ms: number } }

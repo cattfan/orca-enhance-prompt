@@ -386,10 +386,10 @@ export default function activate(orca: OrcaWorkerApi): void {
     return modelsView(orca)
   })
 
-  orca.panels.handle('models.move', async ({ id, direction }) => {
+  orca.panels.handle('models.move', async ({ id, direction, to }) => {
     const config = await editableModels(orca)
     const index = config.profiles.findIndex((profile) => profile.id === id)
-    const target = direction === 'up' ? index - 1 : index + 1
+    const target = typeof to === 'number' ? Math.round(to) : direction === 'up' ? index - 1 : index + 1
     if (index >= 0 && target >= 0 && target < config.profiles.length) {
       const [moved] = config.profiles.splice(index, 1)
       config.profiles.splice(target, 0, moved)

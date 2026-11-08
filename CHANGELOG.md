@@ -3,6 +3,17 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.7.0] - 2026-11-08
+
+### Changed
+- **Reorder models in one click**: the number on each model card is now a position menu (#1, #2…); pick #1 to
+  try a model first. The up/down arrows are gone. Orca's plugin UI has no drag and drop, so this is the
+  fastest way to move a model.
+- **Detailed model names** everywhere: the header shows the model that will answer, such as
+  "Claude Code · sonnet" or "Auto: Claude Code · haiku"; the menus show the id and its description,
+  such as "sonnet — Sonnet, newest".
+- The model menu has its own row above **Enhance**, so long names never push the buttons around.
+
 ## [1.6.2] - 2026-11-08
 
 ### Changed
@@ -146,6 +157,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.7.0
 [1.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.2
 [1.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.1
 [1.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.0

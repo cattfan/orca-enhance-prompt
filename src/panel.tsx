@@ -206,7 +206,7 @@ function formCatalogInput(current: Form) {
 function modelOptions(catalog: Catalog | undefined, current: string) {
   const options = (catalog?.models ?? []).map((model) => ({
     value: model.id,
-    label: model.isDefault ? `${model.label} · ${t('your default')}` : model.label
+    label: model.isDefault ? `${modelName(model.id, model.label)} · ${t('your default')}` : modelName(model.id, model.label)
   }))
   if (current && !options.some((option) => option.value === current)) options.unshift({ value: current, label: current })
   return options
@@ -429,12 +429,12 @@ async function saveForm(): Promise<void> {
   }
 }
 
-async function modelAction(action: { remove: string } | { move: string; direction: 'up' | 'down' }): Promise<void> {
+async function modelAction(action: { remove: string } | { move: string; to: number }): Promise<void> {
   try {
     const next =
       'remove' in action
         ? await plugin.request('models.delete', { id: action.remove })
-        : await plugin.request('models.move', { id: action.move, direction: action.direction })
+        : await plugin.request('models.move', { id: action.move, to: action.to })
     set(models, next)
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
@@ -613,6 +613,15 @@ const PROFILE_DEFAULT = '__profile_default__'
 /** "sonnet: Sonnet, newest" -> "Sonnet, newest"; display names stay as they are. */
 const modelDisplay = (label: string) => (label.includes(': ') ? label.slice(label.indexOf(': ') + 2) : label)
 
+const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** "sonnet — Sonnet, newest", or just "GPT-6.1-Sol" when the display name is the id. */
+function modelName(id: string, label: string): string {
+  const display = modelDisplay(label)
+  if (!id) return display
+  return squash(display) === squash(id) || display === id ? display : `${id} — ${display}`
+}
+
 /** Every model of every enabled profile, from its live list, plus Auto. */
 function modelMenu() {
   const options: { value: string; label: string }[] = [
@@ -633,16 +642,21 @@ function modelMenu() {
     }
     if (profile.provider === 'cli' && !profile.model) add('', t('CLI default'))
     else if (profile.model && !listed.some((model) => model.id === profile.model)) add(profile.model, profile.model)
-    for (const model of listed) add(model.id, modelDisplay(model.label))
+    for (const model of listed) add(model.id, modelName(model.id, model.label))
   }
   return options
 }
 
-/** Short name of the model picked in the composer, for the header badge. */
+/** The model that will answer, for the header badge: "Claude Code · sonnet", or Auto's first model. */
 function pickedModelLabel(): string {
-  if (read(profileChoice) === 'auto') return t('Auto')
-  const option = modelMenu().find((entry) => entry.value === currentModelValue())
-  return option?.label.split(' · ')[1] ?? t('Auto')
+  const profiles = read(enabledProfiles)
+  const choice = read(profileChoice)
+  const profile = choice === 'auto' ? profiles[0] : profiles.find((entry) => entry.id === choice)
+  if (!profile) return t('Auto')
+  const id = (choice === 'auto' ? '' : read(modelChoice)) || profile.model
+  const listed = read(catalogs)[profile.id]?.models.find((model) => model.id === id)
+  const name = id ? (listed && squash(modelDisplay(listed.label)) === squash(id) ? modelDisplay(listed.label) : id) : t('CLI default')
+  return `${choice === 'auto' ? `${t('Auto')}: ` : ''}${profile.name} · ${name}`
 }
 
 function currentModelValue(): string {
@@ -752,8 +766,8 @@ function EnhanceTab() {
         onSubmit={() => void enhanceNow()}
       />
       <PromptOptions />
-      <Row gap="xs" wrap>
-        <ComposerModelPicker />
+      <ComposerModelPicker />
+      <Row gap="xs">
         {working === 'enhance' ? (
           <Row gap="xs">
             <Spinner label={t('Enhancing')} />
@@ -1022,7 +1036,17 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
     <Box gap="xs" padding="sm" border radius="md" background={profile.enabled ? 'none' : 'muted'}>
       <Row justify="between" gap="xs">
         <Row gap="xs">
-          <Badge tone={profile.enabled ? 'accent' : 'neutral'}>{index + 1}</Badge>
+          {fromEnv || count < 2 ? (
+            <Badge tone={profile.enabled ? 'accent' : 'neutral'}>{index + 1}</Badge>
+          ) : (
+            <Select
+              label={t('Order')}
+              labelHidden
+              value={String(index)}
+              options={Array.from({ length: count }, (_, position) => ({ value: String(position), label: `#${position + 1}` }))}
+              onChange={(value) => void modelAction({ move: profile.id, to: Number(value) })}
+            />
+          )}
           <Text weight="medium" truncate>
             {profile.name}
           </Text>
@@ -1040,8 +1064,6 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
           <IconButton icon="check" label={t('Test')} size="sm" variant="ghost" onPress={() => void testProfile(profile.id)} disabled={read(busy) === 'test'} />
           {fromEnv ? null : (
             <Row gap="none">
-              <IconButton icon="collapse" label={t('Move up (try earlier)')} size="sm" variant="ghost" disabled={index === 0} onPress={() => void modelAction({ move: profile.id, direction: 'up' })} />
-              <IconButton icon="expand" label={t('Move down (try later)')} size="sm" variant="ghost" disabled={index === count - 1} onPress={() => void modelAction({ move: profile.id, direction: 'down' })} />
               <IconButton icon="edit" label={t('Edit')} size="sm" variant="ghost" onPress={() => openForm(profile)} />
               <IconButton icon="delete" label={t('Delete')} size="sm" variant="ghost" tone="danger" onPress={() => void modelAction({ remove: profile.id })} />
             </Row>
