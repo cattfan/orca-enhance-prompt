@@ -3,8 +3,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { assert, mockHost, mountWorker, test } from 'orca/testing'
-import { cliArgs, runCli } from './cli'
-import * as main from './worker'
+import { cliArgs, runCli } from './cli.ts'
+import * as main from './worker.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'fake-cli-'))
 const script = join(dir, 'fake.mjs').replace(/\\/g, '/')

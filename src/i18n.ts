@@ -534,7 +534,8 @@ export function currentLanguage(): UiLanguage {
 
 export function translate(lang: UiLanguage, text: string, params?: Record<string, string | number>): string {
   const template = DICTS[lang][text] ?? text
-  return params ? template.replace(/\{(\w+)\}/g, (match, key: string) => (key in params ? String(params[key]) : match)) : template
+  if (!params) return template
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => (key in params ? String(params[key]) : match))
 }
 
 /** Translates for the current panel language; reading it while rendering re-renders on a switch. */

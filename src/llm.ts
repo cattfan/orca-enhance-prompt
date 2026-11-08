@@ -1,7 +1,7 @@
 // Minimal clients for OpenAI-compatible /chat/completions and Anthropic /v1/messages.
 // Uses the worker's global fetch; the prompt goes only to the endpoint the person configured.
 
-import type { Provider } from './presets'
+import type { Provider } from './presets.ts'
 
 export type { Provider }
 

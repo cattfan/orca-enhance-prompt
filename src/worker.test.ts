@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import * as main from './worker'
+import * as main from './worker.ts'
 
 type Captured = { url: string; body: Record<string, unknown>; headers: Record<string, string> }
 const realFetch = globalThis.fetch

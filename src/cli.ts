@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { LlmError } from './llm'
+import { LlmError } from './llm.ts'
 
 export type CliKind = 'claude-code' | 'codex' | 'gemini-cli' | 'custom-cli'
 

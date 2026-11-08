@@ -1,8 +1,8 @@
 // `orca plugin test .` runs this in Node with the same runtime and checks Orca uses.
 import { assert, mockHost, mount, test } from 'orca/testing'
-import * as panel from './panel'
-import { PRESETS, type ProfileView } from './presets'
-import type { ModelsView, ProfileInput } from './protocol'
+import * as panel from './panel.tsx'
+import { PRESETS, type ProfileView } from './presets.ts'
+import type { ModelsView, ProfileInput } from './protocol.ts'
 
 const gpt: ProfileView = {
   id: 'gpt',

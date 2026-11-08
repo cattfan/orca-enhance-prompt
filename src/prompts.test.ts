@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { buildSystemPrompt, buildUserMessage, cleanOutput, formatForTerminal } from './prompts'
+import { buildSystemPrompt, buildUserMessage, cleanOutput, formatForTerminal } from './prompts.ts'
 
 test('cleanOutput strips fences and preambles', () => {
   assert.equal(cleanOutput('```markdown\nDo X.\n```'), 'Do X.')
@@ -30,7 +30,7 @@ test('formatForTerminal modes', () => {
 })
 
 test('terminalChunks: long prompts go in pieces under 4096, one paste overall', async () => {
-  const { terminalChunks } = await import('./prompts')
+  const { terminalChunks } = await import('./prompts.ts')
   const line = 'x'.repeat(99) + '\n'
   const text = line.repeat(120) // 12,000 characters
   const pieces = terminalChunks(text, 'paste')
@@ -52,7 +52,7 @@ test('terminalChunks: long prompts go in pieces under 4096, one paste overall', 
 })
 
 test('terminalChunks: edge cases (empty, at the limit, Vietnamese, tiny max)', async () => {
-  const { terminalChunks } = await import('./prompts')
+  const { terminalChunks } = await import('./prompts.ts')
   assert.deepEqual(terminalChunks('', 'paste'), [])
   assert.deepEqual(terminalChunks('   \n  ', 'paste'), [])
   // Exactly the piece size: one write; one more character: two.
@@ -72,7 +72,7 @@ test('terminalChunks: edge cases (empty, at the limit, Vietnamese, tiny max)', a
 })
 
 test('formatForTerminal drops control characters a model could slip into the prompt', async () => {
-  const { formatForTerminal, terminalSafe } = await import('./prompts')
+  const { formatForTerminal, terminalSafe } = await import('./prompts.ts')
   // ESC sequences, Ctrl-C, DEL and the C1 CSI never reach the terminal; tabs and line breaks stay.
   assert.equal(terminalSafe('a\u001b[2Jb\u0003c\u007fd\u009be\tf\r\ng'), 'a[2Jbcde\tf\ng')
   assert.equal(formatForTerminal('one\u001b[201~\ntwo', 'paste'), '\x1b[200~one[201~\ntwo\x1b[201~')

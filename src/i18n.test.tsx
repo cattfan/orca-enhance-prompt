@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { assert, mockHost, mount, test } from 'orca/testing'
-import { dictionaries, resolveLanguage, translate } from './i18n'
-import * as panel from './panel'
-import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets'
-import { STYLE_LABELS } from './prompts'
+import { dictionaries, resolveLanguage, translate } from './i18n.ts'
+import * as panel from './panel.tsx'
+import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
+import { STYLE_LABELS } from './prompts.ts'
 
 test('every UI string has a Vietnamese and a Chinese translation', () => {
   const source = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')

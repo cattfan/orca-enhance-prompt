@@ -1,8 +1,8 @@
 import { assert, test } from 'orca/testing'
-import { compilePatterns, isExcluded, isSensitive, snippet, treeSummary } from './files'
-import { fitBudget, type ContextItem } from './index'
-import { readmeDigest } from './instructions'
-import { extractKeywords, scoreFiles } from './relevance'
+import { compilePatterns, isExcluded, isSensitive, snippet, treeSummary } from './files.ts'
+import { fitBudget, type ContextItem } from './index.ts'
+import { readmeDigest } from './instructions.ts'
+import { extractKeywords, scoreFiles } from './relevance.ts'
 
 test('extractKeywords keeps identifiers and paths, drops stop words (EN + VI)', () => {
   const words = extractKeywords('sửa lỗi validateSession trong `src/auth/session.ts` khi token rỗng, please fix the login page')

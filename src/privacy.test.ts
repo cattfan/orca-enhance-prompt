@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { assert, mockHost, mountWorker, test } from 'orca/testing'
-import * as main from './worker'
+import * as main from './worker.ts'
 
 const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
 
@@ -161,7 +161,7 @@ test('history keeps both entries when two runs finish at the same time', async (
 })
 
 test('history changes run one after another, so a slow writer is never overtaken', async () => {
-  const { withHistory } = await import('./worker')
+  const { withHistory } = await import('./worker.ts')
   let store: string[] = []
   const append = (name: string, delay: number) =>
     withHistory(async () => {

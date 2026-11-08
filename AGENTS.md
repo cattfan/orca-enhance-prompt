@@ -28,7 +28,7 @@ orca plugin validate .
 4. Tag and push: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin main vX.Y.Z`.
 5. Create the GitHub release from the changelog section:
    `gh release create vX.Y.Z --title "vX.Y.Z" --notes "<that CHANGELOG section>"`.
-6. Check the listing: https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt
+6. Check the listing: <https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt>
 
 `scripts/release.mjs <version>` does steps 3–5 once steps 1–2 are done.
 

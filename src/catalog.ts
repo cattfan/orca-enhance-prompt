@@ -7,9 +7,9 @@
 import { open, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { CLI_BINARIES, readCommand, resolveBinary } from './cli'
-import { endpointUrl } from './llm'
-import type { Provider } from './presets'
+import { CLI_BINARIES, readCommand, resolveBinary } from './cli.ts'
+import { endpointUrl } from './llm.ts'
+import type { Provider } from './presets.ts'
 
 export type CatalogModel = { id: string; label: string; description?: string; isDefault?: boolean }
 export type Catalog = { models: CatalogModel[]; source: string; fetchedAt: number; error?: string }

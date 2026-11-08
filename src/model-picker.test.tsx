@@ -1,8 +1,8 @@
 // The composer's model menu: every model of every enabled profile, like the menu in ChatGPT or Claude.
 import { assert, mockHost, mount, mountWorker, test } from 'orca/testing'
-import * as panel from './panel'
-import { PRESETS, type ProfileView } from './presets'
-import * as main from './worker'
+import * as panel from './panel.tsx'
+import { PRESETS, type ProfileView } from './presets.ts'
+import * as main from './worker.ts'
 
 const claude: ProfileView = {
   id: 'claude',

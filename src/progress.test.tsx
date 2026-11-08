@@ -4,10 +4,10 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { assert, mockHost, mount, mountWorker, test } from 'orca/testing'
-import * as panel from './panel'
-import { PRESETS, type ProfileView } from './presets'
-import { createProgress, percent, planSteps, type ProgressSnapshot } from './progress'
-import * as main from './worker'
+import * as panel from './panel.tsx'
+import { PRESETS, type ProfileView } from './presets.ts'
+import { createProgress, percent, planSteps, type ProgressSnapshot } from './progress.ts'
+import * as main from './worker.ts'
 
 test('planSteps follows the level and Privacy', () => {
   assert.deepEqual(planSteps('off', true), ['model'])

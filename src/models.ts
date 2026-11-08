@@ -1,7 +1,7 @@
 // Model profiles in storage, their keys in secrets, and the fallback chain.
 import type { OrcaWorkerApi } from 'orca/worker'
-import { runCli, type CliKind } from './cli'
-import { complete, isLocalUrl, isTransient, LlmError } from './llm'
+import { runCli, type CliKind } from './cli.ts'
+import { complete, isLocalUrl, isTransient, LlmError } from './llm.ts'
 import {
   MODELS_KEY,
   modelsToJson,
@@ -11,7 +11,7 @@ import {
   type ModelProfile,
   type ModelsConfig,
   type ProfileView
-} from './presets'
+} from './presets.ts'
 
 export const secretName = (profileId: string) => `apiKey.${profileId}`
 

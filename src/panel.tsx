@@ -34,7 +34,7 @@ import {
   type OrcaNode,
   type PanelContext
 } from 'orca'
-import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history'
+import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history.ts'
 import {
   CONTEXT_LEVEL_LABELS,
   CONTEXT_LEVELS,
@@ -42,12 +42,12 @@ import {
   presetById,
   type ContextItemView,
   type ProfileView
-} from './presets'
-import { isStyle, STYLE_LABELS, STYLES } from './prompts'
-import { t, UI_LANGUAGES, uiLanguageSetting } from './i18n'
-import { PRIVACY_KEYS } from './privacy'
-import { percent, type Step } from './progress'
-import type { AttemptView, ModelsView, ProfileInput } from './protocol'
+} from './presets.ts'
+import { isStyle, STYLE_LABELS, STYLES } from './prompts.ts'
+import { t, UI_LANGUAGES, uiLanguageSetting } from './i18n.ts'
+import { PRIVACY_KEYS } from './privacy.ts'
+import { percent, type Step } from './progress.ts'
+import type { AttemptView, ModelsView, ProfileInput } from './protocol.ts'
 
 type Target = { terminalId: string; label: string; agent: string | null }
 type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string } | null

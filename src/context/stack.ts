@@ -1,5 +1,5 @@
 // Detects the stack and the real build/test commands from manifest files.
-import { readText } from './files'
+import { readText } from './files.ts'
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text)
 

@@ -2,11 +2,11 @@
 // fallback, sends prompts to agent terminals, keeps history, manages model profiles, and runs the
 // optional agent.prompt.before auto-enhance hook.
 import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
-import { apiCatalog, claudeCatalog, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog'
-import { CLI_BINARIES, detectClis } from './cli'
-import { copyToClipboard } from './clipboard'
-import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index'
-import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history'
+import { apiCatalog, claudeCatalog, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
+import { CLI_BINARIES, detectClis } from './cli.ts'
+import { copyToClipboard } from './clipboard.ts'
+import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index.ts'
+import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history.ts'
 import {
   candidates,
   ChainError,
@@ -17,13 +17,13 @@ import {
   secretName,
   viewProfiles,
   type ChainOptions
-} from './models'
-import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
-import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts'
-import type { ModelsView } from './protocol'
-import { parsePrivacy, type Privacy } from './privacy'
-import { createProgress, planSteps, type StepReporter } from './progress'
-import { MODELS_KEY } from './presets'
+} from './models.ts'
+import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets.ts'
+import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts.ts'
+import type { ModelsView } from './protocol.ts'
+import { parsePrivacy, type Privacy } from './privacy.ts'
+import { createProgress, planSteps, type StepReporter } from './progress.ts'
+import { MODELS_KEY } from './presets.ts'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
@@ -346,9 +346,8 @@ export async function sendPieces(orca: OrcaWorkerApi, terminalId: string, pieces
   return { accepted: sent === pieces.length }
 }
 
-export default function activate(orca: OrcaWorkerApi): void {
-  const catalogsInFlight = new Map<string, Promise<Catalog>>()
-
+/** Enhance, Preview context, Send, Copy and the list of terminals to send to. */
+function registerRunHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
     const started = Date.now()
     const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
@@ -439,8 +438,11 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
     return { targets }
   })
+}
 
-  // ---- model profiles ----
+/** Model profiles, their live model lists and the subscription CLIs found on this machine. */
+function registerModelHandlers(orca: OrcaWorkerApi): void {
+  const catalogsInFlight = new Map<string, Promise<Catalog>>()
 
   orca.panels.handle('models.get', async () => modelsView(orca))
 
@@ -473,7 +475,8 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('models.move', async ({ id, direction, to }) => {
     const config = await editableModels(orca)
     const index = config.profiles.findIndex((profile) => profile.id === id)
-    const target = typeof to === 'number' ? Math.round(to) : direction === 'up' ? index - 1 : index + 1
+    const step = direction === 'up' ? -1 : 1
+    const target = typeof to === 'number' ? Math.round(to) : index + step
     if (index >= 0 && target >= 0 && target < config.profiles.length) {
       const [moved] = config.profiles.splice(index, 1)
       config.profiles.splice(target, 0, moved)
@@ -561,7 +564,22 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   })
 
-  // Privacy tab: what is stored, and wiping it.
+  orca.panels.handle('models.detect', async () => {
+    const config = await loadModels(orca)
+    const found = detectClis().map(({ kind, path }) => ({
+      preset: kind,
+      label: presetById(kind).label,
+      path,
+      added: config.profiles.some(
+        (profile) => profile.preset === kind && (!profile.command || profile.command === path || profile.command === CLI_BINARIES[kind])
+      )
+    }))
+    return { found }
+  })
+}
+
+/** Privacy section: what is stored, and wiping it. */
+function registerDataHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('data.summary', async () => {
     const keys = await orca.storage.keys()
     const config = await loadModels(orca)
@@ -589,22 +607,10 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
     return { ok: true as const }
   })
+}
 
-  orca.panels.handle('models.detect', async () => {
-    const config = await loadModels(orca)
-    const found = detectClis().map(({ kind, path }) => ({
-      preset: kind,
-      label: presetById(kind).label,
-      path,
-      added: config.profiles.some(
-        (profile) => profile.preset === kind && (!profile.command || profile.command === path || profile.command === CLI_BINARIES[kind])
-      )
-    }))
-    return { found }
-  })
-
-  // ---- auto-enhance hook ----
-
+/** The agent.prompt.before hook, and keeping its project context warm. */
+function registerAutoEnhance(orca: OrcaWorkerApi): void {
   orca.hooks.on('agent.prompt.before', async (event, next) => {
     const started = Date.now()
     const settings = await readSettings(orca)
@@ -673,7 +679,10 @@ export default function activate(orca: OrcaWorkerApi): void {
       }
     }, 1500)
   })
+}
 
+/** Commands and the status bar item. */
+function registerCommands(orca: OrcaWorkerApi): void {
   orca.commands.register('auto-enhance.cycle', async () => {
     const { autoEnhanceMode } = await readSettings(orca)
     const next = AUTO_MODES[(AUTO_MODES.indexOf(autoEnhanceMode) + 1) % AUTO_MODES.length]
@@ -698,4 +707,12 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (key === 'autoEnhanceMode' || key === 'statusBarItem' || key === 'uiLanguage') void refreshStatusBar(orca)
   })
   void refreshStatusBar(orca)
+}
+
+export default function activate(orca: OrcaWorkerApi): void {
+  registerRunHandlers(orca)
+  registerModelHandlers(orca)
+  registerDataHandlers(orca)
+  registerAutoEnhance(orca)
+  registerCommands(orca)
 }

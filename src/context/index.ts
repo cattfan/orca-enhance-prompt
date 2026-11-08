@@ -5,13 +5,13 @@
 //   deep      + git status/log/diff, files relevant to the prompt (paths, grep, snippets)
 //   max       + AI-picked files from the tree, recent output of the agent terminal
 import type { OrcaWorkerApi } from 'orca/worker'
-import type { ContextItemView, ContextLevel } from '../presets'
-import type { StepReporter } from '../progress'
-import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files'
-import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo } from './git'
-import { readRuleFiles } from './instructions'
-import { contentScores, scoreFiles, weightedKeywords } from './relevance'
-import { detectStack } from './stack'
+import type { ContextItemView, ContextLevel } from '../presets.ts'
+import type { StepReporter } from '../progress.ts'
+import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files.ts'
+import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo } from './git.ts'
+import { readRuleFiles } from './instructions.ts'
+import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
+import { detectStack } from './stack.ts'
 
 export type ContextItem = ContextItemView & { content: string }
 

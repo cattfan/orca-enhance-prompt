@@ -1,5 +1,5 @@
 // Agent rule files and a README digest (the useful sections, not just the first N chars).
-import { readText } from './files'
+import { readText } from './files.ts'
 
 /** Rule files agents themselves read, most specific first. */
 const RULE_FILES = [

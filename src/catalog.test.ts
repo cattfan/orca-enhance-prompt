@@ -1,6 +1,6 @@
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { aliasesFromText, parseCatalog, parseClaudeModelTable } from './catalog'
-import * as main from './worker'
+import { aliasesFromText, parseCatalog, parseClaudeModelTable } from './catalog.ts'
+import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
 afterEach(() => {

@@ -1,7 +1,7 @@
 // `orca plugin check` renders the panel once per scenario; the `shot-*` ones also feed
 // `orca plugin shot . --scenario <name>` for the listing screenshots (scripts/screenshots.mjs).
 import { defineCheck } from 'orca/testing'
-import { PRESETS, type ProfileView } from './presets'
+import { PRESETS, type ProfileView } from './presets.ts'
 
 const base: ProfileView = {
   id: 'claude-code',

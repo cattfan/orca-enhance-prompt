@@ -1,5 +1,5 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
-import type { ContextItemView, ProfileView, Preset, Provider } from './presets'
+import type { ContextItemView, ProfileView, Preset, Provider } from './presets.ts'
 
 export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
 export type ProfileInput = {
