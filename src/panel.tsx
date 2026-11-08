@@ -30,6 +30,7 @@ import {
   Text,
   Textarea,
   update,
+  type Atom,
   type JsonValue,
   type OrcaNode,
   type PanelContext
@@ -64,8 +65,8 @@ type Form = Omit<ProfileInput, 'apiKey'> & { apiKey: string }
 
 // Keyed atoms survive hot reloads; `persist: 'plugin'` ones survive panel runs.
 const tab = atom('tab', 'enhance', { persist: 'plugin' })
-const draft = atom('draft', '', { persist: 'plugin' })
-const result = atom('result', '', { persist: 'plugin' })
+const draft = atom('')
+const result = atom('')
 const style = atom<string | null>('style', null, { persist: 'plugin' })
 const level = atom<string | null>('level', null, { persist: 'plugin' })
 const profileChoice = atom('profileChoice', 'auto', { persist: 'plugin' })
@@ -115,10 +116,44 @@ const optionsOpen = atom('optionsOpen', false, { persist: 'plugin' })
 
 const busy = atom<'enhance' | 'preview' | 'send' | 'test' | 'save' | null>(null)
 const notice = atom<Notice>(null)
-const lastRun = atom<{ model: string; profileName: string; ms: number; attempts: AttemptView[] } | null>('lastRun', null, { persist: 'plugin' })
+type LastRun = { model: string; profileName: string; ms: number; attempts: AttemptView[] } | null
+const lastRun = atom<LastRun>(null)
 /** Every context item seen for the current draft, so excluded ones stay listed (unchecked). */
-const contextShown = atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' })
-const contextNotes = atom<string[]>('contextNotes', [], { persist: 'plugin' })
+const contextShown = atom<ContextItemView[]>([])
+const contextNotes = atom<string[]>([])
+
+/**
+ * The draft, the last result and what the last run used are kept across panel runs (Orca writes
+ * `persist: 'plugin'` atoms to panel-state.json in the plugin's data folder) only while "Save history"
+ * is on. The panel works on the in-memory atoms above; `put` mirrors them into these saved copies,
+ * or empties the copies when saving is off. Same keys as before, so earlier saved values still load.
+ */
+const KEPT: [Atom<never>, Atom<never>, unknown][] = [
+  [draft, atom('draft', '', { persist: 'plugin' }), ''],
+  [result, atom('result', '', { persist: 'plugin' }), ''],
+  [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
+  [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
+  [contextNotes, atom<string[]>('contextNotes', [], { persist: 'plugin' }), []]
+] as never
+
+const mayKeep = () => read(privacy).saveHistory !== false
+
+/** Sets an atom of KEPT, and its saved copy when saving is allowed. */
+function put<T>(target: Atom<T>, value: T): void {
+  set(target, value)
+  const pair = KEPT.find(([now]) => (now as unknown) === target)
+  if (pair) set(pair[1], (mayKeep() ? value : pair[2]) as never)
+}
+
+/** Empties every saved copy (saving turned off, or Delete everything). */
+function forgetSaved(): void {
+  for (const [, saved, empty] of KEPT) set(saved, empty as never)
+}
+
+/** On open: the saved copies become the working values. */
+function restoreSaved(): void {
+  for (const [now, saved] of KEPT) set(now, read(saved))
+}
 const targets = atom<Target[]>([])
 const models = atom<ModelsView | null>(null)
 const defaults = atom<Defaults>({
@@ -163,6 +198,8 @@ async function refreshDefaults(): Promise<void> {
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
   set(privacy, Object.fromEntries(PRIVACY_KEYS.map((key) => [key, all[key] !== false])))
+  // Saving history is off: nothing typed or produced stays on disk after the panel closes.
+  if (!mayKeep()) forgetSaved()
 }
 
 async function changeUiLanguage(value: string): Promise<void> {
@@ -253,8 +290,8 @@ async function refreshTargets(): Promise<void> {
 function showContext(items: ContextItemView[], notes: string[]): void {
   const ex = new Set(read(excluded))
   const keptExcluded = read(contextShown).filter((item) => ex.has(item.id) && !items.some((i) => i.id === item.id))
-  set(contextShown, [...items, ...keptExcluded])
-  set(contextNotes, notes)
+  put(contextShown, [...items, ...keptExcluded])
+  put(contextNotes, notes)
 }
 
 // ---------------------------------------------------------------- actions
@@ -285,8 +322,8 @@ async function enhanceNow(): Promise<void> {
       },
       { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
     )
-    set(result, answer.enhanced)
-    set(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })
+    put(result, answer.enhanced)
+    put(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })
     showContext(answer.context, answer.notes)
     finishRun(runId, 'done')
   } catch (error) {
@@ -371,8 +408,8 @@ async function copy(text: string): Promise<void> {
 }
 
 function reuse(entry: HistoryEntry): void {
-  set(draft, entry.original)
-  set(result, entry.enhanced)
+  put(draft, entry.original)
+  put(result, entry.enhanced)
   if (isStyle(entry.style)) set(style, entry.style)
   set(tab, 'enhance')
 }
@@ -545,6 +582,7 @@ async function setRoles(patch: { hookProfileId?: string | null; selectorProfileI
 }
 
 export function setup(ctx: PanelContext): void {
+  restoreSaved()
   // Closing or reloading the panel ends its run: stop the request so the worker stops the model too.
   ctx.signal.addEventListener('abort', () => inFlight?.abort())
   ctx.subscriptions.push(
@@ -916,14 +954,14 @@ function ResultCard({ output }: { output: string }) {
             size="sm"
             variant="ghost"
             onPress={() => {
-              set(draft, output)
-              set(result, '')
+              put(draft, output)
+              put(result, '')
             }}
           />
-          <IconButton icon="delete" label={t('Clear')} size="sm" variant="ghost" onPress={() => set(result, '')} />
+          <IconButton icon="delete" label={t('Clear')} size="sm" variant="ghost" onPress={() => put(result, '')} />
         </Row>
       </Row>
-      <Textarea label={t('Enhanced prompt')} labelHidden rows={10} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
+      <Textarea label={t('Enhanced prompt')} labelHidden rows={10} value={output} onChange={(value) => put(result, value)} onSubmit={(value) => void send(value)} />
       <RunInfo />
       <Row gap="xs" wrap>
         <TargetPicker />
@@ -962,7 +1000,7 @@ function EnhanceTab() {
           placeholder={t('Describe what you want the agent to do…')}
           rows={4}
           value={text}
-          onChange={(value) => set(draft, value)}
+          onChange={(value) => put(draft, value)}
           onSubmit={() => void enhanceNow()}
         />
         <Row gap="xs" justify="between" wrap>
@@ -1316,6 +1354,10 @@ async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<void> {
     await plugin.request('data.clear', { what })
     if (what === 'history' || what === 'all') set(historyRaw, [])
     if (what === 'catalogs' || what === 'all') set(catalogs, {})
+    if (what === 'all') {
+      for (const [now, , empty] of KEPT) set(now, empty as never)
+      forgetSaved()
+    }
     set(confirmWipe, false)
     set(notice, { tone: 'success', text: what === 'all' ? t('All plugin data deleted.') : what === 'history' ? t('History cleared.') : t('Model lists cleared.') })
     await refreshModels()

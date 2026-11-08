@@ -1,5 +1,5 @@
 // History: size limits, and edits from the panel going through the worker's queue.
-import { afterEach, assert, mockHost, mount, mountWorker, test } from 'orca/testing'
+import { afterEach, assert, mockHost, mount, mountWorker, test, type MockRequests } from 'orca/testing'
 import { capHistory, HISTORY_ENTRY_CHARS, HISTORY_TOTAL_CHARS, parseHistory, trimForHistory, type HistoryEntry } from './history.ts'
 import * as panel from './panel.tsx'
 import { PRESETS } from './presets.ts'
@@ -92,6 +92,50 @@ test('the History tab: Clear asks twice and goes through the worker; long lists 
   assert.deepEqual(requests, [])
   await view.press({ role: 'button', text: 'Press again to clear history' })
   assert.deepEqual(requests, ['clear'])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+const panelRequests: MockRequests = {
+  'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+  'targets.list': { targets: [] },
+  'models.detect': { found: [] },
+  'data.clear': { ok: true as const },
+  'data.summary': { history: 0, profiles: 0, keys: 0, catalogs: 0 }
+}
+const persistedRun = { draft: 'my secret draft', result: 'the rewritten secret', lastRun: { model: 'm', profileName: 'p', ms: 1, attempts: [] }, contextShown: [{ id: 'workspace', kind: 'workspace', label: 'Workspace', chars: 4 }], contextNotes: ['No focused workspace.'] }
+
+test('the draft and last result are kept across panel runs while history is saved', async () => {
+  const view = await mount(panel, { host: mockHost({ requests: panelRequests }), persisted: { plugin: persistedRun } })
+  assert.equal(view.valueOf(view.find({ label: 'Your prompt' })!), 'my secret draft')
+  await view.type({ label: 'Your prompt' }, 'next idea', { replace: true })
+  assert.equal(view.persisted.plugin.draft, 'next idea')
+  await view.unmount()
+})
+
+test('"Save history" off: the draft and last result are not kept on disk, but still usable now', async () => {
+  const view = await mount(panel, { host: mockHost({ requests: panelRequests, settings: { saveHistory: false } }), persisted: { plugin: persistedRun } })
+  await view.settled()
+  for (const key of ['draft', 'result']) assert.equal(view.persisted.plugin[key], '', key)
+  assert.equal(view.persisted.plugin.lastRun, null)
+  assert.deepEqual(view.persisted.plugin.contextShown, [])
+  // What was on screen stays for this run; new typing is not written either.
+  assert.equal(view.valueOf(view.find({ label: 'Your prompt' })!), 'my secret draft')
+  await view.type({ label: 'Your prompt' }, 'typed now', { replace: true })
+  assert.equal(view.persisted.plugin.draft, '')
+  assert.equal(view.valueOf(view.find({ label: 'Your prompt' })!), 'typed now')
+  await view.unmount()
+})
+
+test('"Delete everything" also clears the saved draft and last result', async () => {
+  const view = await mount(panel, { host: mockHost({ requests: panelRequests }), persisted: { plugin: { ...persistedRun, tab: 'privacy' } } })
+  await view.press({ role: 'button', text: 'Delete everything' })
+  await view.press({ role: 'button', text: 'Press again to delete everything' })
+  for (const key of ['draft', 'result']) assert.equal(view.persisted.plugin[key], '', key)
+  assert.equal(view.persisted.plugin.lastRun, null)
+  assert.deepEqual(view.persisted.plugin.contextNotes, [])
+  await view.press({ role: 'button', label: 'Enhance' })
+  assert.equal(view.valueOf(view.find({ label: 'Your prompt' })!), '')
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
