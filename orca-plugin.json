@@ -1,0 +1,220 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "enhance-prompt",
+  "name": "Enhance Prompt",
+  "version": "1.0.0",
+  "description": "Turn a rough idea into a clear, structured prompt for your coding agents with your own OpenAI-compatible or Anthropic API key, then send it to an agent terminal. History, presets and optional auto-enhance.",
+  "author": {
+    "name": "cattfan",
+    "url": "https://github.com/cattfan"
+  },
+  "repository": "https://github.com/cattfan/orca-enhance-prompt",
+  "homepage": "https://github.com/cattfan/orca-enhance-prompt",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "enhance",
+        "title": "Enhance Prompt",
+        "icon": "lightbulb",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "commands": [
+      {
+        "id": "auto-enhance.cycle",
+        "title": "Enhance Prompt: Cycle auto-enhance mode (off / rules / AI)"
+      },
+      {
+        "id": "auto-enhance.off",
+        "title": "Enhance Prompt: Turn auto-enhance off"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "auto-enhance",
+        "text": "Enhance: off",
+        "icon": "lightbulb",
+        "tooltip": "Auto-enhance prompts Orca sends to agents. Click to cycle off / rules / AI.",
+        "command": "auto-enhance.cycle"
+      }
+    ],
+    "hooks": [
+      {
+        "event": "agent.prompt.before",
+        "onError": "pass"
+      }
+    ],
+    "settings": [
+      {
+        "key": "provider",
+        "title": "Provider",
+        "description": "OpenAI-compatible covers OpenAI, OpenRouter, Groq, DeepSeek, Together, Ollama, LM Studio and any /chat/completions endpoint.",
+        "type": "string",
+        "enum": ["openai", "anthropic"],
+        "enumLabels": ["OpenAI-compatible", "Anthropic"],
+        "default": "openai"
+      },
+      {
+        "key": "baseUrl",
+        "title": "API base URL",
+        "description": "Leave empty for the provider default (https://api.openai.com/v1 or https://api.anthropic.com). Examples: https://openrouter.ai/api/v1, http://localhost:11434/v1.",
+        "type": "string",
+        "default": "",
+        "placeholder": "https://api.openai.com/v1",
+        "maxLength": 500
+      },
+      {
+        "key": "model",
+        "title": "Model",
+        "description": "Leave empty for the provider default (gpt-4.1-mini or claude-haiku-4-5).",
+        "type": "string",
+        "default": "",
+        "placeholder": "gpt-4.1-mini",
+        "maxLength": 200
+      },
+      {
+        "key": "defaultStyle",
+        "title": "Default style",
+        "type": "string",
+        "enum": ["balanced", "concise", "detailed", "bugfix", "feature", "refactor", "review", "plan", "custom"],
+        "enumLabels": ["Balanced", "Concise", "Detailed spec", "Bug fix", "New feature", "Refactor", "Code review", "Plan first", "Custom instructions only"],
+        "default": "balanced"
+      },
+      {
+        "key": "outputLanguage",
+        "title": "Output language",
+        "type": "string",
+        "enum": ["auto", "en", "vi", "zh", "ja", "ko", "es", "fr", "de", "pt", "ru"],
+        "enumLabels": ["Same as my prompt", "English", "Tiếng Việt", "中文", "日本語", "한국어", "Español", "Français", "Deutsch", "Português", "Русский"],
+        "default": "auto"
+      },
+      {
+        "key": "customInstructions",
+        "title": "Custom instructions",
+        "description": "Extra rules for the rewriter, e.g. your stack, coding conventions, or 'always ask the agent to run tests'.",
+        "type": "string",
+        "multiline": true,
+        "default": "",
+        "maxLength": 4000
+      },
+      {
+        "key": "includeWorkspaceContext",
+        "title": "Include workspace context",
+        "description": "Tell the rewriter the focused workspace name and branch.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "includeProjectFiles",
+        "title": "Include project instructions",
+        "description": "Read AGENTS.md / CLAUDE.md / README.md (first few KB) and the top-level file list of a local workspace, so the enhanced prompt fits the project.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "includeTerminalLines",
+        "title": "Terminal lines as context",
+        "description": "How many recent lines of the target agent terminal to give the rewriter (0 = none).",
+        "type": "integer",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 300
+      },
+      {
+        "key": "temperature",
+        "title": "Temperature",
+        "type": "number",
+        "default": 0.3,
+        "minimum": 0,
+        "maximum": 2
+      },
+      {
+        "key": "maxTokens",
+        "title": "Max output tokens",
+        "type": "integer",
+        "default": 2000,
+        "minimum": 128,
+        "maximum": 32000
+      },
+      {
+        "key": "timeoutSeconds",
+        "title": "Request timeout (seconds)",
+        "type": "integer",
+        "default": 60,
+        "minimum": 5,
+        "maximum": 110
+      },
+      {
+        "key": "sendMode",
+        "title": "How to send multi-line prompts",
+        "description": "Bracketed paste keeps line breaks in Claude Code, Codex and most agent CLIs. Single line joins lines with spaces.",
+        "type": "string",
+        "enum": ["paste", "raw", "single-line"],
+        "enumLabels": ["Bracketed paste", "Raw text", "Single line"],
+        "default": "paste"
+      },
+      {
+        "key": "sendPressEnter",
+        "title": "Press Enter after sending",
+        "description": "Off lets you review the prompt in the agent before submitting it.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "historyLimit",
+        "title": "History size",
+        "description": "How many enhancements to keep (0 turns history off).",
+        "type": "integer",
+        "default": 50,
+        "minimum": 0,
+        "maximum": 500
+      },
+      {
+        "key": "autoEnhanceMode",
+        "title": "Auto-enhance prompts Orca sends to agents",
+        "description": "Applies to launch, task and orchestration prompts (Orca never hooks prompts you type yourself). Rules appends the text below instantly. AI rewrites with the model but Orca waits at most 2 s, so use a fast model; on timeout the original prompt is sent.",
+        "type": "string",
+        "enum": ["off", "rules", "ai"],
+        "enumLabels": ["Off", "Rules (append text)", "AI rewrite (fast model, 2 s limit)"],
+        "default": "off"
+      },
+      {
+        "key": "autoEnhanceAppend",
+        "title": "Auto-enhance: text to append",
+        "description": "Used by the Rules mode.",
+        "type": "string",
+        "multiline": true,
+        "default": "Before you finish: keep changes minimal and focused, follow the existing code style, run the relevant tests or type checks, and summarize what you changed.",
+        "maxLength": 4000
+      },
+      {
+        "key": "autoEnhanceMinLength",
+        "title": "Auto-enhance: minimum prompt length",
+        "description": "Skip prompts shorter than this many characters.",
+        "type": "integer",
+        "default": 8,
+        "minimum": 0,
+        "maximum": 10000
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "storage:own" },
+    { "kind": "settings:own" },
+    { "kind": "secrets:own" },
+    { "kind": "workspace:read" },
+    { "kind": "agent:read" },
+    { "kind": "terminal:send" },
+    { "kind": "terminal:read" }
+  ]
+}

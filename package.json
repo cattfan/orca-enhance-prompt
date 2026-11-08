@@ -1,0 +1,16 @@
+{
+  "name": "orca-enhance-prompt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "types": "orca plugin types .",
+    "typecheck": "tsc -p .",
+    "test": "orca plugin test .",
+    "check": "orca plugin check .",
+    "validate": "orca plugin validate ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
