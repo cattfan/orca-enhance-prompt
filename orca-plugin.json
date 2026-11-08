@@ -4,8 +4,8 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "1.0.0",
-  "description": "Turn a rough idea into a clear, structured prompt for your coding agents with your own OpenAI-compatible or Anthropic API key, then send it to an agent terminal. History, presets and optional auto-enhance.",
+  "version": "1.1.0",
+  "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",
     "url": "https://github.com/cattfan"
@@ -56,46 +56,63 @@
     ],
     "settings": [
       {
-        "key": "provider",
-        "title": "Provider",
-        "description": "OpenAI-compatible covers OpenAI, OpenRouter, Groq, DeepSeek, Together, Ollama, LM Studio and any /chat/completions endpoint.",
-        "type": "string",
-        "enum": ["openai", "anthropic"],
-        "enumLabels": ["OpenAI-compatible", "Anthropic"],
-        "default": "openai"
-      },
-      {
-        "key": "baseUrl",
-        "title": "API base URL",
-        "description": "Leave empty for the provider default (https://api.openai.com/v1 or https://api.anthropic.com). Examples: https://openrouter.ai/api/v1, http://localhost:11434/v1.",
-        "type": "string",
-        "default": "",
-        "placeholder": "https://api.openai.com/v1",
-        "maxLength": 500
-      },
-      {
-        "key": "model",
-        "title": "Model",
-        "description": "Leave empty for the provider default (gpt-4.1-mini or claude-haiku-4-5).",
-        "type": "string",
-        "default": "",
-        "placeholder": "gpt-4.1-mini",
-        "maxLength": 200
-      },
-      {
         "key": "defaultStyle",
         "title": "Default style",
         "type": "string",
-        "enum": ["balanced", "concise", "detailed", "bugfix", "feature", "refactor", "review", "plan", "custom"],
-        "enumLabels": ["Balanced", "Concise", "Detailed spec", "Bug fix", "New feature", "Refactor", "Code review", "Plan first", "Custom instructions only"],
+        "enum": [
+          "balanced",
+          "concise",
+          "detailed",
+          "bugfix",
+          "feature",
+          "refactor",
+          "review",
+          "plan",
+          "custom"
+        ],
+        "enumLabels": [
+          "Balanced",
+          "Concise",
+          "Detailed spec",
+          "Bug fix",
+          "New feature",
+          "Refactor",
+          "Code review",
+          "Plan first",
+          "Custom instructions only"
+        ],
         "default": "balanced"
       },
       {
         "key": "outputLanguage",
         "title": "Output language",
         "type": "string",
-        "enum": ["auto", "en", "vi", "zh", "ja", "ko", "es", "fr", "de", "pt", "ru"],
-        "enumLabels": ["Same as my prompt", "English", "Tiếng Việt", "中文", "日本語", "한국어", "Español", "Français", "Deutsch", "Português", "Русский"],
+        "enum": [
+          "auto",
+          "en",
+          "vi",
+          "zh",
+          "ja",
+          "ko",
+          "es",
+          "fr",
+          "de",
+          "pt",
+          "ru"
+        ],
+        "enumLabels": [
+          "Same as my prompt",
+          "English",
+          "Tiếng Việt",
+          "中文",
+          "日本語",
+          "한국어",
+          "Español",
+          "Français",
+          "Deutsch",
+          "Português",
+          "Русский"
+        ],
         "default": "auto"
       },
       {
@@ -108,47 +125,85 @@
         "maxLength": 4000
       },
       {
-        "key": "includeWorkspaceContext",
-        "title": "Include workspace context",
-        "description": "Tell the rewriter the focused workspace name and branch.",
+        "key": "contextLevel",
+        "title": "Project context level",
+        "description": "How much of the project the rewriter sees. Higher = more grounded prompts, slower and more tokens. Can be changed per prompt in the panel.",
+        "type": "string",
+        "enum": [
+          "off",
+          "basic",
+          "standard",
+          "deep",
+          "max"
+        ],
+        "enumLabels": [
+          "Off: prompt only",
+          "Basic: workspace, branch, target agent",
+          "Standard: + AGENTS.md/CLAUDE.md/README, stack & commands, repo tree",
+          "Deep: + git status/diff/log and code relevant to the prompt",
+          "Max: + AI-picked files and the agent terminal output (2 model calls)"
+        ],
+        "default": "standard"
+      },
+      {
+        "key": "terminalLines",
+        "title": "Terminal lines (Max level)",
+        "description": "Recent lines of the target agent terminal to include at the Max level (0 = none).",
+        "type": "integer",
+        "default": 100,
+        "minimum": 0,
+        "maximum": 400
+      },
+      {
+        "key": "extraContextFiles",
+        "title": "Always include files",
+        "description": "Paths relative to the workspace, one per line (e.g. docs/architecture.md). Standard level and above.",
+        "type": "string",
+        "multiline": true,
+        "default": "",
+        "placeholder": "docs/architecture.md",
+        "maxLength": 2000
+      },
+      {
+        "key": "excludePatterns",
+        "title": "Exclude from code search",
+        "description": "Glob-like patterns, one per line. .env files, keys and credentials are always excluded.",
+        "type": "string",
+        "multiline": true,
+        "default": "dist/\nbuild/\nout/\ncoverage/\n*.lock\npackage-lock.json\npnpm-lock.yaml\n*.min.js\n*.map\n*.snap",
+        "maxLength": 4000
+      },
+      {
+        "key": "adaptToAgent",
+        "title": "Adapt to the target agent",
+        "description": "Shape the prompt for Claude Code, Codex, Gemini CLI, Aider… when a target agent is selected.",
         "type": "boolean",
         "default": true
       },
       {
-        "key": "includeProjectFiles",
-        "title": "Include project instructions",
-        "description": "Read AGENTS.md / CLAUDE.md / README.md (first few KB) and the top-level file list of a local workspace, so the enhanced prompt fits the project.",
+        "key": "fallbackEnabled",
+        "title": "Fallback to the next model",
+        "description": "When a model fails, try the next enabled model in the Models tab order.",
         "type": "boolean",
         "default": true
       },
       {
-        "key": "includeTerminalLines",
-        "title": "Terminal lines as context",
-        "description": "How many recent lines of the target agent terminal to give the rewriter (0 = none).",
-        "type": "integer",
-        "default": 0,
-        "minimum": 0,
-        "maximum": 300
-      },
-      {
-        "key": "temperature",
-        "title": "Temperature",
-        "type": "number",
-        "default": 0.3,
-        "minimum": 0,
-        "maximum": 2
-      },
-      {
-        "key": "maxTokens",
-        "title": "Max output tokens",
-        "type": "integer",
-        "default": 2000,
-        "minimum": 128,
-        "maximum": 32000
+        "key": "fallbackOn",
+        "title": "Fall back on",
+        "type": "string",
+        "enum": [
+          "any",
+          "transient"
+        ],
+        "enumLabels": [
+          "Any error (incl. bad key, unknown model)",
+          "Only network, timeout, rate limit, 5xx"
+        ],
+        "default": "any"
       },
       {
         "key": "timeoutSeconds",
-        "title": "Request timeout (seconds)",
+        "title": "Timeout per model (seconds)",
         "type": "integer",
         "default": 60,
         "minimum": 5,
@@ -159,8 +214,16 @@
         "title": "How to send multi-line prompts",
         "description": "Bracketed paste keeps line breaks in Claude Code, Codex and most agent CLIs. Single line joins lines with spaces.",
         "type": "string",
-        "enum": ["paste", "raw", "single-line"],
-        "enumLabels": ["Bracketed paste", "Raw text", "Single line"],
+        "enum": [
+          "paste",
+          "raw",
+          "single-line"
+        ],
+        "enumLabels": [
+          "Bracketed paste",
+          "Raw text",
+          "Single line"
+        ],
         "default": "paste"
       },
       {
@@ -184,8 +247,16 @@
         "title": "Auto-enhance prompts Orca sends to agents",
         "description": "Applies to launch, task and orchestration prompts (Orca never hooks prompts you type yourself). Rules appends the text below instantly. AI rewrites with the model but Orca waits at most 2 s, so use a fast model; on timeout the original prompt is sent.",
         "type": "string",
-        "enum": ["off", "rules", "ai"],
-        "enumLabels": ["Off", "Rules (append text)", "AI rewrite (fast model, 2 s limit)"],
+        "enum": [
+          "off",
+          "rules",
+          "ai"
+        ],
+        "enumLabels": [
+          "Off",
+          "Rules (append text)",
+          "AI rewrite (fast model, 2 s limit)"
+        ],
         "default": "off"
       },
       {
@@ -205,16 +276,42 @@
         "default": 8,
         "minimum": 0,
         "maximum": 10000
+      },
+      {
+        "key": "autoEnhanceContext",
+        "title": "Auto-enhance: use cached project context",
+        "description": "AI mode adds the rules/stack context the plugin keeps warm for the focused workspace (no extra wait).",
+        "type": "boolean",
+        "default": true
+      }
+    ],
+    "events": [
+      {
+        "on": "workspace.changed"
       }
     ]
   },
   "capabilities": [
-    { "kind": "storage:own" },
-    { "kind": "settings:own" },
-    { "kind": "secrets:own" },
-    { "kind": "workspace:read" },
-    { "kind": "agent:read" },
-    { "kind": "terminal:send" },
-    { "kind": "terminal:read" }
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "secrets:own"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "terminal:send"
+    },
+    {
+      "kind": "terminal:read"
+    }
   ]
 }

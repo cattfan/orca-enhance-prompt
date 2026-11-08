@@ -17,12 +17,9 @@ test('system prompt follows language and custom instructions', () => {
 
 test('user message includes context only when present', () => {
   assert.equal(buildUserMessage(' fix it '), '<request>\nfix it\n</request>\n\nRewrite the request above into the final prompt.')
-  const withContext = buildUserMessage('fix it', {
-    workspace: { name: 'app', branch: 'dev' },
-    projectFiles: [{ name: 'AGENTS.md', content: 'Use bun.' }]
-  })
+  const withContext = buildUserMessage('fix it', [{ kind: 'rules', label: 'AGENTS.md', content: 'Use bun.' }])
   assert.match(withContext, /<project_context>/)
-  assert.match(withContext, /<file name="AGENTS.md">\nUse bun\.\n<\/file>/)
+  assert.match(withContext, /<item kind="rules" label="AGENTS.md">\nUse bun\.\n<\/item>/)
 })
 
 test('formatForTerminal modes', () => {

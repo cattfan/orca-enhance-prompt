@@ -1,13 +1,55 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
-export {}
+import type { ContextItemView, ProfileView, Preset } from './presets'
+
+export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
+export type ProfileInput = {
+  id?: string
+  name: string
+  preset: string
+  provider: 'openai' | 'anthropic'
+  baseUrl: string
+  model: string
+  temperature: number
+  maxTokens: number
+  enabled: boolean
+  /** New API key; undefined keeps the current one, '' removes it. */
+  apiKey?: string
+}
+export type ModelsView = {
+  profiles: ProfileView[]
+  hookProfileId: string | null
+  selectorProfileId: string | null
+  fromEnv: boolean
+  presets: Preset[]
+}
 
 declare module 'orca' {
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginRequests {
-    /** Rewrites `prompt` with the configured model. */
+    /** Rewrites `prompt` with the model chain (or one profile), with context at `level`. */
     'prompt.enhance': {
-      input: { prompt: string; style?: string; terminalId?: string | null }
-      output: { enhanced: string; model: string; provider: string; ms: number }
+      input: {
+        prompt: string
+        style?: string
+        terminalId?: string | null
+        level?: string
+        profileId?: string | null
+        exclude?: string[]
+      }
+      output: {
+        enhanced: string
+        model: string
+        profileName: string
+        ms: number
+        attempts: AttemptView[]
+        context: ContextItemView[]
+        notes: string[]
+      }
+    }
+    /** What context would be sent, without calling a model (no AI file picking). */
+    'context.preview': {
+      input: { prompt: string; terminalId?: string | null; level?: string; exclude?: string[] }
+      output: { context: ContextItemView[]; notes: string[]; chars: number }
     }
     /** Types `text` into an agent terminal. */
     'prompt.send': {
@@ -20,25 +62,18 @@ declare module 'orca' {
     'targets.list': {
       output: { targets: { terminalId: string; label: string; agent: string | null }[] }
     }
-    /** Where the API key comes from, and the effective provider/model. */
-    'config.status': {
-      output: {
-        provider: string
-        model: string
-        baseUrl: string
-        keySource: 'secret' | 'env' | 'none'
-        envName: string
-        autoEnhanceMode: string
-      }
-    }
-    /** Stores (or with an empty key, removes) the API key for a provider. */
-    'config.setKey': { input: { provider: string; key: string }; output: { ok: true } }
-    /** Sends a tiny request to check the key, URL and model. */
-    'config.test': { output: { ok: boolean; message: string; ms: number } }
+    'models.get': { output: ModelsView }
+    /** Adds or updates a profile (and its key). */
+    'models.save': { input: ProfileInput; output: ModelsView }
+    'models.delete': { input: { id: string }; output: ModelsView }
+    'models.move': { input: { id: string; direction: 'up' | 'down' }; output: ModelsView }
+    'models.roles': { input: { hookProfileId: string | null; selectorProfileId: string | null }; output: ModelsView }
+    /** Sends a tiny request through one profile. */
+    'models.test': { input: { id: string }; output: { ok: boolean; message: string; ms: number } }
   }
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginPanelEvents {
     /** The auto-enhance hook rewrote a prompt Orca was sending. */
-    'hook.enhanced': { agent: string | null; mode: string }
+    'hook.enhanced': { agent: string | null; mode: string; model?: string }
   }
 }

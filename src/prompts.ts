@@ -47,7 +47,9 @@ Rewrite the user's rough request into a clear, specific, actionable prompt that 
 
 Rules:
 - Preserve the user's intent exactly. Never add features, scope or requirements they did not ask for.
-- Never invent facts about the codebase (file names, APIs, versions). If something important is unknown, tell the agent to find it out, or list it under "Assumptions / questions".
+- Ground the prompt in the project context: name the real files, functions, commands and conventions that appear there when they are relevant (e.g. "start in src/auth/session.ts", "verify with pnpm test").
+- Never invent facts about the codebase. Mention a file, symbol, API or command ONLY if it appears in the project context or in the request; otherwise tell the agent to locate it. List genuine unknowns under "Assumptions / questions".
+- Relevant files in the context are candidates found by search; present them as "likely relevant", not as certain.
 - Keep every concrete detail the user gave: names, paths, error messages, code, URLs, numbers.
 - Write as instructions addressed to the agent ("Add...", "Investigate..."), not as a conversation.
 - Use the project context only to make the prompt more precise; do not summarize it back.
@@ -65,20 +67,48 @@ const STYLE_RULES: Record<Style, string> = {
   custom: `Follow the custom instructions below for the shape and content of the prompt.`
 }
 
-export type PromptContext = {
-  workspace?: { name: string; branch: string } | null
-  projectFiles?: { name: string; content: string }[]
-  topLevel?: string[]
-  terminal?: { label: string; lines: string[] } | null
-  agent?: string | null
+/** How each agent CLI likes its prompts. Keys match `agents.list`'s `agent`, loosely. */
+const AGENT_HINTS: { match: RegExp; hint: string }[] = [
+  {
+    match: /claude/i,
+    hint: 'Target is Claude Code: Markdown headings or XML tags (<context>, <requirements>) both work well; for multi-step work it may be told to plan first and use a todo list; state the exact verification command.'
+  },
+  {
+    match: /codex/i,
+    hint: 'Target is OpenAI Codex CLI: prefer short imperative bullet points, explicit file paths and the exact test/lint command to run; avoid long prose.'
+  },
+  {
+    match: /gemini/i,
+    hint: 'Target is Gemini CLI: clear numbered steps, explicit file paths, and what to verify at the end.'
+  },
+  {
+    match: /aider/i,
+    hint: 'Target is Aider: name the files to add to the chat first, then the change; keep it concise.'
+  },
+  {
+    match: /opencode|amp|cursor|droid|pi\b|qwen|kimi|goose|cline/i,
+    hint: 'Target is a terminal coding agent: explicit file paths, clear steps, exact verification command.'
+  }
+]
+
+export function agentHint(agent: string | null | undefined): string | null {
+  if (!agent) return null
+  return AGENT_HINTS.find((entry) => entry.match.test(agent))?.hint ?? null
 }
+
+export type ContextBlock = { kind: string; label: string; content: string; note?: string }
 
 export function buildSystemPrompt(options: {
   style: Style
   language: string
   customInstructions?: string
+  agent?: string | null
 }): string {
   const parts = [BASE, STYLE_RULES[options.style]]
+  const hint = agentHint(options.agent)
+  if (hint) {
+    parts.push(hint)
+  }
   const lang = LANGUAGE_NAMES[options.language]
   parts.push(
     lang
@@ -92,27 +122,13 @@ export function buildSystemPrompt(options: {
   return parts.join('\n\n')
 }
 
-export function buildUserMessage(prompt: string, context: PromptContext = {}): string {
-  const sections: string[] = []
-  if (context.agent) {
-    sections.push(`Target agent: ${context.agent}`)
-  }
-  if (context.workspace) {
-    sections.push(
-      `Workspace: ${context.workspace.name}${context.workspace.branch ? ` (branch ${context.workspace.branch})` : ''}`
-    )
-  }
-  if (context.topLevel && context.topLevel.length > 0) {
-    sections.push(`Top-level files:\n${context.topLevel.join('\n')}`)
-  }
-  for (const file of context.projectFiles ?? []) {
-    sections.push(`<file name="${file.name}">\n${file.content}\n</file>`)
-  }
-  if (context.terminal && context.terminal.lines.length > 0) {
-    sections.push(
-      `Recent output of the agent terminal "${context.terminal.label}":\n<terminal>\n${context.terminal.lines.join('\n')}\n</terminal>`
-    )
-  }
+const escapeAttr = (value: string) => value.replace(/["<>&]/g, (c) => ({ '"': '&quot;', '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] ?? c)
+
+export function buildUserMessage(prompt: string, context: ContextBlock[] = []): string {
+  const sections = context.map((block) => {
+    const note = block.note ? ` note="${escapeAttr(block.note)}"` : ''
+    return `<item kind="${block.kind}" label="${escapeAttr(block.label)}"${note}>\n${block.content}\n</item>`
+  })
   const contextBlock =
     sections.length > 0 ? `<project_context>\n${sections.join('\n\n')}\n</project_context>\n\n` : ''
   return `${contextBlock}<request>\n${prompt.trim()}\n</request>\n\nRewrite the request above into the final prompt.`

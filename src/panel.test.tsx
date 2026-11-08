@@ -1,23 +1,49 @@
 // `orca plugin test .` runs this in Node with the same runtime and checks Orca uses.
 import { assert, mockHost, mount, test } from 'orca/testing'
 import * as panel from './panel'
+import { PRESETS, type ProfileView } from './presets'
+import type { ModelsView, ProfileInput } from './protocol'
 
-const status = {
+const gpt: ProfileView = {
+  id: 'gpt',
+  name: 'OpenAI',
+  preset: 'openai',
   provider: 'openai',
-  model: 'gpt-4.1-mini',
   baseUrl: 'https://api.openai.com/v1',
-  keySource: 'secret' as const,
-  envName: 'OPENAI_API_KEY',
-  autoEnhanceMode: 'off'
+  model: 'gpt-4.1-mini',
+  temperature: 0.3,
+  maxTokens: 2000,
+  enabled: true,
+  keySource: 'secret',
+  envName: 'OPENAI_API_KEY'
 }
+const modelsView = (profiles: ProfileView[]): ModelsView => ({ profiles, hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS })
 
-test('enhances, then sends to the chosen agent', async () => {
+test('enhances with context, then sends to the chosen agent', async () => {
   const sent: { terminalId: string; text: string }[] = []
+  const enhanceInputs: { level?: string; exclude?: string[] }[] = []
   const host = mockHost({
     requests: {
-      'config.status': status,
+      'models.get': modelsView([gpt]),
       'targets.list': { targets: [{ terminalId: 't1', label: 'Claude · waiting', agent: 'claude' }] },
-      'prompt.enhance': ({ prompt }) => ({ enhanced: `Better: ${prompt}`, model: 'gpt-4.1-mini', provider: 'openai', ms: 1200 }),
+      'prompt.enhance': (input) => {
+        enhanceInputs.push(input)
+        return {
+          enhanced: `Better: ${input.prompt}`,
+          model: 'gpt-4.1-mini',
+          profileName: 'OpenAI',
+          ms: 1200,
+          attempts: [
+            { profileId: 'x', name: 'Down', model: 'm', ok: false, error: '503: overloaded', ms: 10 },
+            { profileId: 'gpt', name: 'OpenAI', model: 'gpt-4.1-mini', ok: true, ms: 1100 }
+          ],
+          context: [
+            { id: 'rules:AGENTS.md', kind: 'rules', label: 'AGENTS.md', chars: 120 },
+            { id: 'tree', kind: 'tree', label: 'Repository tree', chars: 800 }
+          ],
+          notes: []
+        }
+      },
       'prompt.send': (input) => {
         sent.push(input)
         return { accepted: true }
@@ -28,6 +54,14 @@ test('enhances, then sends to the chosen agent', async () => {
   await view.type({ label: 'Your prompt' }, 'add tests')
   await view.press({ role: 'button', text: 'Enhance' })
   assert.equal(view.valueOf(view.find({ label: 'Enhanced prompt' })!), 'Better: add tests')
+  assert.equal(enhanceInputs[0].level, 'standard')
+  assert.ok(view.find({ text: /Fell back after: Down \(503: overloaded\)/ }))
+
+  // Exclude the tree, enhance again: the worker is told.
+  await view.toggle({ type: 'Collapsible' })
+  await view.toggle({ label: 'Repository tree' })
+  await view.press({ role: 'button', text: 'Enhance' })
+  assert.deepEqual(enhanceInputs[1].exclude, ['tree'])
 
   await view.press({ role: 'button', text: 'Send to agent' })
   assert.deepEqual(sent, [{ terminalId: 't1', text: 'Better: add tests', enter: false }])
@@ -37,15 +71,28 @@ test('enhances, then sends to the chosen agent', async () => {
   await view.unmount()
 })
 
-test('warns when no API key is configured', async () => {
+test('warns when no model is configured, and adds one from the Models tab', async () => {
+  const saved: ProfileInput[] = []
   const host = mockHost({
     requests: {
-      'config.status': { ...status, keySource: 'none' },
-      'targets.list': { targets: [] }
+      'models.get': modelsView([]),
+      'targets.list': { targets: [] },
+      'models.save': (input) => {
+        saved.push(input)
+        return modelsView([{ ...gpt, ...input, id: 'new', keySource: 'secret', envName: 'GROQ_API_KEY' }])
+      }
     }
   })
   const view = await mount(panel, { host })
-  assert.ok(view.find({ label: 'No API key yet' }) ?? view.find({ text: /No API key yet/ }))
+  assert.ok(view.find({ label: 'No model yet' }) ?? view.find({ text: /No model yet/ }))
+  await view.select({ type: 'Tabs' }, 'models')
+  await view.press({ role: 'button', text: 'Add model' })
+  await view.select({ label: 'Preset' }, 'groq')
+  await view.type({ label: 'API key' }, 'gsk-1')
+  await view.press({ role: 'button', text: 'Save' })
+  assert.equal(saved[0].preset, 'groq')
+  assert.equal(saved[0].baseUrl, 'https://api.groq.com/openai/v1')
+  assert.equal(saved[0].apiKey, 'gsk-1')
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

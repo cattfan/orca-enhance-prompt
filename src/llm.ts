@@ -1,32 +1,41 @@
 // Minimal clients for OpenAI-compatible /chat/completions and Anthropic /v1/messages.
 // Uses the worker's global fetch; the prompt goes only to the endpoint the person configured.
 
-export type Provider = 'openai' | 'anthropic'
+import type { Provider } from './presets'
+
+export type { Provider }
 
 export type LlmConfig = {
   provider: Provider
   baseUrl: string
   model: string
   apiKey: string | null
+  /** Environment variable named in the missing-key message. */
+  envName?: string
   temperature: number
   maxTokens: number
 }
 
-export const DEFAULTS: Record<Provider, { baseUrl: string; model: string; env: string }> = {
-  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', env: 'OPENAI_API_KEY' },
-  anthropic: { baseUrl: 'https://api.anthropic.com', model: 'claude-haiku-4-5', env: 'ANTHROPIC_API_KEY' }
-}
-
 export class LlmError extends Error {
   code: string
-  constructor(message: string, code = 'action_failed') {
+  /** HTTP status when the endpoint answered with an error. */
+  status?: number
+  constructor(message: string, code = 'action_failed', status?: number) {
     super(message)
     this.code = code
+    this.status = status
   }
 }
 
-export function normalizeProvider(value: unknown): Provider {
-  return value === 'anthropic' ? 'anthropic' : 'openai'
+/** Errors worth retrying on another model: network, timeout, rate limit, server side. */
+export function isTransient(error: unknown): boolean {
+  if (!(error instanceof LlmError)) {
+    return false
+  }
+  if (error.code === 'timeout' || error.code === 'unavailable' || error.code === 'rate_limited') {
+    return true
+  }
+  return error.status !== undefined && (error.status >= 500 || error.status === 408)
 }
 
 /** Whether a base URL points at this machine, where a key is usually not needed (Ollama, LM Studio). */
@@ -86,7 +95,7 @@ export async function complete(
 ): Promise<string> {
   if (!config.apiKey && !(config.provider === 'openai' && isLocalUrl(config.baseUrl))) {
     throw new LlmError(
-      `No API key. Add one in the Enhance Prompt panel (Setup tab) or set ${DEFAULTS[config.provider].env}.`,
+      `No API key. Add one in the Enhance Prompt panel (Models tab)${config.envName ? ` or set ${config.envName}` : ''}.`,
       'invalid_params'
     )
   }
@@ -139,7 +148,7 @@ export async function complete(
   }
   if (!response.ok) {
     const code = response.status === 429 ? 'rate_limited' : 'action_failed'
-    throw new LlmError(`${response.status}: ${await readError(response)}`, code)
+    throw new LlmError(`${response.status}: ${await readError(response)}`, code, response.status)
   }
   const data = (await response.json()) as {
     content?: { type: string; text?: string }[]
