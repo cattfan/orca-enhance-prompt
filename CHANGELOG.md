@@ -3,6 +3,24 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.3.0] - 2026-11-08
+
+### Added
+- **Panel in English, Tiếng Việt and 中文**: a language picker at the top right of the panel, and a
+  "Panel language" setting (Auto follows Orca's language). Every label, button, hint and message is translated.
+- **Output language per prompt**: same as the prompt, English, Vietnamese or Chinese, next to Style and
+  Context (the setting still offers more languages as the default).
+- **Status bar options**: Orca's status bar right-click menu only lists Orca's own items, so the new
+  "Status bar item" setting shows the item with icon and text, icon only, or hides it. The item now shows a
+  zap icon while auto-enhance is on, and its text and tooltip follow the panel language.
+- Commands: `Auto-enhance with rules`, `Auto-enhance with AI`, `Show / hide status bar item`.
+- **Listing images**: a cover and 3 screenshots (context, models, languages), plus a real capture in the README.
+  `scripts/make-images.mjs` regenerates them from the panel's own component trees with sample data.
+
+### Changed
+- The selected tab, the last run, and the context list are kept when you switch to another sidebar tab and back.
+- CLI models show "model · Claude Code CLI" instead of an empty URL.
+
 ## [1.2.0] - 2026-11-08
 
 ### Added
@@ -57,6 +75,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.3.0
 [1.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.2.0
 [1.1.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.1.0
 [1.0.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.0.0

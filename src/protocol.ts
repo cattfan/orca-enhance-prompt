@@ -38,6 +38,8 @@ declare module 'orca' {
         terminalId?: string | null
         level?: string
         profileId?: string | null
+        /** Output language for this prompt (auto, en, vi, zh, ...); the setting when absent. */
+        language?: string
         exclude?: string[]
       }
       output: {

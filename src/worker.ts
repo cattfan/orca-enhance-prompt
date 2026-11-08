@@ -135,7 +135,15 @@ async function pickFilesWithModel(
 
 export async function enhance(
   orca: OrcaWorkerApi,
-  input: { prompt: string; style?: string; terminalId?: string | null; level?: string; profileId?: string | null; exclude?: string[] },
+  input: {
+    prompt: string
+    style?: string
+    terminalId?: string | null
+    level?: string
+    profileId?: string | null
+    language?: string
+    exclude?: string[]
+  },
   signal?: AbortSignal
 ) {
   const prompt = input.prompt.trim()
@@ -156,9 +164,10 @@ export async function enhance(
     pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal)
   })
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
+  const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
   const system = buildSystemPrompt({
     style,
-    language: settings.outputLanguage,
+    language,
     customInstructions: settings.customInstructions,
     agent: settings.adaptToAgent ? (agentItem?.content.split(' ')[0] ?? null) : null
   })
@@ -215,16 +224,50 @@ async function hookContext(orca: OrcaWorkerApi): Promise<ContextItem[]> {
 
 const MODE_LABEL: Record<AutoMode, string> = { off: 'off', rules: 'rules', ai: 'AI' }
 
+/** Status bar wording per panel language ('auto' stays English: the worker cannot see Orca's locale). */
+const STATUS_TEXT: Record<string, { prefix: string; modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
+  en: {
+    prefix: 'Enhance',
+    modes: { off: 'off', rules: 'rules', ai: 'AI' },
+    tooltip: (mode) =>
+      `Auto-enhance: ${mode}. Click to cycle off / rules / AI. More options: Settings → Plugins → Enhance Prompt ("Status bar item" hides it).`
+  },
+  vi: {
+    prefix: 'Enhance',
+    modes: { off: 'tắt', rules: 'luật', ai: 'AI' },
+    tooltip: (mode) =>
+      `Tự cải thiện: ${mode}. Bấm để đổi tắt / luật / AI. Tuỳ chọn khác: Settings → Plugins → Enhance Prompt (mục "Status bar item" để ẩn).`
+  },
+  zh: {
+    prefix: '优化',
+    modes: { off: '关', rules: '规则', ai: 'AI' },
+    tooltip: (mode) => `自动优化：${mode}。点击切换 关 / 规则 / AI。更多选项：Settings → Plugins → Enhance Prompt（“Status bar item” 可隐藏）。`
+  }
+}
+
 async function refreshStatusBar(orca: OrcaWorkerApi): Promise<void> {
   if (!orca.host.has('statusBar.update')) return
+  const all = await orca.settings.get()
   const { autoEnhanceMode } = await readSettings(orca)
+  const display = typeof all.statusBarItem === 'string' ? all.statusBarItem : 'full'
+  const words = STATUS_TEXT[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? STATUS_TEXT.en
+  const mode = words.modes[autoEnhanceMode]
   await orca.host
     .call('statusBar.update', {
       id: 'auto-enhance',
-      text: `Enhance: ${MODE_LABEL[autoEnhanceMode]}`,
-      tone: autoEnhanceMode === 'off' ? 'neutral' : 'accent'
+      visible: display !== 'hidden',
+      text: display === 'icon' ? '' : `${words.prefix}: ${mode}`,
+      icon: autoEnhanceMode === 'off' ? 'lightbulb' : 'zap',
+      tone: autoEnhanceMode === 'off' ? 'neutral' : 'accent',
+      tooltip: words.tooltip(mode)
     })
     .catch(() => undefined)
+}
+
+async function setMode(orca: OrcaWorkerApi, mode: AutoMode): Promise<string> {
+  await orca.settings.set('autoEnhanceMode', mode)
+  await refreshStatusBar(orca)
+  return `Auto-enhance: ${MODE_LABEL[mode]}`
 }
 
 export default function activate(orca: OrcaWorkerApi): void {
@@ -464,14 +507,20 @@ export default function activate(orca: OrcaWorkerApi): void {
     return `Auto-enhance: ${MODE_LABEL[next]}`
   })
 
-  orca.commands.register('auto-enhance.off', async () => {
-    await orca.settings.set('autoEnhanceMode', 'off')
+  orca.commands.register('auto-enhance.off', async () => setMode(orca, 'off'))
+  orca.commands.register('auto-enhance.rules', async () => setMode(orca, 'rules'))
+  orca.commands.register('auto-enhance.ai', async () => setMode(orca, 'ai'))
+
+  orca.commands.register('status-bar.toggle', async () => {
+    const all = await orca.settings.get()
+    const next = all.statusBarItem === 'hidden' ? 'full' : 'hidden'
+    await orca.settings.set('statusBarItem', next)
     await refreshStatusBar(orca)
-    return 'Auto-enhance: off'
+    return next === 'hidden' ? 'Status bar item hidden' : 'Status bar item shown'
   })
 
   orca.settings.onDidChange(({ key }) => {
-    if (key === 'autoEnhanceMode') void refreshStatusBar(orca)
+    if (key === 'autoEnhanceMode' || key === 'statusBarItem' || key === 'uiLanguage') void refreshStatusBar(orca)
   })
   void refreshStatusBar(orca)
 }

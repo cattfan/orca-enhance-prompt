@@ -6,6 +6,15 @@ Gemini CLI, OpenCode, Aider…), then send it straight to an agent terminal in [
 Like Augment's Prompt Enhancer, the rewrite is grounded in your repository: real file paths,
 functions, conventions and test commands, instead of a generic "make it clearer".
 
+![Enhance Prompt](assets/cover.png)
+
+| | | |
+| --- | --- | --- |
+| ![Context](assets/screenshots/1-enhance.png) | ![Models](assets/screenshots/2-models.png) | ![Languages](assets/screenshots/3-languages.png) |
+| Grounded in your repo | Subscription or API keys, with fallback | EN · VI · 中文 |
+
+<p align="center"><img src="docs/images/panel-real.png" width="360" alt="The panel as Orca draws it"><br><sub>The panel in Orca (real capture)</sub></p>
+
 ## Features
 
 - **Enhance panel** in the right sidebar: write → Enhance (Ctrl/Cmd+Enter) → edit → **Send to agent** / Copy / Refine.
@@ -30,13 +39,17 @@ functions, conventions and test commands, instead of a generic "make it clearer"
   When one fails the next is tried, on any error or only on network/timeout/429/5xx. Pick a model per prompt,
   a fast model for auto-enhance, and a model for the Max-level file picker.
 - **Styles**: Balanced, Concise, Detailed spec, Bug fix, New feature, Refactor, Code review, Plan first, Custom.
+- **Languages**: the panel in English, Tiếng Việt or 中文 (follows Orca or your pick, top-right of the panel);
+  the enhanced prompt in the same language as your prompt, or EN / VI / ZH (and more in Settings), per prompt.
 - **History** with search, reuse, copy and delete.
 - **Auto-enhance** (off by default) for prompts *Orca* sends to agents (launch, task and orchestration
   prompts) through the `agent.prompt.before` hook:
   - *Rules*: instantly appends your text (e.g. "run the tests and summarize the changes").
   - *AI*: rewrites with your hook model using the warm cached project context. Orca waits at most 2 s,
     so pick a fast model; if it runs out of time, the original prompt is sent unchanged.
-  - Toggle it from the status bar item or the command palette.
+  - Toggle it from the status bar item or the command palette (`Enhance Prompt: Auto-enhance off / with rules / with AI`).
+  - Orca's status bar right-click menu only lists Orca's own items, so the plugin's item is shown, shrunk
+    to an icon or hidden with the **Status bar item** setting or `Enhance Prompt: Show / hide status bar item`.
   - Orca never hooks prompts you type yourself into a terminal; use the panel for those.
 - **Sending**: multi-line prompts use bracketed paste so agent TUIs keep the line breaks (or raw /
   single line). "Press Enter after sending" is off by default so you can review first.
@@ -89,12 +102,15 @@ orca plugin dev watch . --check
 
 There is no build step: Orca transpiles `src/*.ts(x)` when it loads them.
 
+Listing images: `node scripts/make-images.mjs` renders the `shot-*` scenarios of `src/panel.check.ts`
+(sample data only) the way Orca draws them and saves `assets/cover.png` and `assets/screenshots/*.png`.
+
 ## Release
 
 Bump `version` in `orca-plugin.json`, add the section to `CHANGELOG.md`, then:
 
 ```sh
-node scripts/release.mjs 1.2.0   # checks, commit, tag v1.2.0, push, GitHub release with the changelog notes
+node scripts/release.mjs 1.3.0   # checks, commit, tag v1.3.0, push, GitHub release with the changelog notes
 ```
 
 Listing status: https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt

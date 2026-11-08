@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",
@@ -32,11 +32,23 @@
     "commands": [
       {
         "id": "auto-enhance.cycle",
-        "title": "Enhance Prompt: Cycle auto-enhance mode (off / rules / AI)"
+        "title": "Enhance Prompt: Cycle auto-enhance (off / rules / AI)"
       },
       {
         "id": "auto-enhance.off",
-        "title": "Enhance Prompt: Turn auto-enhance off"
+        "title": "Enhance Prompt: Auto-enhance off"
+      },
+      {
+        "id": "auto-enhance.rules",
+        "title": "Enhance Prompt: Auto-enhance with rules"
+      },
+      {
+        "id": "auto-enhance.ai",
+        "title": "Enhance Prompt: Auto-enhance with AI"
+      },
+      {
+        "id": "status-bar.toggle",
+        "title": "Enhance Prompt: Show / hide status bar item"
       }
     ],
     "statusBarItems": [
@@ -55,6 +67,42 @@
       }
     ],
     "settings": [
+      {
+        "key": "uiLanguage",
+        "title": "Panel language / Ngôn ngữ / 界面语言",
+        "description": "Language of the Enhance Prompt panel. Auto follows Orca.",
+        "type": "string",
+        "enum": [
+          "auto",
+          "en",
+          "vi",
+          "zh"
+        ],
+        "enumLabels": [
+          "Auto (follow Orca)",
+          "English",
+          "Tiếng Việt",
+          "中文"
+        ],
+        "default": "auto"
+      },
+      {
+        "key": "statusBarItem",
+        "title": "Status bar item",
+        "description": "Orca's status bar right-click menu only lists built-in items, so show or hide this plugin's item here (or with the command \"Enhance Prompt: Show / hide status bar item\").",
+        "type": "string",
+        "enum": [
+          "full",
+          "icon",
+          "hidden"
+        ],
+        "enumLabels": [
+          "Icon and text",
+          "Icon only",
+          "Hidden"
+        ],
+        "default": "full"
+      },
       {
         "key": "defaultStyle",
         "title": "Default style",
@@ -113,7 +161,8 @@
           "Português",
           "Русский"
         ],
-        "default": "auto"
+        "default": "auto",
+        "description": "Language of the enhanced prompt. The panel can also override it per prompt."
       },
       {
         "key": "customInstructions",
@@ -312,6 +361,27 @@
     },
     {
       "kind": "terminal:read"
+    }
+  ],
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "Enhance Prompt panel turning \"login page is broken on mobile\" into a structured, project-aware bug-fix prompt"
+  },
+  "screenshots": [
+    {
+      "path": "assets/screenshots/1-enhance.png",
+      "alt": "The Enhance tab with the list of project context sent to the model: rules, stack, relevant files, git status and repo tree",
+      "caption": "Grounded in your repo: 5 context levels, see and untick what is sent"
+    },
+    {
+      "path": "assets/screenshots/2-models.png",
+      "alt": "The Models tab with Claude Code subscription, OpenAI, Groq and Ollama models, fallback switch and one-click subscription CLI",
+      "caption": "Your subscription or API keys, with fallback between models"
+    },
+    {
+      "path": "assets/screenshots/3-languages.png",
+      "alt": "The panel in Vietnamese and the history tab in Chinese",
+      "caption": "English, Tiếng Việt and 中文"
     }
   ]
 }
