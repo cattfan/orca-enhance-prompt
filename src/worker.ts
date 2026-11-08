@@ -537,7 +537,9 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('models.roles', async ({ hookProfileId, selectorProfileId }) => {
     const config = await editableModels(orca)
     const valid = (id: string | null) => (id && config.profiles.some((profile) => profile.id === id) ? id : null)
-    config.hookProfileId = valid(hookProfileId)
+    // The hook cannot use a CLI model (too slow for its 2 s), so it is never stored as the hook's.
+    const hook = valid(hookProfileId)
+    config.hookProfileId = hook && config.profiles.find((profile) => profile.id === hook)?.provider !== 'cli' ? hook : null
     config.selectorProfileId = valid(selectorProfileId)
     await saveModels(orca, config)
     return modelsView(orca)
@@ -683,9 +685,13 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
       })
       // CLI models take seconds to start; the hook has under 2 s, so it uses API models only.
       const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled).filter(
-        (profile) => profile.provider !== 'cli'
+        (profile) => profile.enabled && profile.provider !== 'cli'
       )
-      if (list.length === 0) return
+      if (list.length === 0) {
+        // The panel's Auto-enhance section warns about this; the prompt goes through unchanged.
+        orca.log('auto-enhance skipped: no enabled API model (subscription CLIs are too slow for the hook)')
+        return
+      }
       const result = await runChain(
         orca,
         list,

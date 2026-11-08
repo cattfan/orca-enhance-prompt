@@ -1382,10 +1382,13 @@ function PrivacyTab() {
   const data = read(dataSummary)
   const prefs = read(defaults)
   const view = read(models)
+  // The hook has 2 s: only enabled API models can answer in time (subscription CLIs start too slowly).
+  const hookModels = (view?.profiles ?? []).filter((profile) => profile.enabled && profile.provider !== 'cli')
   const roleOptions = [
     { value: 'chain', label: t('Same as the chain') },
-    ...(view?.profiles ?? []).map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel || t('CLI default')}` }))
+    ...hookModels.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel}` }))
   ]
+  const hookValue = hookModels.some((profile) => profile.id === view?.hookProfileId) ? (view?.hookProfileId ?? 'chain') : 'chain'
   return (
     <Stack gap="md">
       <Section title={t('Language')}>
@@ -1413,10 +1416,20 @@ function PrivacyTab() {
           ]}
           onChange={(value) => void setSetting('autoEnhanceMode', value)}
         />
-        {view && view.profiles.length > 1 && !view.fromEnv && prefs.autoEnhanceMode === 'ai' ? (
+        {view && prefs.autoEnhanceMode === 'ai' && hookModels.length === 0 ? (
+          <Callout tone="warning" title={t('Auto-enhance (AI) has no model to use')}>
+            <Row gap="xs" justify="between" wrap>
+              <Text size="sm">{t('It needs an enabled API model: subscription CLIs take too long for its 2 s limit. Add one in Models, or use Rules.')}</Text>
+              <Button size="sm" variant="outline" icon="agent" onPress={() => set(tab, 'models')}>
+                {t('Open Models')}
+              </Button>
+            </Row>
+          </Callout>
+        ) : null}
+        {view && hookModels.length > 1 && !view.fromEnv && prefs.autoEnhanceMode === 'ai' ? (
           <Select
             label={t('Auto-enhance hook model (needs to answer in under 2 s)')}
-            value={view.hookProfileId ?? 'chain'}
+            value={hookValue}
             options={roleOptions}
             onChange={(value) => void setRoles({ hookProfileId: value === 'chain' ? null : value })}
           />

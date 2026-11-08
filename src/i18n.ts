@@ -274,7 +274,9 @@ const VI: Record<string, string> = {
   'Deep: + git + relevant code': 'Sâu: + git + code liên quan',
   'Max: + AI-picked files + terminal': 'Tối đa: + file AI chọn + terminal',
   'Show more': 'Xem thêm',
-  'Press again to clear history': 'Bấm lần nữa để xoá lịch sử'
+  'Press again to clear history': 'Bấm lần nữa để xoá lịch sử',
+  'Auto-enhance (AI) has no model to use': 'Tự cải thiện (AI) không có model để dùng',
+  'It needs an enabled API model: subscription CLIs take too long for its 2 s limit. Add one in Models, or use Rules.': 'Cần một model API đang bật: CLI theo gói subscription khởi động quá lâu so với giới hạn 2 giây. Thêm một model trong tab Model, hoặc dùng Luật.'
 }
 
 const ZH: Record<string, string> = {
@@ -527,7 +529,9 @@ const ZH: Record<string, string> = {
   'Deep: + git + relevant code': '深入：+ git + 相关代码',
   'Max: + AI-picked files + terminal': '最大：+ AI 选择的文件 + 终端',
   'Show more': '显示更多',
-  'Press again to clear history': '再按一次清空历史'
+  'Press again to clear history': '再按一次清空历史',
+  'Auto-enhance (AI) has no model to use': '自动优化（AI）没有可用的模型',
+  'It needs an enabled API model: subscription CLIs take too long for its 2 s limit. Add one in Models, or use Rules.': '需要一个已启用的 API 模型：订阅 CLI 启动太慢，赶不上 2 秒的限制。请在“模型”中添加一个，或改用规则。'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }
