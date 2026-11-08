@@ -3,6 +3,23 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.5.0] - 2026-11-08
+
+### Changed
+- **Redesigned Enhance tab** around one flow: write, enhance, review, send.
+  - **Enhance** is the primary button; **Preview context** sits beside it.
+  - Style, context, output language and model fold into one line that shows the current choice
+    ("Bug fix · Deep · Auto"); open it for a labeled two-column picker.
+  - The result is a card: the prompt, copy and clear at the top, then **Send to**, the Enter switch,
+    **Send to agent** (primary) and **Refine**.
+  - An empty state explains that nothing reaches the agent until you click Send, with **Send as is**.
+- **Models tab in sections**: Your models, Fallback, Auto-enhance (with its hook model), Max context level.
+- **New logo**: a dark tile like Orca's own icons, a prompt chevron and cursor, and a violet-to-cyan spark.
+- Listing images and README pictures are now in the dark theme, matching the panel in Orca.
+
+### Fixed
+- "No terminals in this workspace", "Choose a terminal" and the Models tab footer were not translated.
+
 ## [1.4.0] - 2026-11-08
 
 ### Added
@@ -103,6 +120,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.5.0
 [1.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.4.0
 [1.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.3.0
 [1.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.2.0

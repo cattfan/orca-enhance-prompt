@@ -60,8 +60,11 @@ test('enhances with context, then sends to the chosen agent', async () => {
   assert.ok(view.find({ text: /Fell back after: Down \(503: overloaded\)/ }))
 
   // Exclude the tree, enhance again: the worker is told.
-  await view.toggle({ type: 'Collapsible' })
+  await view.toggle({ label: /^Context used/ })
   await view.toggle({ label: 'Repository tree' })
+
+  // The options fold shows the current choice as its title.
+  assert.ok(view.find({ label: 'Balanced · Standard · Auto' }))
   await view.press({ role: 'button', text: 'Enhance' })
   assert.deepEqual(enhanceInputs[1].exclude, ['tree'])
 

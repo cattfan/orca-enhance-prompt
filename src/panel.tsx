@@ -9,6 +9,9 @@ import {
   Collapsible,
   derived,
   EmptyState,
+  Heading,
+  Grid,
+  Separator,
   IconButton,
   Input,
   on,
@@ -28,6 +31,7 @@ import {
   Textarea,
   update,
   type JsonValue,
+  type OrcaNode,
   type PanelContext
 } from 'orca'
 import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history'
@@ -516,7 +520,7 @@ function TargetPicker() {
       <Select
         label={t('Send to')}
         labelHidden
-        placeholder={list.length === 0 ? 'No terminals in this workspace' : 'Choose a terminal'}
+        placeholder={list.length === 0 ? t('No terminals in this workspace') : t('Choose a terminal')}
         value={read(target) ?? undefined}
         options={list.map((item) => ({ value: item.terminalId, label: item.label }))}
         onChange={(value) => set(target, value)}
@@ -574,6 +578,84 @@ function RunInfo() {
   )
 }
 
+/** The word before ":" in a level label: "Deep: + git…" → "Deep". */
+const shortLabel = (label: string) => label.split(/[:：]/)[0].trim()
+
+/** Style, context, output and model, folded under a one-line summary of the current choice. */
+function PromptOptions() {
+  const profiles = read(enabledProfiles)
+  const choice = read(profileChoice)
+  const styleValue = read(effectiveStyle)
+  const levelValue = read(effectiveLevel)
+  const output = outputOptions().find((option) => option.value === read(outputChoice))
+  const modelName = choice === 'auto' ? t('Auto') : (profiles.find((profile) => profile.id === choice)?.name ?? t('Auto'))
+  const summary = [
+    t(STYLE_LABELS[isStyle(styleValue) ? styleValue : 'balanced']),
+    shortLabel(t(CONTEXT_LEVEL_LABELS[isContextLevel(levelValue) ? levelValue : 'standard'])),
+    read(outputChoice) !== 'default' && output ? output.label.replace(/^[^:：]+[:：]\s*/, '') : '',
+    modelName
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <Collapsible title={summary} description={t('Style, context, output language and model')}>
+      <Grid columns={2} gap="sm">
+        <Select label={t('Style')} value={styleValue} options={styleOptions()} onChange={(value) => set(style, value)} />
+        <Select label={t('Context')} value={levelValue} options={levelOptions()} onChange={(value) => set(level, value)} />
+        <Select label={t('Output language')} value={read(outputChoice)} options={outputOptions()} onChange={(value) => set(outputChoice, value)} />
+        <Select
+          label={t('Model')}
+          value={choice}
+          options={[
+            { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (chain with fallback)') : t('Auto (first model)') },
+            ...profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
+          ]}
+          onChange={(value) => set(profileChoice, value)}
+        />
+      </Grid>
+    </Collapsible>
+  )
+}
+
+function ResultCard({ output }: { output: string }) {
+  const working = read(busy)
+  return (
+    <Box gap="sm" padding="md" border radius="lg">
+      <Row justify="between">
+        <Text weight="semibold">{t('Enhanced prompt')}</Text>
+        <Row gap="none">
+          <IconButton icon="copy" label={t('Copy')} size="sm" variant="ghost" onPress={() => void copy(output)} />
+          <IconButton icon="delete" label={t('Clear')} size="sm" variant="ghost" onPress={() => set(result, '')} />
+        </Row>
+      </Row>
+      <Textarea label={t('Enhanced prompt')} labelHidden rows={12} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
+      <RunInfo />
+      <Separator />
+      <Text weight="semibold" size="sm">
+        {t('Send to')}
+      </Text>
+      <TargetPicker />
+      <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
+      <Row gap="xs" wrap>
+        <Button variant="solid" icon="play" onPress={() => void send(output)} disabled={!read(target) || working !== null}>
+          {t('Send to agent')}
+        </Button>
+        <Button
+          variant="outline"
+          icon="refresh"
+          tooltip={t('Use the enhanced prompt as the new input')}
+          onPress={() => {
+            set(draft, output)
+            set(result, '')
+          }}
+        >
+          {t('Refine')}
+        </Button>
+      </Row>
+    </Box>
+  )
+}
+
 function EnhanceTab() {
   const working = read(busy)
   const text = read(draft)
@@ -598,79 +680,46 @@ function EnhanceTab() {
       ) : null}
       <Textarea
         label={t('Your prompt')}
-        placeholder={t('Describe what you want the agent to do… (Ctrl/Cmd+Enter to enhance)')}
-        rows={6}
+        placeholder={t('Describe what you want the agent to do…')}
+        rows={5}
         value={text}
         onChange={(value) => set(draft, value)}
         onSubmit={() => void enhanceNow()}
       />
-      <Row gap="xs" wrap>
-        <Select label={t('Style')} labelHidden value={read(effectiveStyle)} options={styleOptions()} onChange={(value) => set(style, value)} />
-        <Select label={t('Context')} labelHidden value={read(effectiveLevel)} options={levelOptions()} onChange={(value) => set(level, value)} />
-        <Select label={t('Output language')} labelHidden value={read(outputChoice)} options={outputOptions()} onChange={(value) => set(outputChoice, value)} />
-      </Row>
-      <Row gap="xs" wrap>
-        <Select
-          label={t('Model')}
-          labelHidden
-          value={read(profileChoice)}
-          options={[
-            { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (chain with fallback)') : t('Auto (first model)') },
-            ...profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model}` }))
-          ]}
-          onChange={(value) => set(profileChoice, value)}
-        />
+      <PromptOptions />
+      <Row gap="xs" justify="between" wrap>
         {working === 'enhance' ? (
           <Row gap="xs">
-            <Spinner label={t('Enhancing')} labelHidden />
+            <Spinner label={t('Enhancing')} />
             <Button variant="ghost" icon="stop" onPress={cancel}>
               {t('Cancel')}
             </Button>
           </Row>
         ) : (
-          <Button icon="lightbulb" onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
+          <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
             {t('Enhance')}
           </Button>
         )}
-        <Button variant="ghost" icon="search" tooltip={t('See what context would be sent')} onPress={() => void previewContext()} disabled={working !== null}>
+        <Button variant="ghost" size="sm" icon="search" tooltip={t('See what context would be sent')} onPress={() => void previewContext()} disabled={working !== null}>
           {working === 'preview' ? t('Gathering…') : t('Preview context')}
         </Button>
       </Row>
-      <TargetPicker />
       <NoticeBar />
       <ContextPanel />
       {output ? (
-        <Stack gap="sm">
-          <Textarea label={t('Enhanced prompt')} rows={12} value={output} onChange={(value) => set(result, value)} onSubmit={(value) => void send(value)} />
-          <RunInfo />
-          <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
-          <Row gap="xs" wrap>
-            <Button icon="play" onPress={() => void send(output)} disabled={!read(target) || working !== null}>
-              {t('Send to agent')}
-            </Button>
-            <Button variant="outline" icon="copy" onPress={() => void copy(output)}>
-              {t('Copy')}
-            </Button>
-            <Button
-              variant="ghost"
-              icon="refresh"
-              tooltip={t('Use the enhanced prompt as the new input')}
-              onPress={() => {
-                set(draft, output)
-                set(result, '')
-              }}
-            >
-              {t('Refine')}
-            </Button>
-            <IconButton icon="delete" label={t('Clear')} variant="ghost" onPress={() => set(result, '')} />
-          </Row>
-        </Stack>
+        <ResultCard output={output} />
       ) : (
-        <Row gap="xs">
-          <Button variant="ghost" icon="play" onPress={() => void send(text)} disabled={!read(target) || !text.trim() || working !== null}>
-            {t('Send original')}
-          </Button>
-        </Row>
+        <EmptyState
+          icon="lightbulb"
+          title={t('Your enhanced prompt appears here')}
+          description={t('Nothing reaches the agent until you click Send.')}
+        >
+          {text.trim() && read(target) ? (
+            <Button variant="ghost" size="sm" icon="play" onPress={() => void send(text)} disabled={working !== null}>
+              {t('Send as is')}
+            </Button>
+          ) : null}
+        </EmptyState>
       )}
     </Stack>
   )
@@ -950,17 +999,64 @@ function SubscriptionCallout() {
   )
 }
 
+function Section({ title, description, children }: { title: string; description?: string; children?: OrcaNode }) {
+  return (
+    <Stack gap="sm">
+      <Stack gap="none">
+        <Heading level={3}>{title}</Heading>
+        {description ? (
+          <Text muted size="xs">
+            {description}
+          </Text>
+        ) : null}
+      </Stack>
+      {children}
+    </Stack>
+  )
+}
+
 function ModelsTab() {
   const view = read(models)
   const prefs = read(defaults)
   if (!view) return <Spinner label={t('Loading')} />
   const roleOptions = [
     { value: 'chain', label: t('Same as the chain') },
-    ...view.profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model}` }))
+    ...view.profiles.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.model || t('CLI default')}` }))
   ]
   return (
-    <Stack gap="md">
-      <Box gap="sm" padding="sm" radius="md" background="muted">
+    <Stack gap="lg">
+      <Section title={t('Your models')} description={t('Models are tried top to bottom. Disabled models are skipped.')}>
+        {view.fromEnv && view.profiles.length > 0 ? (
+          <Callout tone="accent" title={t('Using API keys from your environment')}>
+            <Text size="sm">{t('Add a model below to customize; then only your saved models are used.')}</Text>
+          </Callout>
+        ) : null}
+        <SubscriptionCallout />
+        {view.profiles.length === 0 && !read(form) ? (
+          <EmptyState
+            icon="agent"
+            title={t('No models yet')}
+            description={t('Use a subscription CLI above, or add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studio or any OpenAI-compatible endpoint.')}
+          />
+        ) : null}
+        <Stack gap="xs">
+          {view.profiles.map((profile, index) => (
+            <ProfileCard key={profile.id} profile={profile} index={index} count={view.profiles.length} fromEnv={view.fromEnv} />
+          ))}
+        </Stack>
+        <NoticeBar />
+        {read(form) ? (
+          <ProfileForm />
+        ) : (
+          <Row>
+            <Button variant="outline" icon="add" onPress={() => openForm()}>
+              {t('Add model')}
+            </Button>
+          </Row>
+        )}
+      </Section>
+      <Separator />
+      <Section title={t('Fallback')}>
         <Switch label={t('Fallback to the next model when one fails')} checked={prefs.fallbackEnabled} onChange={(value) => void setSetting('fallbackEnabled', value)} />
         <Select
           label={t('Fall back on')}
@@ -972,11 +1068,15 @@ function ModelsTab() {
           ]}
           onChange={(value) => void setSetting('fallbackOn', value)}
         />
-        <Text muted size="xs">{t('Models are tried top to bottom. Disabled models are skipped.')}</Text>
-      </Box>
-      <Box gap="sm" padding="sm" radius="md" background="muted">
+      </Section>
+      <Separator />
+      <Section
+        title={t('Auto-enhance')}
+        description={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
+      >
         <Select
           label={t('Auto-enhance prompts Orca sends to agents')}
+          labelHidden
           value={prefs.autoEnhanceMode}
           options={[
             { value: 'off', label: t('Off') },
@@ -985,53 +1085,30 @@ function ModelsTab() {
           ]}
           onChange={(value) => void setSetting('autoEnhanceMode', value)}
         />
-        <Text muted size="xs">
-          {t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}
-        </Text>
-      </Box>
-      {view.fromEnv && view.profiles.length > 0 ? (
-        <Callout tone="accent" title={t('Using API keys from your environment')}>
-          <Text size="sm">{t('Add a model below to customize; then only your saved models are used.')}</Text>
-        </Callout>
-      ) : null}
-      <SubscriptionCallout />
-      {view.profiles.length === 0 && !read(form) ? (
-        <EmptyState icon="agent" title={t('No models yet')} description={t('Use a subscription CLI above, or add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studio or any OpenAI-compatible endpoint.')} />
-      ) : null}
-      <Stack gap="xs">
-        {view.profiles.map((profile, index) => (
-          <ProfileCard key={profile.id} profile={profile} index={index} count={view.profiles.length} fromEnv={view.fromEnv} />
-        ))}
-      </Stack>
-      <NoticeBar />
-      {read(form) ? (
-        <ProfileForm />
-      ) : (
-        <Row>
-          <Button icon="add" onPress={() => openForm()}>
-            {t('Add model')}
-          </Button>
-        </Row>
-      )}
-      {view.profiles.length > 1 && !view.fromEnv ? (
-        <Stack gap="sm">
+        {view.profiles.length > 1 && !view.fromEnv ? (
           <Select
             label={t('Auto-enhance hook model (needs to answer in under 2 s)')}
             value={view.hookProfileId ?? 'chain'}
             options={roleOptions}
             onChange={(value) => void setRoles({ hookProfileId: value === 'chain' ? null : value })}
           />
-          <Select
-            label={t('File picker model (Max context level)')}
-            value={view.selectorProfileId ?? 'chain'}
-            options={roleOptions}
-            onChange={(value) => void setRoles({ selectorProfileId: value === 'chain' ? null : value })}
-          />
+        ) : null}
+      </Section>
+      {view.profiles.length > 1 && !view.fromEnv ? (
+        <Stack gap="lg">
+          <Separator />
+          <Section title={t('Max context level')}>
+            <Select
+              label={t('File picker model (Max context level)')}
+              value={view.selectorProfileId ?? 'chain'}
+              options={roleOptions}
+              onChange={(value) => void setRoles({ selectorProfileId: value === 'chain' ? null : value })}
+            />
+          </Section>
         </Stack>
       ) : null}
       <Text muted size="xs">
-        Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context
-        you choose go only to the endpoints above; .env files, keys and credentials are never read.
+        {t('Style, language, context level, exclusions and auto-enhance: Settings → Plugins → Enhance Prompt. Prompts and the context you choose go only to the endpoints above; .env files, keys and credentials are never read.')}
       </Text>
     </Stack>
   )

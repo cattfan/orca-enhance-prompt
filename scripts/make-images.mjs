@@ -65,8 +65,9 @@ ${PANEL_CSS}`
 
 const page = (body) =>
   `<!doctype html><html><head><meta charset="utf-8"><style>${PAGE_CSS}</style></head><body>${body}</body></html>`
-const frame = (scenario, { dark = false, open = false, height = 900, scale = 1, width = 420, offset = 0 } = {}) =>
-  `<div class="frame${dark ? ' dark' : ''}" style="width:${width * scale}px;height:${height * scale}px"><div style="transform:scale(${scale});transform-origin:0 0;margin-top:${-offset * scale}px">${renderPanel(tree(scenario), { dark, open, width })}</div></div>`
+const CONTEXT_FOLD = /^(Context used|Ngữ cảnh đã dùng|已用上下文)/
+const frame = (scenario, { dark = true, open = false, height = 900, scale = 1, width = 420, offset = 0 } = {}) =>
+  `<div class="frame${dark ? ' dark' : ''}" style="width:${width * scale}px;height:${height * scale}px"><div style="transform:scale(${scale});transform-origin:0 0;margin-top:${-offset * scale}px">${renderPanel(tree(scenario), { dark, open: open ? CONTEXT_FOLD : false, width })}</div></div>`
 
 /** A README feature picture: one or more panel crops on the brand background, 960x600. */
 const feature = (...frames) =>
@@ -95,7 +96,7 @@ const images = {
         ['play', 'Send to the agent terminal, copy, or refine again']
       ])}
     </div>
-    ${frame('shot-enhance', { open: true, height: 930, scale: 0.98 })}
+    ${frame('shot-enhance', { open: true, height: 930, scale: 0.98, offset: 240 })}
   </div>`),
   'screenshots/2-models': page(`<div class="stage">
     <div class="copy">${brand}
@@ -123,15 +124,15 @@ const images = {
 
 // README feature pictures (docs/assets/readme-features), rendered at 2x for sharp text.
 const features = {
-  'enhance-and-send': feature(frame('shot-enhance', { height: 400, scale: 1.1, offset: 535 })),
-  'project-context': feature(frame('shot-enhance', { open: true, height: 500, scale: 1.05, offset: 488 })),
-  subscription: feature(frame('shot-models', { height: 520, scale: 1, offset: 395 })),
-  'models-fallback': feature(frame('shot-models', { height: 540, scale: 1, offset: 0 })),
+  'enhance-and-send': feature(frame('shot-enhance', { height: 520, scale: 1.02, offset: 385 })),
+  'project-context': feature(frame('shot-enhance', { open: true, height: 640, scale: 0.82, offset: 95 })),
+  subscription: feature(frame('shot-models', { height: 500, scale: 1.04, offset: 95 })),
+  'models-fallback': feature(frame('shot-models', { height: 480, scale: 1.08, offset: 750 })),
   languages: feature(
-    frame('shot-enhance-vi', { height: 600, scale: 0.86, offset: 0 }),
-    frame('shot-history-zh', { height: 600, scale: 0.86, offset: 0 })
+    frame('shot-enhance-vi', { height: 640, scale: 0.84, offset: 0 }),
+    frame('shot-history-zh', { height: 640, scale: 0.84, offset: 0 })
   ),
-  history: feature(frame('shot-history', { height: 528, scale: 1, offset: 0 }))
+  history: feature(frame('shot-history', { height: 520, scale: 1.04, offset: 0 }))
 }
 
 const work = mkdtempSync(join(tmpdir(), 'enhance-images-'))

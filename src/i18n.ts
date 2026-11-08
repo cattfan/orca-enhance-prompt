@@ -17,6 +17,17 @@ export function resolveLanguage(setting: string, locale: string): UiLanguage {
 }
 
 const VI: Record<string, string> = {
+  'Style, context, output language and model': 'Kiểu, ngữ cảnh, ngôn ngữ đầu ra và model',
+  'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter (⌘Enter trên macOS)',
+  'Your enhanced prompt appears here': 'Prompt đã cải thiện sẽ hiện ở đây',
+  'Nothing reaches the agent until you click Send.': 'Chưa có gì gửi tới agent cho tới khi bạn bấm Gửi.',
+  'Send as is': 'Gửi nguyên văn',
+  'Describe what you want the agent to do…': 'Mô tả việc bạn muốn agent làm…',
+  Auto: 'Tự động',
+  'Your models': 'Model của bạn',
+  Fallback: 'Dự phòng',
+  'Auto-enhance': 'Tự cải thiện',
+  'Max context level': 'Mức ngữ cảnh Tối đa',
   'your default': 'mặc định của bạn',
   'Choose a model': 'Chọn model',
   'Other (type the id)…': 'Khác (tự gõ id)…',
@@ -174,6 +185,17 @@ const VI: Record<string, string> = {
 }
 
 const ZH: Record<string, string> = {
+  'Style, context, output language and model': '风格、上下文、输出语言和模型',
+  'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter（macOS 上为 ⌘Enter）',
+  'Your enhanced prompt appears here': '优化后的提示词会显示在这里',
+  'Nothing reaches the agent until you click Send.': '点击发送之前，不会有任何内容发给 agent。',
+  'Send as is': '直接发送原文',
+  'Describe what you want the agent to do…': '描述你希望 agent 做什么…',
+  Auto: '自动',
+  'Your models': '你的模型',
+  Fallback: '回退',
+  'Auto-enhance': '自动优化',
+  'Max context level': '最大上下文级别',
   'your default': '你的默认',
   'Choose a model': '选择模型',
   'Other (type the id)…': '其他（输入 id）…',

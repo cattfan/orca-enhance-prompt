@@ -28,7 +28,7 @@ Go back to the **Enhance** tab and describe what you want, as roughly as you lik
 login page is broken on mobile
 ```
 
-Then pick:
+The line under the prompt shows the current options, for example **Balanced · Standard · Auto**. Click it to change them:
 
 - **Style**: what kind of prompt you need. See [Styles](#styles).
 - **Context**: how much of your project the model sees. **Standard** is a good default; **Deep** finds the code that matches your request. See [Context levels](context-levels.md).
@@ -39,16 +39,17 @@ Click **Enhance** or press `Ctrl+Enter` (`⌘Enter`). A model API takes a few se
 
 ## 4. Review and send
 
-The result opens in **Enhanced prompt**. Edit it freely, then:
+The result opens in the **Enhanced prompt** card. Edit it freely, then:
 
-- Pick the agent's terminal in **Send to**. Agent terminals come first.
+- Pick the agent's terminal under **Send to**. Agent terminals come first.
 - Click **Send to agent**. The prompt is pasted, not submitted, so you can read it in the agent before pressing Enter. Turn on **Press Enter after sending** to submit it right away.
 
 Other actions:
 
-- **Copy**: copies the prompt to the clipboard.
+- **Copy** and **Clear**: the two icons at the top of the card.
 - **Refine**: makes the result your new input, to enhance it again with another style or level.
 - **Context used**: lists everything the model saw. Untick an item to leave it out next time.
+- **Send as is**: before you enhance, sends your prompt unchanged to the selected terminal.
 
 ## 5. Reuse from history
 

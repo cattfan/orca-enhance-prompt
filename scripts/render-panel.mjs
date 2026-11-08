@@ -31,7 +31,7 @@ export const icon = (name, size = 16) =>
 export const PANEL_CSS = `
 .panel{--bg:#fff;--fg:#18181b;--muted:#71717a;--border:#e4e4e7;--accent-bg:#f4f4f5;--primary:#18181b;--warn:#c2410c;--ok:#15803d;--okbg:#f0fdf4;--warnbg:#fff7ed;--danger:#dc2626;
   background:var(--bg);color:var(--fg);font:13px/1.45 Inter,"Segoe UI",system-ui,sans-serif;padding:12px;box-sizing:border-box;width:420px;-webkit-font-smoothing:antialiased}
-.panel.dark{--bg:#18181b;--fg:#fafafa;--muted:#a1a1aa;--border:#3f3f46;--accent-bg:#27272a;--primary:#fafafa;--warn:#fb923c;--ok:#4ade80;--okbg:#052e16;--warnbg:#431407}
+.panel.dark{--bg:#1a1a1a;--fg:#ececec;--muted:#9a9a9a;--border:#333333;--accent-bg:#262626;--primary:#f2f2f2;--warn:#fb923c;--ok:#4ade80;--okbg:#0f2a1a;--warnbg:#3a2210;--danger:#f87171}
 .panel *{box-sizing:border-box}
 .col{display:flex;flex-direction:column;width:100%}.row{display:flex;flex-direction:row;align-items:center}.wrap{flex-wrap:wrap}
 .g-none{gap:0}.g-xs{gap:6px}.g-sm{gap:8px}.g-md{gap:12px}.g-lg{gap:16px}
@@ -40,7 +40,7 @@ export const PANEL_CSS = `
 .tone-warning{color:var(--warn)}.tone-success{color:var(--ok)}.tone-danger{color:var(--danger)}
 .trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .badge{display:inline-flex;align-items:center;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600;background:var(--accent-bg);border:1px solid var(--border)}
-.badge.tone-accent{background:#e4e4e7;color:#18181b;border-color:#e4e4e7}.dark .badge.tone-accent{background:#3f3f46;color:#fafafa;border-color:#3f3f46}
+.badge.tone-accent{background:#e4e4e7;color:#18181b;border-color:#e4e4e7}.dark .badge.tone-accent{background:#ececec;color:#111;border-color:#ececec}
 .badge.tone-success{background:var(--okbg);color:var(--ok);border-color:transparent}.badge.tone-warning{background:var(--warnbg);color:var(--warn);border-color:transparent}
 .sel{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--bg);white-space:nowrap}
 .sel .ic{opacity:.6}
@@ -62,7 +62,7 @@ export const PANEL_CSS = `
 .sw{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%}.sw .track{width:34px;height:20px;border-radius:999px;background:var(--border);position:relative;flex:none}
 .sw .track::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px}.sw .track.on{background:var(--primary)}.sw .track.on::after{left:16px;background:var(--bg)}
 .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:18px 8px;color:var(--muted)}.empty b{color:var(--fg)}
-.box-border{border:1px solid var(--border)}.r-md{border-radius:10px}.bg-muted{background:var(--accent-bg)}.p-sm{padding:8px 10px}.p-md{padding:12px}
+.box-border{border:1px solid var(--border)}.r-md{border-radius:10px}.r-lg{border-radius:14px}.h3{font-weight:600;font-size:14px}.sep{height:1px;background:var(--border);width:100%}.grid2{display:grid;grid-template-columns:1fr 1fr;width:100%}.grid2 .sel{width:100%;justify-content:space-between}.bg-muted{background:var(--accent-bg)}.p-sm{padding:8px 10px}.p-md{padding:12px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px}
 `
 
@@ -82,14 +82,19 @@ function node(n) {
   switch (n.type) {
     case 'Box': {
       const dir = p.direction === 'row' ? 'row' : 'col'
-      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}">${inner()}</div>`
+      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}" style="${p.border === 'accent' ? 'border-color:#6366f1' : ''}">${inner()}</div>`
     }
     case 'Stack':
       return `<div class="${cls('col', `g-${p.gap ?? 'sm'}`)}">${inner()}</div>`
     case 'Row':
       return `<div class="${cls('row', `g-${p.gap ?? 'sm'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap')}">${inner()}</div>`
-    case 'Text':
     case 'Heading':
+      return `<div class="t h3">${textOf(kids)}</div>`
+    case 'Separator':
+      return '<div class="sep"></div>'
+    case 'Grid':
+      return `<div class="${cls('grid2', `g-${p.gap ?? 'sm'}`)}">${inner()}</div>`
+    case 'Text':
       return `<div class="${cls('t', p.size && `t-${p.size}`, p.muted && 'muted', p.weight && `w-${p.weight}`, p.tone && `tone-${p.tone}`, p.truncate && 'trunc', n.type === 'Heading' && 'w-semibold')}">${textOf(kids)}</div>`
     case 'RelativeTime':
       return '<span>5m ago</span>'
@@ -113,7 +118,7 @@ function node(n) {
     case 'IconButton':
       return `<span class="${cls('ibtn', p.size === 'sm' && 'sm', p.tone && `tone-${p.tone}`)}" title="${esc(p.label)}">${icon(p.icon, p.size === 'sm' ? 15 : 17)}</span>`
     case 'Spinner':
-      return `<span class="muted">${esc(p.label)}…</span>`
+      return `<span class="row g-xs muted"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>${p.labelHidden ? '' : esc(p.label)}</span>`
     case 'Tabs': {
       const tabs = kids.filter((k) => k?.type === 'Tab')
       const current = tabs.find((tab) => tab.props.value === p.value) ?? tabs[0]
@@ -123,8 +128,10 @@ function node(n) {
     }
     case 'Callout':
       return `<div class="${cls('callout', p.tone && `tone-${p.tone}`)}">${p.title ? `<div class="callout-title">${p.icon ? icon(p.icon, 15) : ''}${esc(p.title)}</div>` : ''}${inner()}</div>`
-    case 'Collapsible':
-      return `<div class="col g-sm"><div class="coll-head">${icon(options.open ? 'chevron' : 'right', 15)}<div><div class="w-semibold">${esc(p.title)}</div>${p.description ? `<div class="t-xs muted">${esc(p.description)}</div>` : ''}</div></div>${options.open ? `<div style="padding-left:22px">${inner()}</div>` : ''}</div>`
+    case 'Collapsible': {
+      const isOpen = options.open instanceof RegExp ? options.open.test(p.title ?? '') : options.open
+      return `<div class="col g-sm"><div class="coll-head">${icon(isOpen ? 'chevron' : 'right', 15)}<div><div class="w-semibold">${esc(p.title)}</div>${p.description ? `<div class="t-xs muted">${esc(p.description)}</div>` : ''}</div></div>${isOpen ? `<div style="padding-left:22px">${inner()}</div>` : ''}</div>`
+    }
     case 'Checkbox':
       return `<div class="cb"><span class="${cls('box', p.checked !== false && 'on')}">${p.checked !== false ? icon('check', 12) : ''}</span><div><div>${esc(p.label)}</div>${p.description ? `<div class="t-xs muted">${esc(p.description)}</div>` : ''}</div></div>`
     case 'Switch':
