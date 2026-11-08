@@ -3,6 +3,35 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.0.2] - 2026-11-09
+
+### Fixed
+
+- Cancel and timeouts now really stop a run: a subscription CLI is stopped with everything it started (also npm `.cmd` installs of Codex and Gemini on Windows), running git commands are stopped, and no step starts after a cancel.
+- A run answers within the panel's 120 s wait, however many models the fallback chain tries; an answer that arrives after the panel gave up is dropped and not saved to history.
+- "CLI default" really runs the CLI with its own default model (Claude Code used to get `--model haiku`). Disabling, enabling or switching a model from its card no longer writes the preset's URL and model into the profile.
+- AI auto-enhance offers only enabled API models (subscription CLIs are too slow for its 2 s), and the panel warns when none can run instead of silently doing nothing.
+- A model endpoint that answers with an HTML page or nothing (a proxy, a Wi-Fi sign-in page) gives a clear error and fallback moves on, also with "transient errors only".
+- A `claude --help` that failed once is asked again; a cancelled CLI run leaves no temporary folder behind.
+
+### Security
+
+- Uncommitted changes to secret files (credentials, secrets, private keys, certificates) and to your exclude patterns are left out of the git diff sent at Deep and Max levels, including a secret file that was renamed.
+- Git reads never run a repository's `core.fsmonitor` program.
+- With "Save history" off, the draft and the last result are no longer kept on disk between panel runs; "Delete everything" clears them too.
+- A context item you untick is not read at all (for example the terminal output).
+
+### Changed
+
+- History: deleting an entry and Clear history go through the worker, in order with new entries (none lost); Clear history asks for a second press; very long prompts are kept trimmed and the whole history is capped by size; the History tab shows 50 entries at a time with Show more.
+- Errors, context notes and labels from the worker are shown in the panel's language (Vietnamese and Chinese included).
+- Gemini CLI models come from `gemini models list` (Gemini CLI 0.67 and later) while online model lists are allowed.
+- The Claude Code model list is fetched again as soon as Claude Code is updated, instead of after a day.
+
+### Notes
+
+- New tests (99 in all) and an end-to-end check in the real Orca (`scripts/e2e.mjs`); the release script commits only the manifest and the changelog, from a clean `main`, with the next version only.
+
 ## [2.0.1] - 2026-11-08
 
 ### Fixed
@@ -246,6 +275,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.0.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.2
 [2.0.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.1
 [2.0.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.0
 [1.9.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.9.0
