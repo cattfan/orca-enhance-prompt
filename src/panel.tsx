@@ -539,7 +539,8 @@ export function setup(ctx: PanelContext): void {
   void refreshModels()
   void refreshTargets()
   void detectClis()
-  void refreshDataSummary()
+  // The stored-data counts read every saved key; load them only for the section that shows them.
+  if (read(tab) === 'privacy') void refreshDataSummary()
 }
 
 // ---------------------------------------------------------------- view

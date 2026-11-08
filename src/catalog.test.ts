@@ -68,3 +68,50 @@ test('reads the model table built into Claude Code', () => {
     { id: 'claude-opus-4-8', name: 'Opus 4.8', main: false }
   ])
 })
+
+test('opening the panel asks for the same list at once: one fetch serves them all', async () => {
+  let calls = 0
+  globalThis.fetch = (async () => {
+    calls++
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    return new Response(JSON.stringify({ data: [{ id: 'm1' }] }), { status: 200 })
+  }) as typeof fetch
+  const host = mockHost({
+    storage: {
+      models: {
+        profiles: [
+          { id: 'a', name: 'A', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' },
+          { id: 'b', name: 'B', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+        ]
+      }
+    },
+    secrets: { 'apiKey.a': 'k', 'apiKey.b': 'k' }
+  })
+  const worker = await mountWorker(main, { host })
+  const lists = await Promise.all([
+    worker.request('models.catalog', { preset: 'groq', profileId: 'a' }),
+    worker.request('models.catalog', { preset: 'groq', profileId: 'b' })
+  ])
+  assert.equal(calls, 1)
+  assert.deepEqual(lists[0], lists[1])
+  await worker.deactivate()
+})
+
+test('model lists: an environment key is not used while that Privacy switch is off', async () => {
+  const previous = process.env.GROQ_API_KEY
+  process.env.GROQ_API_KEY = 'from-env'
+  const seen: (string | undefined)[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    seen.push((init?.headers as Record<string, string>).authorization)
+    return new Response(JSON.stringify({ data: [{ id: 'm1' }] }), { status: 200 })
+  }) as typeof fetch
+  try {
+    const worker = await mountWorker(main, { host: mockHost({ settings: { allowEnvKeys: false } }) })
+    await worker.request('models.catalog', { preset: 'groq' })
+    assert.deepEqual(seen, [undefined])
+    await worker.deactivate()
+  } finally {
+    if (previous === undefined) delete process.env.GROQ_API_KEY
+    else process.env.GROQ_API_KEY = previous
+  }
+})

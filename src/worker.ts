@@ -328,6 +328,8 @@ export async function sendPieces(orca: OrcaWorkerApi, terminalId: string, pieces
 }
 
 export default function activate(orca: OrcaWorkerApi): void {
+  const catalogsInFlight = new Map<string, Promise<Catalog>>()
+
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
     const started = Date.now()
     const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
@@ -500,22 +502,38 @@ export default function activate(orca: OrcaWorkerApi): void {
         return cached
       }
     }
-    let catalog: Catalog
-    const online = (await readSettings(orca)).privacy.allowOnlineModelLists
-    if (preset.id === 'claude-code') catalog = await claudeCatalog(command, online)
-    else if (preset.id === 'codex') catalog = await codexCatalog(command)
-    else if (preset.id === 'gemini-cli') catalog = await geminiCatalog()
-    else if (provider === 'cli') catalog = { models: [], source: 'custom CLI', fetchedAt: Date.now() }
-    else {
-      const key = input.apiKey?.trim() || (profile ? (await resolveKey(orca, profile)).key : null) || (preset.env ? (process.env[preset.env] ?? null) : null)
-      catalog = online
-        ? await apiCatalog(provider, baseUrl, key)
-        : { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
+    // Opening the panel asks for every profile's list at once; requests for the same list share one
+    // fetch (a Claude Code scan reads its whole program file). A key typed in the form is its own fetch.
+    const flightKey = `${cacheKey}${input.apiKey?.trim() ? ':typed' : ''}`
+    const running = catalogsInFlight.get(flightKey)
+    if (running) return running
+    const fetching = (async (): Promise<Catalog> => {
+      const { privacy } = await readSettings(orca)
+      const online = privacy.allowOnlineModelLists
+      let catalog: Catalog
+      if (preset.id === 'claude-code') catalog = await claudeCatalog(command, online)
+      else if (preset.id === 'codex') catalog = await codexCatalog(command)
+      else if (preset.id === 'gemini-cli') catalog = await geminiCatalog()
+      else if (provider === 'cli') catalog = { models: [], source: 'custom CLI', fetchedAt: Date.now() }
+      else {
+        // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
+        const envKey = privacy.allowEnvKeys && preset.env ? (process.env[preset.env] ?? null) : null
+        const key = input.apiKey?.trim() || (profile ? (await resolveKey(orca, profile)).key : null) || envKey
+        catalog = online
+          ? await apiCatalog(provider, baseUrl, key)
+          : { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
+      }
+      if (catalog.models.length > 0) {
+        await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
+      }
+      return catalog
+    })()
+    catalogsInFlight.set(flightKey, fetching)
+    try {
+      return await fetching
+    } finally {
+      catalogsInFlight.delete(flightKey)
     }
-    if (catalog.models.length > 0) {
-      await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
-    }
-    return catalog
   })
 
   // Privacy tab: what is stored, and wiping it.

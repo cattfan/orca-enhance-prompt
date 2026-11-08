@@ -86,49 +86,93 @@ async function fetchJson(url: string, init: RequestInit, timeoutMs = 8000): Prom
  * list its /model menu shows. Read straight from the program file (a native binary or cli.js), in
  * chunks, so it always matches the version you have. "main" models first, then older ("overflow").
  */
-export function parseClaudeModelTable(text: string): { id: string; name: string; description?: string; main: boolean }[] {
-  const found = new Map<string, { id: string; name: string; description?: string; main: boolean }>()
+export function parseClaudeModelTable(text: string): ClaudeModel[] {
+  const found = new Map<string, ClaudeModel>()
   const pattern = /\{id:"(claude-[a-z0-9-]{3,60})",name:"([^"]{2,40})",short_name:"[^"]{1,30}"(?:,description:"([^"]{0,120})")?,section:"(main|overflow)"/g
   for (const match of text.matchAll(pattern)) {
     const [, id, name, description, section] = match
-    const previous = found.get(id)
-    if (!previous || (!previous.description && description) || (section === 'main' && !previous.main)) {
-      found.set(id, { id, name, ...(description || previous?.description ? { description: description || previous?.description } : {}), main: section === 'main' || Boolean(previous?.main) })
-    }
+    const entry: ClaudeModel = { id, name, main: section === 'main' }
+    if (description) entry.description = description
+    mergeModel(found, entry)
   }
   return [...found.values()].sort((a, b) => Number(b.main) - Number(a.main))
 }
 
-async function claudeModelTable(binary: string): Promise<{ id: string; name: string; description?: string; main: boolean }[]> {
+type ClaudeModel = { id: string; name: string; description?: string; main: boolean }
+
+/** Keeps the richest entry per id: a description beats none, "main" beats "overflow". */
+function mergeModel(entries: Map<string, ClaudeModel>, entry: ClaudeModel): void {
+  const previous = entries.get(entry.id)
+  if (!previous) {
+    entries.set(entry.id, { ...entry })
+    return
+  }
+  if (entry.description && !previous.description) previous.description = entry.description
+  previous.main = previous.main || entry.main
+}
+
+const TABLE_MARKER = Buffer.from('short_name:"', 'latin1')
+/** Bytes kept around each marker: enough for the id and name before it, the rest after. */
+const BEFORE = 160
+const AFTER = 320
+
+/**
+ * Scans the program file for the model table. The file is hundreds of megabytes, so it is searched
+ * as bytes (Buffer.indexOf, native) and only a few hundred bytes around each marker are decoded and
+ * parsed; chunks overlap so an entry on a chunk boundary is still seen whole.
+ */
+/** The last table read, by the file's path, size and modification time: unchanged file, no rescan. */
+let tableMemo: { signature: string; models: ClaudeModel[] } | null = null
+
+async function claudeModelTable(binary: string): Promise<ClaudeModel[]> {
   try {
     const info = await stat(binary)
     if (!info.isFile() || info.size > 800 * 1024 * 1024) return []
-    const handle = await open(binary, 'r')
-    try {
-      const size = 8 * 1024 * 1024
-      const buffer = Buffer.alloc(size)
-      let tail = ''
-      let text = ''
-      const entries = new Map<string, { id: string; name: string; description?: string; main: boolean }>()
-      for (let position = 0; position < info.size; position += size) {
-        const { bytesRead } = await handle.read(buffer, 0, size, position)
-        if (bytesRead === 0) break
-        text = tail + buffer.toString('latin1', 0, bytesRead)
-        if (text.includes('short_name:')) {
-          for (const entry of parseClaudeModelTable(text)) {
-            const previous = entries.get(entry.id)
-            if (!previous || (!previous.description && entry.description) || (entry.main && !previous.main)) entries.set(entry.id, { ...previous, ...entry, main: entry.main || Boolean(previous?.main) })
-          }
-        }
-        tail = text.slice(-4096)
-      }
-      return [...entries.values()].sort((a, b) => Number(b.main) - Number(a.main))
-    } finally {
-      await handle.close()
-    }
+    const signature = `${binary}:${info.size}:${info.mtimeMs}`
+    if (tableMemo?.signature === signature) return tableMemo.models.map((model) => ({ ...model }))
+    const models = await scanModelTable(binary, info.size)
+    tableMemo = { signature, models }
+    return models.map((model) => ({ ...model }))
   } catch {
     return []
   }
+}
+
+async function scanModelTable(binary: string, fileSize: number): Promise<ClaudeModel[]> {
+  const handle = await open(binary, 'r')
+  try {
+    const size = 8 * 1024 * 1024
+    const overlap = BEFORE + AFTER
+    const buffer = Buffer.alloc(size)
+    const entries = new Map<string, ClaudeModel>()
+    for (let position = 0; position < fileSize; position += size - overlap) {
+      const { bytesRead } = await handle.read(buffer, 0, size, position)
+      if (bytesRead === 0) break
+      const view = buffer.subarray(0, bytesRead)
+      for (let hit = view.indexOf(TABLE_MARKER); hit !== -1; hit = view.indexOf(TABLE_MARKER, hit + TABLE_MARKER.length)) {
+        const window = view.toString('latin1', Math.max(0, hit - BEFORE), Math.min(bytesRead, hit + AFTER))
+        for (const entry of parseClaudeModelTable(window)) mergeModel(entries, entry)
+      }
+      if (position + bytesRead >= fileSize) break
+    }
+    return [...entries.values()].sort((a, b) => Number(b.main) - Number(a.main))
+  } finally {
+    await handle.close()
+  }
+}
+
+/** Aliases named in `claude --help`, remembered for the same program file (starting it takes time). */
+let helpMemo: { signature: string; aliases: string[] | null } | null = null
+
+async function claudeHelpAliases(binary: string): Promise<string[] | null> {
+  const info = await stat(binary).catch(() => null)
+  const signature = info ? `${binary}:${info.size}:${info.mtimeMs}` : binary
+  if (helpMemo?.signature === signature) return helpMemo.aliases
+  const help = await readCommand(binary, ['--help'], 10_000)
+  const at = help ? help.indexOf('--model') : -1
+  const aliases = help && at >= 0 ? aliasesFromText(help.slice(at, at + 400).replace(/\s+/g, ' ')) : null
+  helpMemo = { signature, aliases }
+  return aliases
 }
 
 export async function claudeCatalog(command: string, online = true): Promise<Catalog> {
@@ -138,10 +182,9 @@ export async function claudeCatalog(command: string, online = true): Promise<Cat
   const exact = binary ? await claudeModelTable(binary) : []
   if (exact.length > 0) sources.push('Claude Code model table')
   if (binary) {
-    const help = await readCommand(binary, ['--help'], 10_000)
-    if (help) {
-      const modelHelp = help.slice(help.indexOf('--model'), help.indexOf('--model') + 400).replace(/\s+/g, ' ')
-      aliasesFromText(modelHelp).forEach((alias) => aliases.add(alias))
+    const helpAliases = await claudeHelpAliases(binary)
+    if (helpAliases) {
+      helpAliases.forEach((alias) => aliases.add(alias))
       sources.push('claude --help')
     }
   }
