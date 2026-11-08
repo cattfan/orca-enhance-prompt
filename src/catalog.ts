@@ -241,14 +241,15 @@ export async function codexCatalog(command: string): Promise<Catalog> {
       models?: { slug?: string; display_name?: string; description?: string; visibility?: string; priority?: number }[]
     }
     models = (parsed.models ?? [])
-      .filter((model) => model.slug && model.visibility === 'list')
+      .filter((model) => model.visibility === 'list')
       .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
-      .map((model) => ({
-        id: model.slug!,
-        label: model.display_name ?? model.slug!,
-        description: model.description,
-        ...(model.slug === current ? { isDefault: true } : {})
-      }))
+      .flatMap((model) => {
+        if (!model.slug) return []
+        const entry: CatalogModel = { id: model.slug, label: model.display_name ?? model.slug }
+        if (model.description) entry.description = model.description
+        if (model.slug === current) entry.isDefault = true
+        return [entry]
+      })
   } catch {
     return { models: [], source: 'codex debug models', fetchedAt: Date.now(), error: 'could not read the Codex model catalog' }
   }

@@ -18,7 +18,7 @@ import {
   viewProfiles,
   type ChainOptions
 } from './models.ts'
-import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets.ts'
+import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelProfile, type ModelsConfig } from './presets.ts'
 import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts.ts'
 import type { ModelsView } from './protocol.ts'
 import { parsePrivacy, type Privacy } from './privacy.ts'
@@ -346,6 +346,24 @@ export async function sendPieces(orca: OrcaWorkerApi, terminalId: string, pieces
   return { accepted: sent === pieces.length }
 }
 
+/** Fetches one model list from its source: the CLI itself, or the provider's API. */
+async function fetchCatalog(
+  orca: OrcaWorkerApi,
+  source: { presetId: string; env: string; provider: string; baseUrl: string; command: string; profile?: ModelProfile; typedKey?: string }
+): Promise<Catalog> {
+  const { privacy } = await readSettings(orca)
+  const online = privacy.allowOnlineModelLists
+  if (source.presetId === 'claude-code') return claudeCatalog(source.command, online)
+  if (source.presetId === 'codex') return codexCatalog(source.command)
+  if (source.presetId === 'gemini-cli') return geminiCatalog()
+  if (source.provider === 'cli') return { models: [], source: 'custom CLI', fetchedAt: Date.now() }
+  if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
+  // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
+  const envKey = privacy.allowEnvKeys && source.env ? (process.env[source.env] ?? null) : null
+  const savedKey = source.profile ? (await resolveKey(orca, source.profile)).key : null
+  return apiCatalog(source.provider === 'anthropic' ? 'anthropic' : 'openai', source.baseUrl, source.typedKey || savedKey || envKey)
+}
+
 /** Enhance, Preview context, Send, Copy and the list of terminals to send to. */
 function registerRunHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => {
@@ -536,21 +554,7 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
     const running = catalogsInFlight.get(flightKey)
     if (running) return running
     const fetching = (async (): Promise<Catalog> => {
-      const { privacy } = await readSettings(orca)
-      const online = privacy.allowOnlineModelLists
-      let catalog: Catalog
-      if (preset.id === 'claude-code') catalog = await claudeCatalog(command, online)
-      else if (preset.id === 'codex') catalog = await codexCatalog(command)
-      else if (preset.id === 'gemini-cli') catalog = await geminiCatalog()
-      else if (provider === 'cli') catalog = { models: [], source: 'custom CLI', fetchedAt: Date.now() }
-      else {
-        // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
-        const envKey = privacy.allowEnvKeys && preset.env ? (process.env[preset.env] ?? null) : null
-        const key = input.apiKey?.trim() || (profile ? (await resolveKey(orca, profile)).key : null) || envKey
-        catalog = online
-          ? await apiCatalog(provider, baseUrl, key)
-          : { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
-      }
+      const catalog = await fetchCatalog(orca, { presetId: preset.id, env: preset.env, provider, baseUrl, command, profile, typedKey: input.apiKey?.trim() })
       if (catalog.models.length > 0) {
         await orca.storage.set(cacheKey, { ...catalog, models: catalog.models.map((model) => ({ ...model })) })
       }
