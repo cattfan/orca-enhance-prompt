@@ -7,9 +7,9 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { ContextItemView, ContextLevel } from '../presets'
 import { compilePatterns, isBinaryPath, isExcluded, isSensitive, readText, snippet, treeSummary, walkFiles } from './files'
-import { changedPaths, gitDiff, gitFiles, gitGrep, gitLog, gitStatus, isGitRepo } from './git'
+import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStatus, isGitRepo } from './git'
 import { readRuleFiles } from './instructions'
-import { extractKeywords, scoreFiles } from './relevance'
+import { contentScores, scoreFiles, weightedKeywords } from './relevance'
 import { detectStack } from './stack'
 
 export type ContextItem = ContextItemView & { content: string }
@@ -186,13 +186,17 @@ async function dynamicParts(
     notes.push('Not a git repository: no git context.')
   }
 
-  const keywords = extractKeywords(options.prompt)
-  const grep = parts.isGit ? await gitGrep(root, keywords.filter((word) => word.length >= 4)) : new Map<string, number[]>()
+  const weighted = weightedKeywords(options.prompt)
+  const keywords = weighted.map((entry) => entry.word)
+  const grepTargets = weighted.filter((entry) => entry.word.length >= 4).slice(0, 8)
+  const grepWords = grepTargets.map((entry) => entry.word)
+  const perWord = parts.isGit ? await Promise.all(grepWords.map((word) => gitGrepCount(root, word))) : []
+  const content = contentScores(perWord, files.length, grepTargets.map((entry) => entry.weight))
   const mentionsTests = /\btest|spec|kiểm thử/i.test(options.prompt)
-  const scored = scoreFiles(files, keywords, grep, changed, mentionsTests)
+  const scored = scoreFiles(files, weighted, content, changed, mentionsTests)
   const picked: { path: string; hits: number[]; why: string }[] = scored
     .slice(0, RELEVANT_FILES[options.level])
-    .map((entry) => ({ path: entry.path, hits: entry.hits, why: 'keyword match' }))
+    .map((entry) => ({ path: entry.path, hits: [], why: 'keyword match' }))
 
   if (options.level === 'max' && options.pickFiles) {
     try {
@@ -200,13 +204,17 @@ async function dynamicParts(
       const chosen = await options.pickFiles(shortlist, options.prompt)
       for (const path of chosen.filter((p) => files.includes(p)).slice(0, 8)) {
         if (!picked.some((entry) => entry.path === path)) {
-          picked.push({ path, hits: grep.get(path) ?? [], why: 'picked by AI' })
+          picked.push({ path, hits: [], why: 'picked by AI' })
         }
       }
     } catch (error) {
       notes.push(`AI file picker skipped: ${(error as Error).message}`)
     }
   }
+
+  // Line numbers of the keywords inside the chosen files, for focused snippets.
+  const lines = parts.isGit ? await gitGrep(root, grepWords, picked.map((entry) => entry.path)) : new Map<string, number[]>()
+  for (const entry of picked) entry.hits = lines.get(entry.path) ?? []
 
   const perFile = options.level === 'max' ? 1800 : 1400
   for (const entry of picked) {

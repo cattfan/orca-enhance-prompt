@@ -1,5 +1,6 @@
 // Model profiles in storage, their keys in secrets, and the fallback chain.
 import type { OrcaWorkerApi } from 'orca/worker'
+import { runCli, type CliKind } from './cli'
 import { complete, isLocalUrl, isTransient, LlmError } from './llm'
 import {
   MODELS_KEY,
@@ -28,7 +29,9 @@ function envProfiles(): ModelProfile[] {
         model: preset.model,
         temperature: 0.3,
         maxTokens: 2000,
-        enabled: true
+        enabled: true,
+        command: '',
+        args: ''
       })
     }
   }
@@ -48,6 +51,7 @@ export async function saveModels(orca: OrcaWorkerApi, config: ModelsConfig): Pro
 }
 
 export function needsKey(profile: ModelProfile): boolean {
+  if (profile.provider === 'cli') return false
   return !(profile.provider === 'openai' && isLocalUrl(effectiveBaseUrl(profile)))
 }
 
@@ -63,6 +67,9 @@ export async function resolveKey(
   orca: OrcaWorkerApi,
   profile: ModelProfile
 ): Promise<{ key: string | null; source: ProfileView['keySource'] }> {
+  if (profile.provider === 'cli') {
+    return { key: null, source: 'subscription' }
+  }
   if (!needsKey(profile)) {
     const stored = await orca.secrets.get(secretName(profile.id)).catch(() => null)
     return { key: stored, source: stored ? 'secret' : 'not-needed' }
@@ -158,7 +165,15 @@ export async function runChain(
     const onAbort = () => controller.abort()
     options.signal?.addEventListener('abort', onAbort)
     try {
-      const text = await complete(
+      const text =
+        profile.provider === 'cli'
+          ? await runCli(
+              { kind: profile.preset as CliKind, command: profile.command, model, customArgs: profile.args },
+              system,
+              user,
+              controller.signal
+            )
+          : await complete(
         {
           provider: profile.provider,
           baseUrl: effectiveBaseUrl(profile),

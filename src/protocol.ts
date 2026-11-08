@@ -1,17 +1,21 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
-import type { ContextItemView, ProfileView, Preset } from './presets'
+import type { ContextItemView, ProfileView, Preset, Provider } from './presets'
 
 export type AttemptView = { profileId: string; name: string; model: string; ok: boolean; error?: string; ms: number }
 export type ProfileInput = {
   id?: string
   name: string
   preset: string
-  provider: 'openai' | 'anthropic'
+  provider: Provider
   baseUrl: string
   model: string
   temperature: number
   maxTokens: number
   enabled: boolean
+  /** CLI profiles: executable name or path. */
+  command?: string
+  /** Custom CLI: arguments. */
+  args?: string
   /** New API key; undefined keeps the current one, '' removes it. */
   apiKey?: string
 }
@@ -70,6 +74,8 @@ declare module 'orca' {
     'models.roles': { input: { hookProfileId: string | null; selectorProfileId: string | null }; output: ModelsView }
     /** Sends a tiny request through one profile. */
     'models.test': { input: { id: string }; output: { ok: boolean; message: string; ms: number } }
+    /** Agent CLIs found on this machine (usable with the person's subscription). */
+    'models.detect': { output: { found: { preset: string; label: string; path: string; added: boolean }[] } }
   }
   // oxlint-disable-next-line typescript/consistent-type-definitions -- declaration merging needs an interface
   interface PluginPanelEvents {

@@ -15,7 +15,7 @@ test('extractKeywords keeps identifiers and paths, drops stop words (EN + VI)', 
 
 test('scoreFiles ranks name matches, grep hits and changed files', () => {
   const files = ['src/auth/session.ts', 'src/auth/session.test.ts', 'src/ui/button.tsx', 'docs/session-notes.md', 'test-fixtures/session.ts']
-  const grep = new Map([['src/ui/button.tsx', [3]]])
+  const grep = new Map([['src/ui/button.tsx', 3]])
   const ranked = scoreFiles(files, ['session'], grep, new Set(['docs/session-notes.md']), false)
   assert.equal(ranked[0].path, 'src/auth/session.ts')
   assert.ok(ranked.findIndex((r) => r.path === 'test-fixtures/session.ts') > ranked.findIndex((r) => r.path === 'src/auth/session.ts'))

@@ -14,6 +14,8 @@ const gpt: ProfileView = {
   temperature: 0.3,
   maxTokens: 2000,
   enabled: true,
+  command: '',
+  args: '',
   keySource: 'secret',
   envName: 'OPENAI_API_KEY'
 }

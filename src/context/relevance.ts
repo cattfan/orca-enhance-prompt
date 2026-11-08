@@ -14,6 +14,11 @@ const STOP = new Set(
 
 /** Identifiers, paths and meaningful words from the prompt, most specific first. */
 export function extractKeywords(prompt: string, max = 12): string[] {
+  return weightedKeywords(prompt, max).map((entry) => entry.word)
+}
+
+/** Same, with weights: 5 paths/backticks/dotted names, 4 identifiers/file names, 2 long words, 1 short words. */
+export function weightedKeywords(prompt: string, max = 12): { word: string; weight: number }[] {
   const found = new Map<string, number>()
   const add = (word: string, weight: number) => {
     const key = word.toLowerCase()
@@ -24,6 +29,10 @@ export function extractKeywords(prompt: string, max = 12): string[] {
   for (const match of prompt.matchAll(/[\w@.-]*[/\\][\w@./\\-]+/g)) {
     add(match[0].replace(/\\/g, '/').replace(/^\.\//, ''), 5)
     add(match[0].split(/[/\\]/).pop() ?? '', 4)
+  }
+  // Dotted names such as `agent.prompt.before` or `user.profile.update`: exact strings to grep for.
+  for (const match of prompt.matchAll(/\b[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*){1,4}\b/g)) {
+    if (!/\.(ts|tsx|js|jsx|py|go|rs|java|kt|rb|php|cs|vue|svelte|css|scss|md|json|ya?ml|toml|sql)$/i.test(match[0])) add(match[0], 5)
   }
   for (const match of prompt.matchAll(/\b[A-Za-z_$][\w$]*\b/g)) {
     const word = match[0]
@@ -40,7 +49,7 @@ export function extractKeywords(prompt: string, max = 12): string[] {
   return [...found.entries()]
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .slice(0, max)
-    .map(([word]) => word)
+    .map(([word, weight]) => ({ word, weight }))
 }
 
 const LOW_VALUE = /(^|\/)(test-fixtures|fixtures|__snapshots__|snapshots|migrations|generated|locales?|i18n)\//i
@@ -48,34 +57,61 @@ const TEST_FILE = /(\.|_)(test|spec)\.|(^|\/)tests?\//i
 
 export type Scored = { path: string; score: number; hits: number[] }
 
+/**
+ * Content score per file from per-keyword grep counts, weighted like IDF: a keyword found in few
+ * files says much more than one found everywhere; keywords in over 20% of files are ignored.
+ */
+export function contentScores(
+  perWord: Map<string, number>[],
+  totalFiles: number,
+  weights: number[] = []
+): Map<string, number> {
+  const scores = new Map<string, number>()
+  perWord.forEach((counts, index) => {
+    const df = counts.size
+    if (df === 0 || df > Math.max(20, totalFiles * 0.05)) return
+    const idf = Math.log((totalFiles + 1) / (df + 1))
+    const k = keywordFactor(weights[index] ?? 4)
+    for (const [file, count] of counts) {
+      scores.set(file, (scores.get(file) ?? 0) + k * idf * (1 + Math.log(count)))
+    }
+  })
+  return scores
+}
+
+/** How much a keyword of this weight counts: specific names fully, generic words much less. */
+export const keywordFactor = (weight: number) => (weight >= 4 ? 1 : weight >= 2 ? 0.6 : 0.35)
+
 export function scoreFiles(
   files: string[],
-  keywords: string[],
-  grep: Map<string, number[]>,
+  keywordList: (string | { word: string; weight: number })[],
+  content: Map<string, number>,
   changed: Set<string>,
   promptMentionsTests: boolean
 ): Scored[] {
+  const keywords = keywordList.map((entry) => (typeof entry === 'string' ? { word: entry, weight: 4 } : entry))
   const out: Scored[] = []
   for (const path of files) {
     const lower = path.toLowerCase()
     const name = lower.split('/').pop() ?? lower
     const stem = name.replace(/\.[^.]+$/, '')
     let score = 0
-    for (const word of keywords) {
+    for (const { word, weight } of keywords) {
+      // A generic word ("agent", "hook") in a path says little; a specific one says a lot.
+      const k = keywordFactor(weight)
       if (word.includes('/') && lower.endsWith(word)) score += 12
-      else if (name === word) score += 10
-      else if (stem === word) score += 8
-      else if (stem.includes(word)) score += 4
-      else if (lower.includes(`/${word}/`) || lower.startsWith(`${word}/`)) score += 3
-      else if (lower.includes(word)) score += 1
+      else if (name === word) score += 10 * k
+      else if (stem === word) score += 8 * k
+      else if (stem.includes(word)) score += 4 * k
+      else if (lower.includes(`/${word}/`) || lower.startsWith(`${word}/`)) score += 3 * k
+      else if (lower.includes(word)) score += 1 * k
     }
-    const hits = grep.get(path) ?? []
-    if (hits.length > 0) score += Math.min(8, 2 + hits.length)
+    score += Math.min(24, content.get(path) ?? 0)
     if (changed.has(path)) score += score > 0 ? 4 : 1.5
     if (score <= 0) continue
     if (LOW_VALUE.test(path)) score *= 0.4
     if (TEST_FILE.test(path) && !promptMentionsTests) score *= 0.6
-    out.push({ path, score, hits })
+    out.push({ path, score, hits: [] })
   }
   return out.sort((a, b) => b.score - a.score || a.path.length - b.path.length)
 }

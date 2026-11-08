@@ -79,17 +79,36 @@ export async function gitFiles(root: string): Promise<string[] | null> {
   return out === null ? null : out.split('\n').filter(Boolean).slice(0, 50_000)
 }
 
-/** Files and line numbers matching any keyword (case-insensitive, fixed strings). */
-export async function gitGrep(root: string, keywords: string[], maxLines = 600): Promise<Map<string, number[]>> {
+/** Per file, how many lines contain `word` (case-insensitive, fixed string). */
+export async function gitGrepCount(root: string, word: string): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  const out = await git(root, ['grep', '-c', '-I', '-i', '-F', '--untracked', '--exclude-standard', '-e', word, '--', ...SAFE_PATHSPECS], {
+    maxBytes: 4_000_000,
+    timeoutMs: 5000
+  })
+  for (const line of (out ?? '').split('\n')) {
+    const match = /^(.+):(\d+)$/.exec(line)
+    if (match) counts.set(match[1], Number(match[2]))
+  }
+  return counts
+}
+
+/** Line numbers in `paths` matching any keyword. */
+export async function gitGrep(
+  root: string,
+  keywords: string[],
+  paths: string[],
+  maxLines = 600
+): Promise<Map<string, number[]>> {
   const hits = new Map<string, number[]>()
-  if (keywords.length === 0) {
+  if (keywords.length === 0 || paths.length === 0) {
     return hits
   }
   const args = ['grep', '-n', '-I', '-i', '-F', '--untracked', '--exclude-standard']
   for (const word of keywords.slice(0, 12)) {
     args.push('-e', word)
   }
-  args.push('--', ...SAFE_PATHSPECS)
+  args.push('--', ...paths.map((path) => `:(literal)${path}`))
   const out = await git(root, args, { maxBytes: 3_000_000, timeoutMs: 5000 })
   if (!out) {
     return hits

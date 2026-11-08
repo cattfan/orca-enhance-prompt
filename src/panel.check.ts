@@ -4,7 +4,7 @@ import { PRESETS } from './presets'
 
 const gpt = {
   id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai' as const, baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, keySource: 'secret' as const, envName: 'OPENAI_API_KEY'
+  model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', keySource: 'secret' as const, envName: 'OPENAI_API_KEY'
 }
 const claude = { ...gpt, id: 'claude', name: 'Anthropic', preset: 'anthropic', provider: 'anthropic' as const, baseUrl: 'https://api.anthropic.com', model: 'claude-haiku-4-5', keySource: 'none' as const, envName: 'ANTHROPIC_API_KEY' }
 const models = (profiles: (typeof gpt | typeof claude)[]) => ({ profiles, hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS })

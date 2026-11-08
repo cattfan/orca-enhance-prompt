@@ -60,6 +60,7 @@ const pressEnter = atom<boolean | null>('pressEnter', null)
 const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
 const historyFilter = atom('historyFilter', '')
 const form = atom<Form | null>('form', null)
+const detected = atom<{ preset: string; label: string; path: string; added: boolean }[]>([])
 
 const busy = atom<'enhance' | 'preview' | 'send' | 'test' | 'save' | null>(null)
 const notice = atom<Notice>(null)
@@ -244,11 +245,48 @@ function openForm(profile?: ProfileView): void {
       temperature: profile.temperature,
       maxTokens: profile.maxTokens,
       enabled: profile.enabled,
+      command: profile.command,
+      args: profile.args,
       apiKey: ''
     })
   } else {
     const preset = presetById('openai')
-    set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, temperature: 0.3, maxTokens: 2000, enabled: true, apiKey: '' })
+    set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', apiKey: '' })
+  }
+}
+
+async function detectClis(): Promise<void> {
+  try {
+    const { found } = await plugin.request('models.detect')
+    set(detected, found)
+  } catch {
+    set(detected, [])
+  }
+}
+
+/** One click: adds a detected subscription CLI as a model with its defaults. */
+async function addDetected(presetId: string, path: string): Promise<void> {
+  const preset = presetById(presetId)
+  try {
+    set(
+      models,
+      await plugin.request('models.save', {
+        name: preset.label.replace(/ \(.*\)$/, ''),
+        preset: preset.id,
+        provider: preset.provider,
+        baseUrl: '',
+        model: preset.model,
+        temperature: 0.3,
+        maxTokens: 2000,
+        enabled: true,
+        command: path,
+        args: ''
+      })
+    )
+    await detectClis()
+    set(notice, { tone: 'success', text: `Added ${preset.label}. Use Test to check it is signed in.` })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
   }
 }
 
@@ -256,7 +294,7 @@ function applyPreset(id: string): void {
   const preset = presetById(id)
   update(form, (current) =>
     current
-      ? { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, name: current.id ? current.name : preset.label }
+      ? { ...current, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, command: '', args: '', name: current.id ? current.name : preset.label }
       : current
   )
 }
@@ -340,13 +378,20 @@ export function setup(ctx: PanelContext): void {
   void refreshDefaults()
   void refreshModels()
   void refreshTargets()
+  void detectClis()
 }
 
 // ---------------------------------------------------------------- view
 
 const styleOptions = STYLES.map((value) => ({ value, label: STYLE_LABELS[value] }))
 const levelOptions = CONTEXT_LEVELS.map((value) => ({ value, label: CONTEXT_LEVEL_LABELS[value] }))
-const KEY_LABEL: Record<ProfileView['keySource'], string> = { secret: 'key saved', env: 'key from env', none: 'no key', 'not-needed': 'local' }
+const KEY_LABEL: Record<ProfileView['keySource'], string> = {
+  secret: 'key saved',
+  env: 'key from env',
+  none: 'no key',
+  'not-needed': 'local',
+  subscription: 'subscription'
+}
 
 function NoticeBar() {
   const current = read(notice)
@@ -573,6 +618,7 @@ function ProfileForm() {
   const view = read(models)
   if (!current || !view) return null
   const custom = current.preset === 'custom'
+  const cli = current.provider === 'cli'
   const editing = Boolean(current.id)
   const keyHint = editing ? 'Leave empty to keep the saved key' : presetById(current.preset).env ? `Or set ${presetById(current.preset).env}` : 'Not needed for local servers'
   return (
@@ -591,10 +637,35 @@ function ProfileForm() {
           onChange={(value) => patchForm({ provider: value === 'anthropic' ? 'anthropic' : 'openai' })}
         />
       ) : null}
-      <Input label="Base URL" placeholder="https://…" value={current.baseUrl} onChange={(value) => patchForm({ baseUrl: value })} />
-      <Input label="Model" placeholder={presetById(current.preset).model || 'model-id'} value={current.model} onChange={(value) => patchForm({ model: value })} />
-      <Input label="API key" type="password" placeholder={keyHint} value={current.apiKey} onChange={(value) => patchForm({ apiKey: value })} />
-      <Row gap="xs" wrap>
+      {cli ? (
+        <Stack gap="sm">
+          <Text muted size="xs">
+            Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an
+            API (a few seconds per call), so it is skipped by auto-enhance.
+          </Text>
+          <Input
+            label="Command"
+            placeholder={current.preset === 'custom-cli' ? 'my-llm' : 'Found on PATH automatically; or a full path'}
+            value={current.command ?? ''}
+            onChange={(value) => patchForm({ command: value })}
+          />
+          {current.preset === 'custom-cli' ? (
+            <Input label="Arguments" placeholder="run --quiet" value={current.args ?? ''} onChange={(value) => patchForm({ args: value })} />
+          ) : null}
+        </Stack>
+      ) : (
+        <Input label="Base URL" placeholder="https://…" value={current.baseUrl} onChange={(value) => patchForm({ baseUrl: value })} />
+      )}
+      <Input
+        label={cli ? 'Model (optional)' : 'Model'}
+        placeholder={presetById(current.preset).model || (cli ? 'CLI default' : 'model-id')}
+        value={current.model}
+        onChange={(value) => patchForm({ model: value })}
+      />
+      {cli ? null : (
+        <Input label="API key" type="password" placeholder={keyHint} value={current.apiKey} onChange={(value) => patchForm({ apiKey: value })} />
+      )}
+      {cli ? null : <Row gap="xs" wrap>
         <Select
           label="Temperature"
           value={String(current.temperature)}
@@ -607,9 +678,17 @@ function ProfileForm() {
           options={['1000', '2000', '4000', '8000', '16000'].map((value) => ({ value, label: `${value} tokens` }))}
           onChange={(value) => patchForm({ maxTokens: Number(value) })}
         />
-      </Row>
+      </Row>}
       <Row gap="xs">
-        <Button icon="check" onPress={() => void saveForm()} disabled={!current.name.trim() || !current.baseUrl.trim() || read(busy) === 'save'}>
+        <Button
+          icon="check"
+          onPress={() => void saveForm()}
+          disabled={
+            !current.name.trim() ||
+            (cli ? current.preset === 'custom-cli' && !current.command?.trim() : !current.baseUrl.trim()) ||
+            read(busy) === 'save'
+          }
+        >
           Save
         </Button>
         <Button variant="ghost" onPress={() => set(form, null)}>
@@ -657,6 +736,26 @@ function ProfileCard({ profile, index, count, fromEnv }: { profile: ProfileView;
   )
 }
 
+/** Subscription CLIs found on this machine that are not added yet: one click to use them. */
+function SubscriptionCallout() {
+  const available = read(detected).filter((entry) => !entry.added)
+  if (available.length === 0) return null
+  return (
+    <Callout tone="success" title="Use your subscription, no API key" icon="agent">
+      <Stack gap="xs">
+        <Text size="sm">Found on this machine. Uses the account the CLI is signed in with.</Text>
+        <Row gap="xs" wrap>
+          {available.map((entry) => (
+            <Button key={entry.preset} size="sm" variant="outline" icon="add" tooltip={entry.path} onPress={() => void addDetected(entry.preset, entry.path)}>
+              {entry.label}
+            </Button>
+          ))}
+        </Row>
+      </Stack>
+    </Callout>
+  )
+}
+
 function ModelsTab() {
   const view = read(models)
   const prefs = read(defaults)
@@ -686,8 +785,9 @@ function ModelsTab() {
           <Text size="sm">Add a model below to customize; then only your saved models are used.</Text>
         </Callout>
       ) : null}
+      <SubscriptionCallout />
       {view.profiles.length === 0 && !read(form) ? (
-        <EmptyState icon="agent" title="No models yet" description="Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studio or any OpenAI-compatible endpoint." />
+        <EmptyState icon="agent" title="No models yet" description="Use a subscription CLI above, or add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studio or any OpenAI-compatible endpoint." />
       ) : null}
       <Stack gap="xs">
         {view.profiles.map((profile, index) => (

@@ -2,6 +2,7 @@
 // fallback, sends prompts to agent terminals, keeps history, manages model profiles, and runs the
 // optional agent.prompt.before auto-enhance hook.
 import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
+import { CLI_BINARIES, detectClis } from './cli'
 import { copyToClipboard } from './clipboard'
 import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index'
 import { HISTORY_KEY, parseHistory, toJson, type HistoryEntry } from './history'
@@ -16,7 +17,7 @@ import {
   viewProfiles,
   type ChainOptions
 } from './models'
-import { isContextLevel, newProfileId, normalizeProfile, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
+import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelsConfig } from './presets'
 import { buildSystemPrompt, buildUserMessage, cleanOutput, formatForTerminal, isStyle, type Style } from './prompts'
 import type { ModelsView } from './protocol'
 
@@ -373,6 +374,19 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   })
 
+  orca.panels.handle('models.detect', async () => {
+    const config = await loadModels(orca)
+    const found = detectClis().map(({ kind, path }) => ({
+      preset: kind,
+      label: presetById(kind).label,
+      path,
+      added: config.profiles.some(
+        (profile) => profile.preset === kind && (!profile.command || profile.command === path || profile.command === CLI_BINARIES[kind])
+      )
+    }))
+    return { found }
+  })
+
   // ---- auto-enhance hook ----
 
   orca.hooks.on('agent.prompt.before', async (event, next) => {
@@ -395,7 +409,11 @@ export default function activate(orca: OrcaWorkerApi): void {
         customInstructions: settings.customInstructions,
         agent: settings.adaptToAgent ? event.agent : null
       })
-      const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled)
+      // CLI models take seconds to start; the hook has under 2 s, so it uses API models only.
+      const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled).filter(
+        (profile) => profile.provider !== 'cli'
+      )
+      if (list.length === 0) return
       const result = await runChain(
         orca,
         list,

@@ -22,6 +22,9 @@ functions, conventions and test commands, instead of a generic "make it clearer"
 - **Context used** list after each run (or **Preview context** before): untick any item to leave it out next time.
 - **Never sent**: `.env*`, `*.pem`/`*.key`, credential and secret files, plus your own exclude patterns (lockfiles, `dist/`… by default).
 - **Agent-aware**: shapes the prompt for Claude Code, Codex, Gemini CLI or Aider when you pick a target terminal.
+- **Use your subscription, no API key**: Claude Code (Claude Pro/Max), Codex CLI (ChatGPT plan),
+  Gemini CLI (Google account) or any CLI that reads stdin. Detected automatically, added in one click,
+  run one-shot in an empty temp folder with no tools.
 - **Multiple models with fallback**: add as many as you like (OpenAI, Anthropic, OpenRouter, Google Gemini, Groq,
   DeepSeek, Mistral, Ollama, LM Studio, any OpenAI-compatible endpoint), reorder them, enable/disable, test.
   When one fails the next is tried, on any error or only on network/timeout/429/5xx. Pick a model per prompt,
@@ -41,7 +44,8 @@ functions, conventions and test commands, instead of a generic "make it clearer"
 ## Setup
 
 1. Install from the Orca plugin directory (or `orca plugin install cattfan/orca-enhance-prompt`).
-2. Panel → **Models** tab → **Add model**: pick a preset, paste the API key (stored encrypted by Orca), **Test**.
+2. Panel → **Models** tab. If Claude Code / Codex / Gemini CLI is installed and signed in, click it under
+   *Use your subscription*: done, no key needed. Or **Add model**: pick a preset, paste the API key (stored encrypted by Orca), **Test**.
    Add a second model to get fallback. Keys in `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`,
    `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY` or `MISTRAL_API_KEY` are picked up automatically.
 3. Everything else (default style and context level, language, custom instructions, extra files,
@@ -57,6 +61,9 @@ functions, conventions and test commands, instead of a generic "make it clearer"
 | `terminal:send` | Typing the prompt into the agent terminal you pick |
 | `terminal:read` | Max context level only: recent output of the target terminal |
 
+Subscription models run the CLI you picked (`claude -p`, `codex exec --sandbox read-only`, `gemini -p`) with
+the prompt on stdin, in an empty temporary folder; they are skipped by auto-enhance (too slow for its 2 s).
+
 The worker also runs read-only `git` commands (`status`, `log`, `diff`, `ls-files`, `grep`) in the
 focused workspace for the Standard level and above. SSH/WSL workspaces get workspace/agent context only.
 
@@ -66,6 +73,8 @@ There is no tracking, analytics or telemetry. Your prompt, plus the context you 
 in "Context used"), goes only to the model endpoints you configured. API keys stay in Orca's encrypted
 secrets store. Copy uses the OS clipboard tool (`clip.exe`, `pbcopy`, `wl-copy`/`xclip`/`xsel`) with the
 text passed on stdin.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## Development
 
@@ -82,11 +91,10 @@ There is no build step: Orca transpiles `src/*.ts(x)` when it loads them.
 
 ## Release
 
+Bump `version` in `orca-plugin.json`, add the section to `CHANGELOG.md`, then:
+
 ```sh
-orca plugin validate .
-# bump "version" in orca-plugin.json, commit, then:
-git tag -a v1.1.0 -m v1.1.0 && git push origin v1.1.0
-gh repo edit --add-topic orca-plugin
+node scripts/release.mjs 1.2.0   # checks, commit, tag v1.2.0, push, GitHub release with the changelog notes
 ```
 
 Listing status: https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt

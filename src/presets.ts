@@ -1,7 +1,8 @@
 // Model presets and profile parsing, shared by the panel and the worker (no Node imports).
 import type { JsonValue } from 'orca'
 
-export type Provider = 'openai' | 'anthropic'
+/** `cli` runs an installed agent CLI (Claude Code, Codex, Gemini CLI) on the person's subscription. */
+export type Provider = 'openai' | 'anthropic' | 'cli'
 
 export type Preset = {
   id: string
@@ -23,11 +24,18 @@ export const PRESETS: Preset[] = [
   { id: 'mistral', label: 'Mistral', provider: 'openai', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', env: 'MISTRAL_API_KEY' },
   { id: 'ollama', label: 'Ollama (local)', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5-coder', env: '' },
   { id: 'lmstudio', label: 'LM Studio (local)', provider: 'openai', baseUrl: 'http://localhost:1234/v1', model: 'local-model', env: '' },
-  { id: 'custom', label: 'Custom (OpenAI-compatible)', provider: 'openai', baseUrl: '', model: '', env: '' }
+  { id: 'custom', label: 'Custom (OpenAI-compatible)', provider: 'openai', baseUrl: '', model: '', env: '' },
+  // Subscription CLIs: `baseUrl` is unused, `model` is optional (the CLI's default otherwise).
+  { id: 'claude-code', label: 'Claude Code (subscription)', provider: 'cli', baseUrl: '', model: 'haiku', env: '' },
+  { id: 'codex', label: 'Codex CLI (ChatGPT subscription)', provider: 'cli', baseUrl: '', model: '', env: '' },
+  { id: 'gemini-cli', label: 'Gemini CLI (Google account)', provider: 'cli', baseUrl: '', model: '', env: '' },
+  { id: 'custom-cli', label: 'Custom CLI (prompt on stdin)', provider: 'cli', baseUrl: '', model: '', env: '' }
 ]
 
+export const isCliPreset = (id: string) => presetById(id).provider === 'cli'
+
 export function presetById(id: string): Preset {
-  return PRESETS.find((preset) => preset.id === id) ?? PRESETS[PRESETS.length - 1]
+  return PRESETS.find((preset) => preset.id === id) ?? PRESETS.find((preset) => preset.id === 'custom')!
 }
 
 export type ModelProfile = {
@@ -40,6 +48,10 @@ export type ModelProfile = {
   temperature: number
   maxTokens: number
   enabled: boolean
+  /** CLI profiles: executable name or full path ('' = the preset's default binary). */
+  command: string
+  /** Custom CLI only: arguments (plain tokens, no quotes). */
+  args: string
 }
 
 export type ModelsConfig = {
@@ -52,7 +64,10 @@ export type ModelsConfig = {
 }
 
 /** What the panel sees: never the key itself. */
-export type ProfileView = ModelProfile & { keySource: 'secret' | 'env' | 'none' | 'not-needed'; envName: string }
+export type ProfileView = ModelProfile & {
+  keySource: 'secret' | 'env' | 'none' | 'not-needed' | 'subscription'
+  envName: string
+}
 
 export const MODELS_KEY = 'models'
 
@@ -74,12 +89,14 @@ export function normalizeProfile(value: unknown): ModelProfile | null {
     id,
     name: str(raw.name).trim().slice(0, 60) || preset.label,
     preset: preset.id,
-    provider: raw.provider === 'anthropic' ? 'anthropic' : 'openai',
+    provider: preset.provider === 'cli' ? 'cli' : raw.provider === 'anthropic' ? 'anthropic' : 'openai',
     baseUrl: str(raw.baseUrl).trim().slice(0, 500),
     model: str(raw.model).trim().slice(0, 200),
     temperature: Math.min(2, Math.max(0, num(raw.temperature, 0.3))),
     maxTokens: Math.round(Math.min(32000, Math.max(128, num(raw.maxTokens, 2000)))),
-    enabled: raw.enabled !== false
+    enabled: raw.enabled !== false,
+    command: str(raw.command).trim().slice(0, 500),
+    args: str(raw.args).trim().slice(0, 500)
   }
 }
 
