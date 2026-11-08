@@ -5,7 +5,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { icon, PANEL_CSS, renderPanel } from './render-panel.mjs'
 
@@ -19,6 +19,23 @@ const browsers = [
 ]
 const browser = browsers.find((path) => existsSync(path))
 if (!browser) throw new Error('Chrome or Edge is needed to render the images')
+
+// `orca plugin check` validates the manifest, which names the listing images: draw a blank stand-in for
+// any that do not exist yet (first run, or a renamed file), so the check can run and replace them.
+const manifestImages = (() => {
+  try {
+    const manifest = JSON.parse(readFileSync(join(root, 'orca-plugin.json'), 'utf8'))
+    return [manifest.cover?.path, ...(manifest.screenshots ?? []).map((shot) => shot.path)].filter(Boolean)
+  } catch {
+    return []
+  }
+})()
+for (const path of manifestImages) {
+  const file = join(root, path)
+  if (existsSync(file)) continue
+  mkdirSync(dirname(file), { recursive: true })
+  execFileSync(browser, ['--headless=new', '--disable-gpu', '--window-size=1600,1000', `--screenshot=${file}`, 'about:blank'], { stdio: 'ignore' })
+}
 
 const raw = execFileSync('orca', ['plugin', 'check', '.', '--json'], {
   cwd: root,
@@ -152,11 +169,11 @@ const shoot = (html, out, size, dpr) => {
   ], { stdio: 'ignore' })
 }
 for (const [name, html] of Object.entries(images)) {
-  shoot(html, join(root, 'assets', `${name}.png`), '1600,1000', 1)
-  console.log(`assets/${name}.png`)
+  shoot(html, join(root, 'assets', `${name}.jpg`), '1600,1000', 1)
+  console.log(`assets/${name}.jpg`)
 }
 for (const [name, html] of Object.entries(features)) {
-  shoot(html, join(root, 'docs/assets/readme-features', `${name}.png`), '960,600', 2)
-  console.log(`docs/assets/readme-features/${name}.png`)
+  shoot(html, join(root, 'docs/assets/readme-features', `${name}.jpg`), '960,600', 1.5)
+  console.log(`docs/assets/readme-features/${name}.jpg`)
 }
 rmSync(work, { recursive: true, force: true })

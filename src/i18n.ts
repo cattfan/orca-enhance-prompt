@@ -17,7 +17,8 @@ export function resolveLanguage(setting: string, locale: string): UiLanguage {
 }
 
 const VI: Record<string, string> = {
-  Privacy: 'Quyền riêng tư',
+  Models: 'Model',
+  Privacy: 'Riêng tư',
   'Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.': 'Orca chỉ hỏi một lần cho mọi quyền của plugin. Các công tắc này quyết định plugin thực sự được dùng gì; plugin kiểm tra chúng mỗi lần.',
   'What it may use': 'Plugin được dùng gì',
   'Read project files': 'Đọc file dự án',
@@ -228,6 +229,7 @@ const VI: Record<string, string> = {
 }
 
 const ZH: Record<string, string> = {
+  Models: '模型',
   Privacy: '隐私',
   'Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.': 'Orca 只会一次性请求插件的全部权限。这些开关决定插件实际使用哪些；插件每次都会检查。',
   'What it may use': '允许使用',

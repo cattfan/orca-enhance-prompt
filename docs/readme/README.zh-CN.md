@@ -21,7 +21,7 @@
 <h3 align="center"><a href="#安装"><ins>安装 Enhance Prompt</ins></a></h3>
 
 <p align="center">
-  <img src="../../assets/cover.png" alt="Enhance Prompt 面板把 “login page is broken on mobile” 改写成包含文件和测试命令的修复提示词" width="960" />
+  <img src="../../assets/cover.jpg" alt="Enhance Prompt 面板把 “login page is broken on mobile” 改写成包含文件和测试命令的修复提示词" width="960" />
 </p>
 
 ## 功能
@@ -38,7 +38,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/enhance-and-send.png" alt="优化后的提示词与发送、复制、继续优化按钮" width="100%" />
+  <img src="../assets/readme-features/enhance-and-send.jpg" alt="优化后的提示词与发送、复制、继续优化按钮" width="100%" />
 </td>
 </tr>
 <tr>
@@ -52,7 +52,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/project-context.png" alt="已用上下文列表" width="100%" />
+  <img src="../assets/readme-features/project-context.jpg" alt="已用上下文列表" width="100%" />
 </td>
 </tr>
 <tr>
@@ -66,7 +66,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/subscription.png" alt="无需 API key 添加 Claude Code 和 Codex CLI" width="100%" />
+  <img src="../assets/readme-features/subscription.jpg" alt="无需 API key 添加 Claude Code 和 Codex CLI" width="100%" />
 </td>
 </tr>
 <tr>
@@ -80,7 +80,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/models-fallback.png" alt="回退设置和自动优化模式" width="100%" />
+  <img src="../assets/readme-features/models-fallback.jpg" alt="回退设置和自动优化模式" width="100%" />
 </td>
 </tr>
 <tr>
@@ -94,7 +94,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/languages.png" alt="越南语面板与中文历史标签" width="100%" />
+  <img src="../assets/readme-features/languages.jpg" alt="越南语面板与中文历史标签" width="100%" />
 </td>
 </tr>
 <tr>
@@ -108,7 +108,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/history.png" alt="历史标签" width="100%" />
+  <img src="../assets/readme-features/history.jpg" alt="历史标签" width="100%" />
 </td>
 </tr>
 </table>

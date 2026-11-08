@@ -3,6 +3,16 @@
 All notable changes to Enhance Prompt. Versions follow [semver](https://semver.org); each
 version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [1.8.1] - 2026-11-08
+
+### Fixed
+- Tabs no longer overflow a narrow sidebar: short names without counts ("Privacy" is "Riêng tư" in Vietnamese).
+- Privacy switches are checkboxes, so every row lines up (Orca draws a switch right after its label).
+
+### Changed
+- **The plugin is about 6x smaller** (7.8 MB to 1.3 MB): the cover, screenshots and README pictures are JPEG,
+  README pictures at 1.5x. The community directory holds large updates for review.
+
 ## [1.8.0] - 2026-11-08
 
 ### Added
@@ -177,6 +187,7 @@ version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[1.8.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.1
 [1.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.8.0
 [1.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.7.0
 [1.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v1.6.2

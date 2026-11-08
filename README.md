@@ -21,7 +21,7 @@
 <h3 align="center"><a href="#install"><ins>Install Enhance Prompt</ins></a></h3>
 
 <p align="center">
-  <img src="assets/cover.png" alt="The Enhance Prompt panel turning “login page is broken on mobile” into a structured bug-fix prompt that names the files and the test command" width="960" />
+  <img src="assets/cover.jpg" alt="The Enhance Prompt panel turning “login page is broken on mobile” into a structured bug-fix prompt that names the files and the test command" width="960" />
 </p>
 
 ## Features
@@ -38,7 +38,7 @@ Write what you want in a sentence. Enhance rewrites it into a prompt with a goal
 
 </td>
 <td width="50%">
-  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.png" alt="An enhanced prompt with Send to agent, Copy and Refine" width="100%" /></a>
+  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.jpg" alt="An enhanced prompt with Send to agent, Copy and Refine" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -52,7 +52,7 @@ Five context levels, from the prompt alone to your agent rules, stack, git chang
 
 </td>
 <td width="50%">
-  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.png" alt="The Context used list: AGENTS.md, stack and commands, two relevant files, git status and the repo tree" width="100%" /></a>
+  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.jpg" alt="The Context used list: AGENTS.md, stack and commands, two relevant files, git status and the repo tree" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -66,7 +66,7 @@ Claude Code, Codex and Gemini CLI are detected on your machine and added in one 
 
 </td>
 <td width="50%">
-  <a href="docs/models.md#subscription-clis"><img src="docs/assets/readme-features/subscription.png" alt="Use your subscription: Claude Code and Codex CLI added without an API key" width="100%" /></a>
+  <a href="docs/models.md#subscription-clis"><img src="docs/assets/readme-features/subscription.jpg" alt="Use your subscription: Claude Code and Codex CLI added without an API key" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -80,7 +80,7 @@ Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM S
 
 </td>
 <td width="50%">
-  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.png" alt="Fallback settings and the auto-enhance mode in the Models tab" width="100%" /></a>
+  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="Fallback settings and the auto-enhance mode in the Models tab" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -94,7 +94,7 @@ The panel follows Orca's language or your pick. The enhanced prompt can be writt
 
 </td>
 <td width="50%">
-  <a href="docs/settings.md#language"><img src="docs/assets/readme-features/languages.png" alt="The panel in Vietnamese next to the history tab in Chinese" width="100%" /></a>
+  <a href="docs/settings.md#language"><img src="docs/assets/readme-features/languages.jpg" alt="The panel in Vietnamese next to the history tab in Chinese" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -108,7 +108,7 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 
 </td>
 <td width="50%">
-  <a href="docs/getting-started.md#5-reuse-from-history"><img src="docs/assets/readme-features/history.png" alt="The History tab with five past prompts" width="100%" /></a>
+  <a href="docs/getting-started.md#5-reuse-from-history"><img src="docs/assets/readme-features/history.jpg" alt="The History tab with five past prompts" width="100%" /></a>
 </td>
 </tr>
 </table>

@@ -1137,8 +1137,15 @@ function PrivacyTab() {
       <Section title={t('What it may use')} hint={t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.')}>
         <Stack gap="xs">
           {PRIVACY_ROWS.map((row) => (
-            <Row key={row.key} gap="xs" justify="between">
-              <Switch label={t(row.label)} checked={flags[row.key] !== false} onChange={(value) => { update(privacy, (map) => ({ ...map, [row.key]: value })); void setSetting(row.key, value) }} />
+            <Row key={row.key} gap="xs">
+              <Checkbox
+                label={t(row.label)}
+                checked={flags[row.key] !== false}
+                onChange={(value) => {
+                  update(privacy, (map) => ({ ...map, [row.key]: value }))
+                  void setSetting(row.key, value)
+                }}
+              />
               <Hint text={t(row.hint)} />
             </Row>
           ))}
@@ -1307,7 +1314,6 @@ function ModelsTab() {
 }
 
 export default function Panel() {
-  const view = read(models)
   return (
     <Tabs
       label="Enhance Prompt"
@@ -1320,10 +1326,10 @@ export default function Panel() {
       <Tab value="enhance" label={t('Enhance')} icon="lightbulb">
         <EnhanceTab />
       </Tab>
-      <Tab value="history" label={t('History ({count})', { count: read(history).length })} icon="book">
+      <Tab value="history" label={t('History')} icon="book">
         <HistoryTab />
       </Tab>
-      <Tab value="models" label={t('Models ({count})', { count: view?.profiles.length ?? 0 })} icon="agent">
+      <Tab value="models" label={t('Models')} icon="agent">
         <ModelsTab />
       </Tab>
       <Tab value="privacy" label={t('Privacy')} icon="info">

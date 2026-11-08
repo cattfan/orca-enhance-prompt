@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",
@@ -418,22 +418,22 @@
     }
   ],
   "cover": {
-    "path": "assets/cover.png",
+    "path": "assets/cover.jpg",
     "alt": "Enhance Prompt panel turning \"login page is broken on mobile\" into a structured, project-aware bug-fix prompt"
   },
   "screenshots": [
     {
-      "path": "assets/screenshots/1-enhance.png",
+      "path": "assets/screenshots/1-enhance.jpg",
       "alt": "The Enhance tab with the list of project context sent to the model: rules, stack, relevant files, git status and repo tree",
       "caption": "Grounded in your repo: 5 context levels, see and untick what is sent"
     },
     {
-      "path": "assets/screenshots/2-models.png",
+      "path": "assets/screenshots/2-models.jpg",
       "alt": "The Models tab with Claude Code subscription, OpenAI, Groq and Ollama models, fallback switch and one-click subscription CLI",
       "caption": "Your subscription or API keys, with fallback between models"
     },
     {
-      "path": "assets/screenshots/3-languages.png",
+      "path": "assets/screenshots/3-languages.jpg",
       "alt": "The panel in Vietnamese and the history tab in Chinese",
       "caption": "English, Tiếng Việt and 中文"
     }

@@ -21,7 +21,7 @@
 <h3 align="center"><a href="#cài-đặt"><ins>Cài Enhance Prompt</ins></a></h3>
 
 <p align="center">
-  <img src="../../assets/cover.png" alt="Panel Enhance Prompt biến “login page is broken on mobile” thành prompt sửa lỗi có cấu trúc, nêu rõ file và lệnh test" width="960" />
+  <img src="../../assets/cover.jpg" alt="Panel Enhance Prompt biến “login page is broken on mobile” thành prompt sửa lỗi có cấu trúc, nêu rõ file và lệnh test" width="960" />
 </p>
 
 ## Tính năng
@@ -38,7 +38,7 @@ Gõ một câu mô tả việc cần làm. Enhance viết lại thành prompt c�
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/enhance-and-send.png" alt="Prompt đã cải thiện với nút Gửi cho agent, Sao chép và Tinh chỉnh tiếp" width="100%" />
+  <img src="../assets/readme-features/enhance-and-send.jpg" alt="Prompt đã cải thiện với nút Gửi cho agent, Sao chép và Tinh chỉnh tiếp" width="100%" />
 </td>
 </tr>
 <tr>
@@ -52,7 +52,7 @@ Năm mức ngữ cảnh, từ chỉ prompt tới luật agent, stack, thay đổ
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/project-context.png" alt="Danh sách ngữ cảnh đã dùng" width="100%" />
+  <img src="../assets/readme-features/project-context.jpg" alt="Danh sách ngữ cảnh đã dùng" width="100%" />
 </td>
 </tr>
 <tr>
@@ -66,7 +66,7 @@ Claude Code, Codex và Gemini CLI trên máy được tự phát hiện, bấm m
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/subscription.png" alt="Thêm Claude Code và Codex CLI không cần API key" width="100%" />
+  <img src="../assets/readme-features/subscription.jpg" alt="Thêm Claude Code và Codex CLI không cần API key" width="100%" />
 </td>
 </tr>
 <tr>
@@ -80,7 +80,7 @@ OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studi
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/models-fallback.png" alt="Cài đặt fallback và chế độ tự cải thiện" width="100%" />
+  <img src="../assets/readme-features/models-fallback.jpg" alt="Cài đặt fallback và chế độ tự cải thiện" width="100%" />
 </td>
 </tr>
 <tr>
@@ -94,7 +94,7 @@ Panel theo ngôn ngữ của Orca hoặc theo lựa chọn của bạn. Prompt �
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/languages.png" alt="Panel tiếng Việt cạnh tab lịch sử tiếng Trung" width="100%" />
+  <img src="../assets/readme-features/languages.jpg" alt="Panel tiếng Việt cạnh tab lịch sử tiếng Trung" width="100%" />
 </td>
 </tr>
 <tr>
@@ -108,7 +108,7 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/history.png" alt="Tab lịch sử" width="100%" />
+  <img src="../assets/readme-features/history.jpg" alt="Tab lịch sử" width="100%" />
 </td>
 </tr>
 </table>
