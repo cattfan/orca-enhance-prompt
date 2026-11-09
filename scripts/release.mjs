@@ -4,7 +4,7 @@
 // tsc, tests, check and validate pass. Then it commits those two files only, tags vX.Y.Z, pushes,
 // and creates the GitHub release with the changelog section as notes.
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { commitSubject, latestTag, RELEASE_FILES, unexpectedChanges, versionProblem } from './release-lib.mjs'
@@ -48,6 +48,12 @@ const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const section = new RegExp(`## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|\\n\\[\\d)`).exec(changelog)
 if (!section) fail(`CHANGELOG.md has no "## [${version}]" section`)
 if (!changelog.includes(`[${version}]: `)) fail(`CHANGELOG.md has no "[${version}]: <link>" line at the bottom`)
+// What's new reads the translated changelogs, bundled into the built panel: both need this version.
+for (const path of ['docs/changelog/CHANGELOG.vi.md', 'docs/changelog/CHANGELOG.zh-CN.md']) {
+  if (!readFileSync(path, 'utf8').includes(`## [${version}]`)) fail(`${path} has no "## [${version}]" section`)
+}
+const built = readdirSync('src/web-dist/assets').map((name) => readFileSync(`src/web-dist/assets/${name}`, 'utf8')).join('\n')
+if (!built.includes(`[${version}]`)) fail(`src/web-dist does not include ${version}'s notes: run npm run web:build and commit it first`)
 
 run('npx', ['tsc', '-p', '.'])
 run('orca', ['plugin', 'test', '.'])

@@ -1,7 +1,8 @@
-// What's new and the changelog, from CHANGELOG.md (bundled as text, loaded when the dialog opens).
+// What's new and the changelog, from CHANGELOG.md and its translations (bundled as text, loaded when
+// the dialog opens).
 // The version in the header opens it; after an update it opens once by itself.
 import { useEffect, useState, type ReactNode } from 'react'
-import { t } from '../../src/i18n.ts'
+import { currentLanguage, t, type UiLanguage } from '../../src/i18n.ts'
 import { VERSION } from '../../src/version.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Segmented } from './common'
@@ -66,12 +67,26 @@ function ReleaseBody({ body }: { body: string }) {
 
 const SEEN_KEY = 'enhance-prompt:seen-version'
 
+/**
+ * The changelog in the panel's language (docs/changelog/CHANGELOG.<lang>.md), each release falling
+ * back to the English one when its translation is missing. Loaded only when the dialog opens.
+ */
+async function loadChangelog(lang: UiLanguage): Promise<Release[]> {
+  const english = parseChangelog((await import('../../CHANGELOG.md?raw')).default)
+  if (lang === 'en') return english
+  const text = lang === 'vi' ? (await import('../../docs/changelog/CHANGELOG.vi.md?raw')).default : (await import('../../docs/changelog/CHANGELOG.zh-CN.md?raw')).default
+  const translated = new Map(parseChangelog(text).map((release) => [release.version, release]))
+  return english.map((release) => translated.get(release.version) ?? release)
+}
+
 export function WhatsNew() {
-  const [releases, setReleases] = useState<Release[]>([])
+  const lang = currentLanguage()
+  const [loaded, setLoaded] = useState<{ lang: string; releases: Release[] } | null>(null)
   const [open, setOpen] = useState(false)
   useEffect(() => {
-    if (open && releases.length === 0) void import('../../CHANGELOG.md?raw').then((module) => setReleases(parseChangelog(module.default)))
-  }, [open, releases.length])
+    if (open && loaded?.lang !== lang) void loadChangelog(lang).then((list) => setLoaded({ lang, releases: list }))
+  }, [open, lang, loaded?.lang])
+  const releases = loaded?.releases ?? []
   const [view, setView] = useState('new')
   // After an update (not on the first install), show what changed once.
   useEffect(() => {
