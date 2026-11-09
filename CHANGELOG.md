@@ -3,6 +3,17 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.2.1] - 2026-11-09
+
+### Fixed
+
+- Project context works again on current Orca: Orca now names this machine's workspaces "local" instead of leaving the host empty, so every workspace was taken for an SSH/WSL one and the rules, git, code search and AI file picker steps were all skipped.
+- Several workspaces with the same name and branch (several checkouts on "main") are told apart: the panel learns each terminal's workspace from Orca's agent events, and when it still cannot tell, asks once which folder the project is in.
+
+### Changed
+
+- The explanation line under the progress steps is gone; the ≈ next to the model's share still marks the estimate.
+
 ## [2.2.0] - 2026-11-09
 
 ### Added
@@ -320,6 +331,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.2.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.1
 [2.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.0
 [2.1.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.1.1
 [2.1.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.1.0
