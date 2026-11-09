@@ -3,6 +3,23 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.2.0] - 2026-11-09
+
+### Added
+
+- Attach images to a prompt: press the upload icon and paste the full path of a PNG, JPEG, GIF or WebP file (up to 4 images, 5 MB each). Models that read images get them (Anthropic, and the OpenAI, OpenRouter and Gemini presets; Codex CLI with `-i`), others get their paths, and the enhanced prompt always lists the paths so your agent can open them. A missing, wrong-type or too large file is refused with the reason before any model call.
+- The progress card shows percentages: the total and every step, with a small bar under the running step. Steps that can be counted move as they go (git commands, words searched, project read); the model call is an estimate marked ≈ that reaches 100% only with the answer. A cancel or error keeps the percentage reached.
+- A user guide with pictures: docs/user-guide.md.
+
+### Changed
+
+- New flat logo (indigo tile, white prompt, amber spark) and flat colours in the listing pictures: no gradients.
+- "Enhance Prompt" is a name, so it stays the same in every language: the panel's header shows it in English, Vietnamese and Chinese, and so does the status bar.
+
+### Notes
+
+- `npm run mock:progress` (or http://localhost:5173/mock-progress with `npm run dev`) plays the progress card through simulated runs; `node scripts/make-guide-images.mjs` draws the guide's pictures.
+
 ## [2.1.1] - 2026-11-09
 
 ### Fixed
@@ -303,6 +320,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.0
 [2.1.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.1.1
 [2.1.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.1.0
 [2.0.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.2
