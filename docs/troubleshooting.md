@@ -39,7 +39,7 @@ Open the **Models** tab and add a model: click a CLI under **Use your subscripti
 ## The prompt names the wrong files
 
 - Use **Deep** or **Max** and write the names you know, such as `` `LoginForm` `` or `src/auth/`.
-- Untick unrelated items under **Context used** and enhance again.
+- Untick unrelated items in the context list (**Options**) and enhance again.
 - For a remote (SSH or WSL) workspace, project files are not readable; see [Remote workspaces](context-levels.md#remote-workspaces).
 
 ## Sending puts each line in a separate message

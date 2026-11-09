@@ -15,7 +15,10 @@ const store = new Map<string, unknown>([
     'history',
     [
       { id: 'h1', at: Date.now() - 3600_000, original: 'login page is broken on mobile', enhanced: 'Fix the login page layout on mobile…', style: 'bugfix', model: 'sonnet', source: 'panel' },
-      { id: 'h2', at: Date.now() - 86_400_000, original: 'add dark mode toggle', enhanced: 'Add a dark mode toggle to settings…', style: 'feature', model: 'gpt-5-mini', source: 'panel' }
+      { id: 'h2', at: Date.now() - 3 * 3600_000, original: 'add dark mode toggle', enhanced: 'Add a dark mode toggle to settings…', style: 'feature', model: 'gpt-5-mini', source: 'panel' },
+      { id: 'h3', at: Date.now() - 86_400_000, original: 'review the payment webhook handler', enhanced: 'Review src/api/webhooks/stripe.ts…', style: 'review', model: 'sonnet', source: 'panel' },
+      { id: 'h4', at: Date.now() - 2 * 86_400_000, original: 'split the settings page into tabs', enhanced: 'Refactor app/settings/page.tsx…', style: 'refactor', model: 'haiku', source: 'hook' },
+      { id: 'h5', at: Date.now() - 4 * 86_400_000, original: 'plan the migration to the new auth library', enhanced: 'Plan the move from next-auth…', style: 'plan', model: 'gpt-5', source: 'panel' }
     ]
   ]
 ])

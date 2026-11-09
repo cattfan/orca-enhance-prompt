@@ -42,8 +42,8 @@ Write the names you know, in backticks if you like (`` `validateSession` ``, `sr
 
 ## See what is sent
 
-- **Preview context** gathers everything for the current level without calling a model, and lists it under **Context used**.
-- After each enhance, **Context used** lists each item with its size. Untick an item and it is left out of the next enhance.
+- Opening **Options** gathers everything for the current level without calling a model, and lists it below the options.
+- After each enhance, that list shows each item used, with its size. Untick an item and it is left out of the next enhance.
 - Items are kept in priority order (rules, stack, files, git, terminal, tree) and trimmed to fit a budget per level, so a huge README cannot crowd out your code.
 
 ## Never sent
@@ -66,4 +66,4 @@ With a target terminal picked and **Adapt to the target agent** on, the prompt i
 
 ## Remote workspaces
 
-For SSH and WSL workspaces, the plugin can't read files on the remote host. These get **Basic** context; the panel says so under **Context used**.
+For SSH and WSL workspaces, the plugin can't read files on the remote host. These get **Basic** context; the panel says so in the context list under **Options**.

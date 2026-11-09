@@ -24,8 +24,8 @@ The test suite usually finishes in seconds, but some tests start real processes 
   shows are translated there too, so keep their wording in step.
 - **The name "Enhance Prompt" is a brand**: use `BRAND` from `src/brand.ts`, never `t()`; text that
   names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
-- **Flat colours only**: no gradients in the logo (`assets/icon.png` from `assets/art/logo-512.png`, vector in
-  `assets/icon.svg`), the listing pictures (`scripts/make-listing.mjs`) or the guide pictures (`scripts/make-guide-images.mjs`).
+- **Flat colours only**: no gradients in the logo (`assets/icon.png`, cut from `assets/art/logo-source.jpg` by `scripts/cut-icon.ps1`; vector in
+  `assets/icon.svg`), or the pictures (`scripts/make-listing.mjs`: listing, README and guide).
 - **Attached images** are read only because the person picked them (by path; Orca panels have no file
   picker): `src/images.ts` checks the path, type (by bytes) and size, and every enhanced prompt lists
   their paths for the agent.

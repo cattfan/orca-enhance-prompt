@@ -40,7 +40,7 @@ Write what you want in a sentence. Enhance rewrites it into a prompt with a goal
 
 </td>
 <td width="50%">
-  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.jpg" alt="An enhanced prompt with Send to agent, Copy and Refine" width="100%" /></a>
+  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.jpg" alt="A screenshot and a log attached to a request, and the enhanced prompt with Send" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -54,7 +54,7 @@ Five context levels, from the prompt alone to your agent rules, stack, git chang
 
 </td>
 <td width="50%">
-  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.jpg" alt="The Context used list: AGENTS.md, stack and commands, two relevant files, git status and the repo tree" width="100%" /></a>
+  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.jpg" alt="The options with the context list: workspace, AGENTS.md, stack and commands, a relevant file" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -82,7 +82,7 @@ Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM S
 
 </td>
 <td width="50%">
-  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="Fallback settings in the Models section" width="100%" /></a>
+  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="The Models section with fallback, in the dark theme" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -117,13 +117,13 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 
 **Also in the box:**
 
-- **[Attach images](docs/user-guide.md#2-attach-images)**: add screenshots by their path; models that read images see them, and the prompt lists them for the agent.
-- **[Fix this error](docs/rules-and-fixes.md#fix-this-error)**: pick the terminal where the build, tests or dev server failed; Enhance reads the error and writes a bug-fix prompt for your agent.
-- **[Your rules and prompt structures](docs/rules-and-fixes.md)**: rules for every workspace or one, and the headings you want prompts written under.
+- **[Files and screenshots](docs/user-guide.md#2-attach-files-and-screenshots)**: paste a screenshot, drop files or attach them; models that read images see them, short text files join the context, and the prompt lists every path for the agent.
+- **[Your rules and prompt structures](docs/rules-and-fixes.md)**: rules for the project you are in, and the headings you want prompts written under (the built-in ones can be edited).
+- **[What's new](docs/user-guide.md#8-whats-new)**: click the version in the panel for this version's notes and the full changelog.
 - **[Auto-enhance](docs/auto-enhance.md)**: rewrite the prompts Orca itself sends to agents (launch, task and orchestration prompts), with your rules or a fast model.
 - **[Agent-aware prompts](docs/context-levels.md#agent-aware-prompts)**: shaped for Claude Code, Codex, Gemini CLI or Aider when you pick the target terminal.
 - **[Nine styles](docs/getting-started.md#styles)**: Balanced, Concise, Detailed spec, Bug fix, New feature, Refactor, Code review, Plan first, or only your own instructions.
-- **[Preview context](docs/context-levels.md#see-what-is-sent)**: see what would be sent before any model is called.
+- **[See the context](docs/context-levels.md#see-what-is-sent)**: the options list what would be sent before any model is called.
 - **[Safe by default](docs/privacy.md)**: `.env` files, keys and credentials are never read; prompts go only to the models you set up.
 
 ---
@@ -180,11 +180,11 @@ Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 
 | Page | What's in it |
 | --- | --- |
-| [User guide](docs/user-guide.md) | Every feature with pictures: enhance and send, attach images, progress, Fix this error, rules, models, history |
+| [User guide](docs/user-guide.md) | Every feature with pictures: enhance and send, files and screenshots, progress, options, rules, models, history, what's new |
 | [Your first enhanced prompt](docs/getting-started.md) | Open the panel, add a model, enhance, send |
 | [Context levels](docs/context-levels.md) | What each level reads and how to control it |
 | [Models](docs/models.md) | Subscription CLIs, API keys, live model lists, fallback |
-| [Rules, structures and Fix this error](docs/rules-and-fixes.md) | Your rules, prompt headings, fixing an error from a terminal, how prompts are written |
+| [Rules and prompt structures](docs/rules-and-fixes.md) | Your rules, prompt headings (editable), how prompts are written |
 | [Auto-enhance](docs/auto-enhance.md) | Rewriting prompts Orca sends to agents |
 | [Settings](docs/settings.md) | Every option, with defaults |
 | [Privacy & permissions](docs/privacy.md) | What runs, what is read, where it goes |

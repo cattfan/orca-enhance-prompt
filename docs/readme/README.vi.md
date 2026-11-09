@@ -115,9 +115,9 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 **Ngoài ra:**
 
-- **[Đính kèm ảnh](../user-guide.md#2-attach-images)**: thêm ảnh chụp màn hình bằng đường dẫn; model xem được ảnh sẽ dùng ảnh, và prompt ghi đường dẫn ảnh cho agent.
-- **[Sửa lỗi này](../rules-and-fixes.md#fix-this-error)**: chọn terminal đang báo lỗi (build, test, dev server); Enhance đọc lỗi và viết prompt sửa lỗi cho agent.
-- **[Quy tắc và cấu trúc prompt](../rules-and-fixes.md)**: quy tắc cho mọi workspace hoặc một workspace, và các mục bạn muốn prompt được viết theo.
+- **[Tệp và ảnh chụp màn hình](../user-guide.md#2-attach-files-and-screenshots)**: dán ảnh, kéo-thả hoặc đính kèm tệp; model xem được ảnh sẽ dùng ảnh, tệp chữ ngắn vào ngữ cảnh, và prompt ghi đường dẫn từng tệp cho agent.
+- **[Quy tắc và cấu trúc prompt](../rules-and-fixes.md)**: quy tắc cho dự án đang mở, và các mục bạn muốn prompt được viết theo (sửa được cả cấu trúc có sẵn).
+- **[Có gì mới](../user-guide.md#8-whats-new)**: bấm số phiên bản trong panel để xem ghi chú bản này và toàn bộ nhật ký thay đổi.
 - **[Tự cải thiện](../auto-enhance.md)**: viết lại prompt mà chính Orca gửi cho agent (khi launch, task, orchestration), bằng luật của bạn hoặc một model nhanh.
 - **[Prompt theo từng agent](../context-levels.md#agent-aware-prompts)**: định dạng hợp với Claude Code, Codex, Gemini CLI hay Aider.
 - **[Chín kiểu prompt](../getting-started.md#styles)**: Cân bằng, Ngắn gọn, Đặc tả chi tiết, Sửa lỗi, Tính năng mới, Refactor, Review code, Lập kế hoạch trước, Chỉ hướng dẫn riêng.
@@ -157,11 +157,11 @@ Tài liệu chi tiết bằng tiếng Anh:
 
 | Trang | Nội dung |
 | --- | --- |
-| [User guide](../user-guide.md) | Hướng dẫn mọi tính năng kèm ảnh: cải thiện và gửi, đính kèm ảnh, tiến độ, Sửa lỗi này, quy tắc, model, lịch sử |
+| [User guide](../user-guide.md) | Hướng dẫn mọi tính năng kèm ảnh: cải thiện và gửi, tệp và ảnh chụp, tiến độ, tùy chọn, quy tắc, model, lịch sử, có gì mới |
 | [Your first enhanced prompt](../getting-started.md) | Mở panel, thêm model, cải thiện, gửi |
 | [Context levels](../context-levels.md) | Mỗi mức đọc gì và cách kiểm soát |
 | [Models](../models.md) | CLI subscription, API key, danh sách model, fallback |
-| [Rules, structures and Fix this error](../rules-and-fixes.md) | Quy tắc, cấu trúc prompt, sửa lỗi từ terminal, cách prompt được viết |
+| [Rules and prompt structures](../rules-and-fixes.md) | Quy tắc, cấu trúc prompt, cách prompt được viết |
 | [Auto-enhance](../auto-enhance.md) | Tự cải thiện prompt Orca gửi cho agent |
 | [Settings](../settings.md) | Mọi tuỳ chọn và giá trị mặc định |
 | [Privacy & permissions](../privacy.md) | Chạy gì, đọc gì, gửi đi đâu |

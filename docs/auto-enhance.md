@@ -15,7 +15,7 @@ Auto-enhance rewrites the prompts **Orca itself** sends to agents, before they r
 
 Switch modes in any of these places:
 
-- The panel's **Privacy** section (gear icon): **Auto-enhance**.
+- The panel's **Settings** section (gear icon): **Auto-enhance** (Off, Rules or AI).
 - The command palette: **Enhance Prompt: Auto-enhance off / with rules / with AI**, or **Cycle auto-enhance**.
 - **Settings → Plugins → Enhance Prompt → Auto-enhance**.
 

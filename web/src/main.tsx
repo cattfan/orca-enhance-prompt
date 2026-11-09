@@ -9,7 +9,8 @@ import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
-import { draft, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
+import { draft, files, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
+import { previews } from './attach'
 import {
   applyProgress,
   cancel,
@@ -85,7 +86,7 @@ function App() {
       <div className="flex min-h-screen flex-col gap-3 p-3">
         <header className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <img src={logo} alt="" className="size-5 shrink-0" />
+            <img src={logo} alt="" className="size-5 shrink-0 dark:invert" />
             {/* The app's name stays; the highlighted icon says which section is open. */}
             <h1 className="truncate text-sm font-semibold">{BRAND}</h1>
             <WhatsNew />
@@ -174,9 +175,19 @@ async function start(): Promise<void> {
     if (query.get('options') === '1') set(optionsOpen, true)
     // ?whatsnew=1: as if just updated, so What's new opens.
     if (query.get('whatsnew') === '1') localStorage.setItem('enhance-prompt:seen-version', '0')
+    // ?attach=1: a screenshot and a log already attached; ?run=0 types the demo prompt without running it.
+    if (query.get('attach') === '1') {
+      const shot = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="40"><rect width="64" height="40" fill="#e7e5e4"/><rect x="6" y="6" width="52" height="6" fill="#a8a29e"/><rect x="6" y="16" width="30" height="18" fill="#d6d3d1"/></svg>')}`
+      const path = 'C:/Temp/enhance-prompt-attachments/att-1/login-mobile.png'
+      previews.set(path, shot)
+      put(files, [
+        { path, name: 'login-mobile.png', bytes: 182_000, type: 'image/png' },
+        { path: 'C:/Temp/enhance-prompt-attachments/att-2/console.log', name: 'console.log', bytes: 4_200, type: 'text/plain' }
+      ])
+    }
     if (demo) {
       put(draft, demo)
-      setTimeout(() => void enhanceNow(), 300)
+      if (query.get('run') !== '0') setTimeout(() => void enhanceNow(), 300)
     }
     // The drawn content's height, in the title: scripts/make-listing.mjs crops its shots with it.
     setInterval(() => {

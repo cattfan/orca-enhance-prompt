@@ -4,13 +4,13 @@ Enhance Prompt has no tracking, analytics or telemetry, and no server of its own
 
 ## Turn things off
 
-Orca approves a plugin's access as a whole: it shows everything the plugin may do and asks once. The panel's **Privacy** section (gear icon; it also holds the panel language and auto-enhance) and **Settings → Plugins → Enhance Prompt → Privacy: …** decide what the plugin actually uses. The worker checks these switches before every read, send, save or download, so a switch that is off is never bypassed.
+Orca approves a plugin's access as a whole: it shows everything the plugin may do and asks once. The panel's **Settings** section (gear icon; it also holds auto-enhance and stored data) and **Settings → Plugins → Enhance Prompt → Privacy: …** decide what the plugin actually uses. The worker checks these switches before every read, send, save or download, so a switch that is off is never bypassed.
 
 | Switch | Off means |
 | --- | --- |
 | Read project files | No rules, README, manifests or file list; Standard and above fall back to workspace and agent names |
 | Run git | No `git` commands; files are listed by walking the folder |
-| Read terminal output | The Max level skips the terminal, and Fix this error is refused |
+| Read terminal output | The Max level skips the terminal |
 | Send to terminals | **Send** is refused; use **Copy** |
 | Save history | Nothing is added to History |
 | Use API keys from environment variables | Only keys you saved in the Models tab |
@@ -20,16 +20,16 @@ The same tab shows what is stored and has **Clear history**, **Clear model lists
 
 ## Where your prompt goes
 
-- Your prompt, plus the context items listed under **Context used**, is sent **only to the model you run**: the API endpoint of that model profile, or the subscription CLI on your machine, which talks to its own provider.
+- Your prompt, plus the context items listed under **Options**, is sent **only to the model you run**: the API endpoint of that model profile, or the subscription CLI on your machine, which talks to its own provider.
 - With fallback on, a failed request is retried on your next model.
-- Images you attach go with it to models that read images (Anthropic, and the OpenAI, OpenRouter and Gemini presets; Codex CLI with `-i`). Other models get only their paths. The enhanced prompt lists the paths so your agent can open the files.
+- Files you attach: images go with it to models that read images (Anthropic, and the OpenAI, OpenRouter and Gemini presets; Codex CLI with `-i`). Other models get only their paths; short text files join the context. The enhanced prompt lists the paths so your agent can open the files.
 - Model lists are fetched from the same providers (`GET /models`), from the CLIs themselves, and, for Claude Code aliases, from the public [Claude Code settings schema](https://www.schemastore.org/claude-code-settings.json). Nothing about you or your project is sent with these.
 
 ## What is read on your machine
 
 - At the Standard level and above: the agent rule files, README, manifest files and file list of the focused workspace, through read-only `git` commands (`ls-files`, `status`, `log`, `diff`, `grep`) and file reads.
 - At the Max level: the last lines of the terminal you picked.
-- Images you attach yourself (by their path): checked when you attach them, read when you press Enhance. Nothing else in their folder is read.
+- Files you paste, drop or pick: copied into a temporary folder on this machine (removed after a day) and read when you press Enhance. Nothing else is read.
 - **Never**: `.env*`, `*.pem`, `*.key`, `*.p12`, keystores, SSH keys, files named like `secret` or `credentials`, binary files, and anything matching your exclude patterns.
 - `~/.claude/settings.json`, `~/.codex/config.toml` and `~/.gemini/settings.json`, only to read which model you use and which models you allow.
 
