@@ -346,7 +346,8 @@ const VI: Record<string, string> = {
   'Acceptance criteria': 'Tiêu chí chấp nhận',
   'Assumptions / questions': 'Giả định / câu hỏi',
   'Verify': 'Kiểm tra',
-  'Background': 'Bối cảnh'
+  'Background': 'Bối cảnh',
+  'everywhere': 'mọi nơi'
 }
 
 const ZH: Record<string, string> = {
@@ -671,7 +672,8 @@ const ZH: Record<string, string> = {
   'Acceptance criteria': '验收标准',
   'Assumptions / questions': '假设 / 问题',
   'Verify': '验证',
-  'Background': '背景'
+  'Background': '背景',
+  'everywhere': '全部'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

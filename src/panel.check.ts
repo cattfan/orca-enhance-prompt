@@ -134,6 +134,15 @@ const enhanceScenario = (lang: 'en' | 'vi') => ({
   }
 })
 
+const rulesSample = {
+  rules: [
+    { id: 'r1', text: 'Luôn yêu cầu agent chạy pnpm test trước khi xong.', enabled: true, scope: '' },
+    { id: 'r2', text: 'Dùng design token trong src/theme, không viết màu cứng.', enabled: true, scope: 'web-app' },
+    { id: 'r3', text: 'Viết commit message bằng tiếng Anh.', enabled: false, scope: '' }
+  ],
+  structures: [{ id: 'mine', name: 'Brief của tôi', sections: ['Mục tiêu', 'Bối cảnh', 'Yêu cầu', 'Tiêu chí hoàn thành'] }]
+}
+
 const scenarios = {
   'no model': { requests: { 'models.get': models([]), 'targets.list': { targets: [] }, 'models.detect': detect(false) } },
   ready: {
@@ -176,6 +185,25 @@ const scenarios = {
     settings: { uiLanguage: 'en' },
     requests: { 'models.get': models([]), 'targets.list': agents, 'models.detect': detect(false) },
     persisted: { plugin: { tab: 'models' } }
+  },
+  'shot-fix-vi': {
+    ...enhanceScenario('vi'),
+    persisted: { plugin: { tab: 'enhance', draft: '', fixOpen: true, optionsOpen: true, structureChoice: 'brief', profileChoice: 'claude-code' } },
+    requests: {
+      ...enhanceScenario('vi').requests,
+      'targets.list': { targets: [{ terminalId: 'agent', label: 'Claude · working', agent: 'claude' }, { terminalId: 'tests', label: 'Tests (pnpm test)', agent: null }], workspace: 'web-app' },
+      'rules.get': rulesSample
+    }
+  },
+  'shot-rules-vi': {
+    settings: { uiLanguage: 'vi' },
+    requests: {
+      'models.get': models([base, gpt]),
+      'targets.list': { ...agents, workspace: 'web-app' },
+      'models.detect': detect(true),
+      'rules.get': rulesSample
+    },
+    persisted: { plugin: { tab: 'rules' } }
   },
   'shot-history-zh': {
     settings: { uiLanguage: 'zh' },

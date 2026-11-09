@@ -35,7 +35,7 @@ export const outputChoice = atom('outputChoice', 'default', { persist: 'plugin' 
 export const excluded = atom<string[]>('excluded', [])
 export const target = atom<string | null>('target', null)
 /** "Fix this error": the box is open, and the terminal whose error it is about. */
-export const fixOpen = atom(false)
+export const fixOpen = atom('fixOpen', false, { persist: 'plugin' })
 export const errorTerminal = atom<string | null>('errorTerminal', null)
 export const pressEnter = atom<boolean | null>('pressEnter', null)
 export const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })

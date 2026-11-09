@@ -64,7 +64,7 @@ export function RulesTab() {
                 onChange={(enabled) => saveRules((current) => ({ ...current, rules: current.rules.map((entry) => (entry.id === rule.id ? { ...entry, enabled } : entry)) }))}
               />
               <Row gap="xs">
-                <Badge tone={rule.scope ? 'accent' : 'neutral'}>{rule.scope || t('All workspaces')}</Badge>
+                <Badge tone={rule.scope ? 'accent' : 'neutral'}>{rule.scope || t('everywhere')}</Badge>
                 <IconButton
                   icon="delete"
                   label={t('Delete')}
