@@ -374,7 +374,11 @@ const VI: Record<string, string> = {
   'Which folder is this project?': 'Dự án này ở thư mục nào?',
   'Several projects are named {name} on the same branch. Pick its folder so the right files are read.': 'Có nhiều dự án cùng tên {name} trên cùng một nhánh. Chọn thư mục của dự án này để đọc đúng file.',
   'Project folder': 'Thư mục dự án',
-  'Choose a folder': 'Chọn thư mục'
+  'Choose a folder': 'Chọn thư mục',
+  'Prompt tools': 'Công cụ cho prompt',
+  'Images': 'Ảnh',
+  'Fix error': 'Sửa lỗi',
+  'Preview': 'Xem trước'
 }
 
 const ZH: Record<string, string> = {
@@ -727,7 +731,11 @@ const ZH: Record<string, string> = {
   'Which folder is this project?': '这个项目在哪个文件夹？',
   'Several projects are named {name} on the same branch. Pick its folder so the right files are read.': '有多个项目在同一分支上都叫 {name}。请选择它的文件夹，以便读取正确的文件。',
   'Project folder': '项目文件夹',
-  'Choose a folder': '选择文件夹'
+  'Choose a folder': '选择文件夹',
+  'Prompt tools': '提示词工具',
+  'Images': '图片',
+  'Fix error': '修复错误',
+  'Preview': '预览'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

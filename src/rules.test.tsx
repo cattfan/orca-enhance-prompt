@@ -108,7 +108,7 @@ test('the Rules tab adds rules (for all or this workspace) and structures; the c
   assert.equal(view.valueOf({ label: 'Always run pnpm test.' }), false)
   // The composer's options list the structures.
   await view.press({ role: 'button', label: 'Enhance Prompt' })
-  if (!view.find({ label: 'Structure' })) await view.press({ role: 'button', label: /^Options/ })
+  if (!view.find({ label: 'Structure' })) await view.press({ role: 'button', text: 'Options' })
   const select = view.find({ label: 'Structure' })
   assert.ok(select)
   const values = (select.props.options as { value: string }[]).map((option) => option.value)

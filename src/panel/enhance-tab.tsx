@@ -1,5 +1,5 @@
 // enhance-tab.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, read, RelativeTime, Row, Select, set, Progress, Spinner, Stack, Switch, Text, Textarea, update, Input } from 'orca'
+import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, read, RelativeTime, Row, Select, set, Progress, Spinner, Stack, Switch, Text, Textarea, update, Input, Toolbar } from 'orca'
 import { CONTEXT_LEVEL_LABELS, isContextLevel, type ContextItemView } from '../presets.ts'
 import { isStyle, STYLE_LABELS } from '../prompts.ts'
 import { t } from '../i18n.ts'
@@ -7,7 +7,7 @@ import { MAX_IMAGES } from '../image-limits.ts'
 import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
 import { rulesConfig } from './rules-tab.tsx'
 import { ESTIMATED_STEPS, stepPercent, totalPercent, type Step } from '../progress.ts'
-import { workspaceChoices, workspaceName, images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { contextOpen, workspaceChoices, workspaceName, images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
 import { pickWorkspace, addImage, removeImage, fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
@@ -59,7 +59,11 @@ export function ContextPanel() {
   const included = shown.filter((item) => !ex.has(item.id))
   const chars = included.reduce((sum, item) => sum + item.chars, 0)
   return (
-    <Collapsible title={t('Context · {count} items · {chars} chars', { count: included.length, chars: chars.toLocaleString() })}>
+    <Collapsible
+      title={t('Context · {count} items · {chars} chars', { count: included.length, chars: chars.toLocaleString() })}
+      open={read(contextOpen)}
+      onChange={(open) => set(contextOpen, open)}
+    >
       <Stack gap="xs">
         {shown.map((item) => (
           <Checkbox
@@ -245,6 +249,37 @@ export function optionsSummary(): string {
 }
 
 /** Style, context, output language and the Enter switch, shown under the composer when opened. */
+/**
+ * The composer's tools, each a word and an icon (icons alone were hard to read): images, fixing an
+ * error, options, and a preview of the context. An open tool is outlined.
+ */
+export function ComposerTools() {
+  const working = read(busy)
+  const attached = read(images).length
+  return (
+    <Toolbar label={t('Prompt tools')} gap="xs">
+      <Button
+        size="sm"
+        icon="upload"
+        variant={read(imagesOpen) || attached > 0 ? 'outline' : 'ghost'}
+        tooltip={attached > 0 ? t('Attached images: {count}', { count: attached }) : t('Attach images')}
+        onPress={() => update(imagesOpen, (open) => !open)}
+      >
+        {attached > 0 ? `${t('Images')} · ${attached}` : t('Images')}
+      </Button>
+      <Button size="sm" icon="bug" variant={read(fixOpen) ? 'outline' : 'ghost'} tooltip={t('Fix an error from a terminal')} onPress={() => update(fixOpen, (open) => !open)}>
+        {t('Fix error')}
+      </Button>
+      <Button size="sm" icon="filter" variant={read(optionsOpen) ? 'outline' : 'ghost'} tooltip={`${t('Options')}: ${optionsSummary()}`} onPress={() => update(optionsOpen, (open) => !open)}>
+        {t('Options')}
+      </Button>
+      <Button size="sm" icon="search" variant="ghost" tooltip={t('Preview context')} onPress={() => void previewContext()} disabled={working !== null}>
+        {working === 'preview' ? t('Gathering…') : t('Preview')}
+      </Button>
+    </Toolbar>
+  )
+}
+
 /** Several workspaces share this one's name and branch: the person picks its folder once. */
 export function WorkspacePicker() {
   const choices = read(workspaceChoices)
@@ -492,43 +527,17 @@ export function EnhanceTab() {
         />
         <Row gap="xs" justify="between" wrap>
           <ComposerModelPicker />
-          <Row gap="xs">
-            <IconButton
-              icon="upload"
-              label={read(images).length > 0 ? t('Attached images: {count}', { count: read(images).length }) : t('Attach images')}
-              variant={read(imagesOpen) || read(images).length > 0 ? 'outline' : 'ghost'}
-              onPress={() => update(imagesOpen, (open) => !open)}
-            />
-            <IconButton
-              icon="bug"
-              label={t('Fix an error from a terminal')}
-              variant={read(fixOpen) ? 'outline' : 'ghost'}
-              onPress={() => update(fixOpen, (open) => !open)}
-            />
-            <IconButton
-              icon="filter"
-              label={`${t('Options')}: ${optionsSummary()}`}
-              variant={read(optionsOpen) ? 'outline' : 'ghost'}
-              onPress={() => update(optionsOpen, (open) => !open)}
-            />
-            <IconButton
-              icon="search"
-              label={working === 'preview' ? t('Gathering…') : t('Preview context')}
-              variant="ghost"
-              onPress={() => void previewContext()}
-              disabled={working !== null}
-            />
-            {working === 'enhance' ? (
-              <Button variant="outline" icon="stop" onPress={cancel}>
-                {t('Cancel')}
-              </Button>
-            ) : (
-              <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
-                {t('Enhance')}
-              </Button>
-            )}
-          </Row>
+          {working === 'enhance' ? (
+            <Button variant="outline" icon="stop" onPress={cancel}>
+              {t('Cancel')}
+            </Button>
+          ) : (
+            <Button variant="solid" icon="lightbulb" tooltip={t('Ctrl+Enter (⌘Enter on macOS)')} onPress={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
+              {t('Enhance')}
+            </Button>
+          )}
         </Row>
+        <ComposerTools />
         <ImagesBox />
         <PromptOptions />
         <FixErrorBox />

@@ -108,6 +108,8 @@ export const lastRun = atom<LastRun>(null)
 export const contextShown = atom<ContextItemView[]>([])
 /** Notes are Messages; an older version saved plain strings. */
 export const contextNotes = atom<(Message | string)[]>([])
+/** The context list is unfolded (Preview unfolds it). */
+export const contextOpen = atom(false)
 /** Images attached to the draft (checked by the worker): their path, name, size and type. */
 export type AttachedImage = { path: string; name: string; bytes: number; type: string }
 export const images = atom<AttachedImage[]>([])

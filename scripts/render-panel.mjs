@@ -91,10 +91,15 @@ function node(n) {
   switch (n.type) {
     case 'Box': {
       const dir = p.direction === 'row' ? 'row' : 'col'
-      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}" style="${p.border === 'accent' ? 'border-color:#6366f1' : p.border === 'danger' ? 'border-color:#ef4444' : ''}">${inner()}</div>`
+      // A tone background is a flat tint of that tone.
+      const TINT = { success: '#16a34a26', warning: '#f59e0b26', danger: '#ef444426', accent: '#6366f126', neutral: 'var(--accent-bg)' }
+      const style = [p.border === 'accent' ? 'border-color:#6366f1' : p.border === 'danger' ? 'border-color:#ef4444' : '', TINT[p.background] ? `background:${TINT[p.background]}` : '', p.paddingX || p.paddingY ? `padding:${p.paddingY ? 4 : 0}px ${p.paddingX ? 10 : 0}px` : '', p.align === 'center' ? 'align-items:center' : ''].filter(Boolean).join(';')
+      return `<div class="${cls(dir, `g-${p.gap ?? 'none'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap', p.border && 'box-border', p.radius && `r-${p.radius}`, p.background === 'muted' && 'bg-muted', p.padding && `p-${p.padding}`)}" style="${style}">${inner()}</div>`
     }
     case 'Stack':
       return `<div class="${cls('col', `g-${p.gap ?? 'sm'}`)}">${inner()}</div>`
+    case 'Toolbar':
+      return `<div class="${cls('row', `g-${p.gap ?? 'xs'}`, 'wrap')}">${inner()}</div>`
     case 'Row':
       return `<div class="${cls('row', `g-${p.gap ?? 'sm'}`, p.justify && `j-${p.justify}`, p.wrap && 'wrap')}">${inner()}</div>`
     case 'Heading':

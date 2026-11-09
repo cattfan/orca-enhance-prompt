@@ -113,7 +113,7 @@ test('the panel: the bug button opens Fix this error, which sends a bug-fix requ
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ role: 'button', label: 'Fix an error from a terminal' })
+  await view.press({ role: 'button', text: 'Fix error' })
   // The error terminal defaults to one that is not the agent.
   assert.equal(view.valueOf(view.find({ label: 'Error in' })!), 'tests')
   await view.press({ role: 'button', text: 'Fix this error' })

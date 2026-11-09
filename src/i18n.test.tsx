@@ -101,7 +101,7 @@ test('worker notes, context labels and errors arrive as codes and show in the pa
   await view.toggle({ label: /^Ngữ cảnh ·/ })
   assert.ok(view.find({ text: 'An old saved note' }))
   await view.type({ label: 'Prompt của bạn' }, 'sửa lỗi')
-  await view.press({ role: 'button', label: 'Xem trước ngữ cảnh' })
+  await view.press({ role: 'button', text: 'Xem trước' })
   assert.ok(view.find({ label: 'Cây thư mục (3 file)' }) ?? view.find({ text: /Cây thư mục/ }), JSON.stringify(view.summary()))
   assert.ok(view.find({ text: /AI chọn/ }))
   assert.ok(view.find({ text: /Bỏ qua bước AI chọn file: Chưa có API key/ }) ?? view.find({ text: /Chưa có API key/ }), JSON.stringify(view.summary()))

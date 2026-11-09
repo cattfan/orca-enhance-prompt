@@ -9,7 +9,7 @@ import { PRIVACY_KEYS } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -373,7 +373,9 @@ export async function previewContext(): Promise<void> {
       { timeoutMs: 60_000 }
     )
     showContext(answer.context, answer.notes)
-    set(notice, { tone: 'neutral', text: t('{count} context items, {chars} chars.', { count: answer.context.length, chars: answer.chars.toLocaleString() }) })
+    // The list's own title says how many items and characters: show the list rather than a notice.
+    set(contextOpen, true)
+    set(notice, null)
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   } finally {

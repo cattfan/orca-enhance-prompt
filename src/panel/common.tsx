@@ -1,5 +1,5 @@
 // common.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { Callout, Heading, IconButton, read, Row, set, Stack, Text, type OrcaNode } from 'orca'
+import { Heading, IconButton, read, Row, set, Stack, Text, type OrcaNode, Box } from 'orca'
 import { CONTEXT_LEVEL_LABELS, CONTEXT_LEVELS, type ProfileView } from '../presets.ts'
 import { STYLE_LABELS, STYLES } from '../prompts.ts'
 import { t } from '../i18n.ts'
@@ -47,12 +47,13 @@ export function NoticeBar() {
   const current = read(notice)
   if (!current) return null
   return (
-    <Callout tone={current.tone === 'neutral' ? undefined : current.tone}>
-      <Row justify="between" gap="xs">
-        <Text size="sm">{current.text}</Text>
-        <IconButton icon="close" label={t('Dismiss')} size="sm" variant="ghost" onPress={() => set(notice, null)} />
-      </Row>
-    </Callout>
+    // A tinted line with the message and a close button (a Callout added an untranslated "Note" heading).
+    <Box direction="row" align="center" justify="between" gap="xs" paddingX="sm" paddingY="xs" radius="md" background={current.tone === 'neutral' ? 'muted' : current.tone}>
+      <Text size="sm" tone={current.tone === 'neutral' ? undefined : current.tone}>
+        {current.text}
+      </Text>
+      <IconButton icon="close" label={t('Dismiss')} size="sm" variant="ghost" onPress={() => set(notice, null)} />
+    </Box>
   )
 }
 
