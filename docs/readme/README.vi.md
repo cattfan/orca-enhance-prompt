@@ -115,6 +115,7 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 **Ngoài ra:**
 
+- **[Đính kèm ảnh](../user-guide.md#2-attach-images)**: thêm ảnh chụp màn hình bằng đường dẫn; model xem được ảnh sẽ dùng ảnh, và prompt ghi đường dẫn ảnh cho agent.
 - **[Sửa lỗi này](../rules-and-fixes.md#fix-this-error)**: chọn terminal đang báo lỗi (build, test, dev server); Enhance đọc lỗi và viết prompt sửa lỗi cho agent.
 - **[Quy tắc và cấu trúc prompt](../rules-and-fixes.md)**: quy tắc cho mọi workspace hoặc một workspace, và các mục bạn muốn prompt được viết theo.
 - **[Tự cải thiện](../auto-enhance.md)**: viết lại prompt mà chính Orca gửi cho agent (khi launch, task, orchestration), bằng luật của bạn hoặc một model nhanh.
@@ -156,6 +157,7 @@ Tài liệu chi tiết bằng tiếng Anh:
 
 | Trang | Nội dung |
 | --- | --- |
+| [User guide](../user-guide.md) | Hướng dẫn mọi tính năng kèm ảnh: cải thiện và gửi, đính kèm ảnh, tiến độ, Sửa lỗi này, quy tắc, model, lịch sử |
 | [Your first enhanced prompt](../getting-started.md) | Mở panel, thêm model, cải thiện, gửi |
 | [Context levels](../context-levels.md) | Mỗi mức đọc gì và cách kiểm soát |
 | [Models](../models.md) | CLI subscription, API key, danh sách model, fallback |

@@ -117,6 +117,7 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 
 **Also in the box:**
 
+- **[Attach images](docs/user-guide.md#2-attach-images)**: add screenshots by their path; models that read images see them, and the prompt lists them for the agent.
 - **[Fix this error](docs/rules-and-fixes.md#fix-this-error)**: pick the terminal where the build, tests or dev server failed; Enhance reads the error and writes a bug-fix prompt for your agent.
 - **[Your rules and prompt structures](docs/rules-and-fixes.md)**: rules for every workspace or one, and the headings you want prompts written under.
 - **[Auto-enhance](docs/auto-enhance.md)**: rewrite the prompts Orca itself sends to agents (launch, task and orchestration prompts), with your rules or a fast model.
@@ -179,6 +180,7 @@ Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 
 | Page | What's in it |
 | --- | --- |
+| [User guide](docs/user-guide.md) | Every feature with pictures: enhance and send, attach images, progress, Fix this error, rules, models, history |
 | [Your first enhanced prompt](docs/getting-started.md) | Open the panel, add a model, enhance, send |
 | [Context levels](docs/context-levels.md) | What each level reads and how to control it |
 | [Models](docs/models.md) | Subscription CLIs, API keys, live model lists, fallback |

@@ -1,31 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <!-- Dark tile like Orca's own icons, with a soft violet-to-cyan light from the top right. -->
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1d1f33"/>
-      <stop offset="1" stop-color="#0b0c16"/>
-    </linearGradient>
-    <radialGradient id="light" cx="0.78" cy="0.18" r="0.75">
-      <stop offset="0" stop-color="#7c6cff" stop-opacity="0.55"/>
-      <stop offset="0.45" stop-color="#4f46e5" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#4f46e5" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="spark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#e9d5ff"/>
-      <stop offset="0.5" stop-color="#a5b4fc"/>
-      <stop offset="1" stop-color="#67e8f9"/>
-    </linearGradient>
-    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
-    </linearGradient>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
-  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#light)"/>
-  <rect x="9" y="9" width="238" height="238" rx="55" fill="none" stroke="url(#edge)" stroke-width="2"/>
+  <!-- Enhance Prompt: flat colours only. An indigo tile, a white prompt (chevron and cursor), and an
+       amber spark for "enhance". -->
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#4F46E5"/>
   <!-- Prompt: chevron and cursor -->
-  <path d="M66 98 L104 128 L66 158" fill="none" stroke="#f4f4f8" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="118" y="146" width="56" height="16" rx="8" fill="#f4f4f8" fill-opacity="0.55"/>
+  <path d="M64 96 L104 128 L64 160" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="118" y="148" width="60" height="17" rx="8.5" fill="#FFFFFF"/>
   <!-- Enhance: a four-point spark -->
-  <path d="M178 54 C181.5 78 186 82.5 210 86 C186 89.5 181.5 94 178 118 C174.5 94 170 89.5 146 86 C170 82.5 174.5 78 178 54 Z" fill="url(#spark)"/>
+  <path d="M182 50 C185.5 74 190 78.5 214 82 C190 85.5 185.5 90 182 114 C178.5 90 174 85.5 150 82 C174 78.5 178.5 74 182 50 Z" fill="#FBBF24"/>
 </svg>

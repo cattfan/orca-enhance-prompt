@@ -115,6 +115,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 **另外还有：**
 
+- **[附加图片](../user-guide.md#2-attach-images)**：按路径添加截图；能看图的模型会使用图片，提示词会为 agent 列出图片路径。
 - **[修复此错误](../rules-and-fixes.md#fix-this-error)**：选择构建、测试或开发服务器报错的终端，Enhance 读取错误并为 agent 写好修复提示词。
 - **[规则与提示词结构](../rules-and-fixes.md)**：适用于所有或单个工作区的规则，以及提示词要使用的标题。
 - **[自动优化](../auto-enhance.md)**：改写 Orca 自己发给 agent 的提示词（启动、任务、编排），使用你的规则或快速模型。
@@ -159,6 +160,7 @@ orca plugin update cattfan.enhance-prompt
 | [Your first enhanced prompt](../getting-started.md) | 打开面板、添加模型、优化、发送 |
 | [Context levels](../context-levels.md) | 每个级别读取什么，如何控制 |
 | [Models](../models.md) | 订阅 CLI、API key、模型列表、回退 |
+| [User guide](../user-guide.md) | 带图片的完整使用指南：优化并发送、附加图片、进度、修复此错误、规则、模型、历史 |
 | [Rules, structures and Fix this error](../rules-and-fixes.md) | 规则、提示词结构、从终端修复错误、提示词的写法 |
 | [Auto-enhance](../auto-enhance.md) | 改写 Orca 发给 agent 的提示词 |
 | [Settings](../settings.md) | 所有选项及默认值 |
