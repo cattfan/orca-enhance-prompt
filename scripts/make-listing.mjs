@@ -99,7 +99,7 @@ const panel = (names, room, max = 1.35) => {
 const css = (width, height) => `
   * { box-sizing: border-box; margin: 0; }
   body { width: ${width}px; height: ${height}px; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; color: #0a0a0a; background: #f5f5f4; position: relative; }
-  .art { position: absolute; left: 0; bottom: 0; width: 1600px; height: 533px; background: url("${asset('assets/art/cover-art.jpg')}") center / cover no-repeat; }
+  .art { position: absolute; left: 20px; bottom: 10px; width: 960px; height: 320px; background: url("${asset('assets/art/cover-art.jpg')}") center / contain no-repeat; }
   .side-art { position: absolute; right: -260px; bottom: -40px; width: 1100px; height: 367px; background: url("${asset('assets/art/cover-art.jpg')}") center / cover no-repeat; opacity: 0.55; }
   .brand { position: absolute; left: 96px; top: 84px; display: flex; align-items: center; gap: 16px; font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
   .brand img { width: 56px; height: 56px; }
