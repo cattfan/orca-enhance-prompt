@@ -8,7 +8,6 @@ import './index.css'
 import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { VERSION } from '../../src/version.ts'
 import { BRAND } from '../../src/brand.ts'
 import { draft, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
 import {
@@ -28,6 +27,8 @@ import {
 } from '../../src/panel/actions.ts'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { IconAction, Notices } from './common'
+import { WhatsNew } from './whats-new'
+import logo from '../../assets/art/logo-64.png'
 import { ready, useOrca } from './orca-runtime'
 import { EnhanceSection } from './enhance'
 
@@ -83,10 +84,11 @@ function App() {
     <TooltipProvider delayDuration={300}>
       <div className="flex min-h-screen flex-col gap-3 p-3">
         <header className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-baseline gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <img src={logo} alt="" className="size-5 shrink-0" />
             {/* The app's name stays; the highlighted icon says which section is open. */}
             <h1 className="truncate text-sm font-semibold">{BRAND}</h1>
-            <span className="text-muted-foreground text-xs">{`v${VERSION}`}</span>
+            <WhatsNew />
           </div>
           <nav className="flex shrink-0 items-center">
             <LanguagePicker />
@@ -170,10 +172,19 @@ async function start(): Promise<void> {
     const query = new URLSearchParams(location.search)
     const demo = query.get('demo')
     if (query.get('options') === '1') set(optionsOpen, true)
+    // ?whatsnew=1: as if just updated, so What's new opens.
+    if (query.get('whatsnew') === '1') localStorage.setItem('enhance-prompt:seen-version', '0')
     if (demo) {
       put(draft, demo)
       setTimeout(() => void enhanceNow(), 300)
     }
+    // The drawn content's height, in the title: scripts/make-listing.mjs crops its shots with it.
+    setInterval(() => {
+      const page = document.querySelector('#root > div')
+      if (!page) return
+      const bottom = Math.max(0, ...Array.from(page.children).map((child) => child.getBoundingClientRect().bottom))
+      document.title = `height:${Math.ceil(bottom + 12)}`
+    }, 250)
   }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

@@ -398,7 +398,10 @@ export const VI: Record<string, string> = {
   'edited': 'đã sửa',
   'Restore the default': 'Khôi phục mặc định',
   'Custom instructions': 'Hướng dẫn riêng',
-  'e.g. Write the prompt as a numbered checklist; always ask the agent to run the tests.': 'VD: Viết prompt thành danh sách việc đánh số; luôn yêu cầu agent chạy test.'
+  'e.g. Write the prompt as a numbered checklist; always ask the agent to run the tests.': 'VD: Viết prompt thành danh sách việc đánh số; luôn yêu cầu agent chạy test.',
+  'What\'s new': 'Có gì mới',
+  'What\'s new in {version}': 'Có gì mới trong {version}',
+  'Changelog': 'Nhật ký thay đổi'
 }
 
 export const ZH: Record<string, string> = {
@@ -772,5 +775,8 @@ export const ZH: Record<string, string> = {
   'edited': '已修改',
   'Restore the default': '恢复默认',
   'Custom instructions': '自定义指令',
-  'e.g. Write the prompt as a numbered checklist; always ask the agent to run the tests.': '例如：把提示写成编号清单；总是要求代理运行测试。'
+  'e.g. Write the prompt as a numbered checklist; always ask the agent to run the tests.': '例如：把提示写成编号清单；总是要求代理运行测试。',
+  'What\'s new': '新功能',
+  'What\'s new in {version}': '{version} 新功能',
+  'Changelog': '更新日志'
 }

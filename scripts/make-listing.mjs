@@ -50,17 +50,39 @@ const panels = {
   zh: 'mock=1&lang=zh&width=380&tab=history',
   dark: `mock=1&lang=en&width=380&theme=dark&demo=${PROMPT}`
 }
+/** The drawn content's height: the dev page writes it in its title (web/src/main.tsx). */
+function measure(url, waitMs) {
+  const dom = execFileSync(
+    browser,
+    ['--headless=new', '--disable-gpu', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'listing-browser-'))}`, `--virtual-time-budget=${waitMs}`, '--window-size=800,1600', '--dump-dom', url],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 32 * 1024 * 1024 }
+  )
+  const height = Number(/<title>height:(\d+)<\/title>/.exec(dom)?.[1])
+  if (!height) throw new Error(`Could not measure ${url}`)
+  return height
+}
+
 const shots = {}
+const heights = {}
 for (const [name, query] of Object.entries(panels)) {
   const file = join(work, `${name}.png`)
-  shoot(file, `${SERVER}/?${query}`, 800, 1000, query.includes('demo=') ? 15000 : 6000)
+  const url = `${SERVER}/?${query}`
+  const waitMs = query.includes('demo=') ? 15000 : 6000
+  heights[name] = measure(url, waitMs)
+  // The whole panel, its last card's corners included.
+  shoot(file, url, 800, heights[name] + 40, waitMs)
   shots[name] = pathToFileURL(file).href
-  console.log('shot', name)
+  console.log('shot', name, heights[name])
 }
 
 const asset = (path) => pathToFileURL(join(root, path)).href
-const panel = (name, height, scale = 1.3) =>
-  `<div class="panel" style="width:${380 * scale}px;height:${height * scale}px"><img src="${shots[name]}" style="width:${800 * scale}px"></div>`
+/** Panels side by side, scaled to fit `room` px of height (at most 1.35x). */
+const panel = (names, room) => {
+  const scale = Math.min(1.35, room / Math.max(...names.map((name) => heights[name])))
+  return names
+    .map((name) => `<div class="panel" style="width:${380 * scale}px;height:${heights[name] * scale}px"><img src="${shots[name]}" style="width:${800 * scale}px"></div>`)
+    .join('')
+}
 
 const css = `
   * { box-sizing: border-box; margin: 0; }
@@ -92,13 +114,13 @@ const pages = {
     <h1>Rough idea in.<br>Precise prompt out.</h1>
     <p class="lead">Turns a quick note into a project-aware prompt for Claude Code, Codex, Gemini and other agents, then sends it to the terminal.</p>
     <div class="chips"><span class="chip">Your subscription or API key</span><span class="chip">Project context</span><span class="chip">Files and screenshots</span><span class="chip">EN · VI · 中文</span></div>
-    <div class="stage" style="right:96px;top:84px">${panel('result', 410, 1.45)}</div>`),
+    <div class="stage" style="right:96px;top:72px">${panel(['result'], 856)}</div>`),
   '1-enhance': page(`${header('Grounded in your project', 'Rules, stack, git changes and the code that matters are read for you. See every item sent, untick what you do not want, paste a screenshot or attach files.')}
-    <div class="side-art"></div><div class="stage center" style="top:330px">${panel('options', 440)}${panel('result', 410)}</div>`),
+    <div class="side-art"></div><div class="stage center" style="top:325px">${panel(['options', 'result'], 640)}</div>`),
   '2-models': page(`${header('Your models, with fallback', 'Use the Claude Code or Codex subscription you already pay for, or any API key: OpenAI, Anthropic, OpenRouter, Gemini, Groq, Ollama and more. If one fails, the next one answers.')}
-    <div class="side-art"></div><div class="stage center" style="top:330px">${panel('models', 440)}${panel('dark', 410)}</div>`),
+    <div class="side-art"></div><div class="stage center" style="top:325px">${panel(['models', 'dark'], 640)}</div>`),
   '3-languages': page(`${header('English, Tiếng Việt and 中文', 'The panel follows Orca\u2019s language or yours, and the enhanced prompt can be written in the language your agent works best in.')}
-    <div class="side-art"></div><div class="stage center" style="top:330px">${panel('vi', 440)}${panel('zh', 440)}</div>`)
+    <div class="side-art"></div><div class="stage center" style="top:325px">${panel(['vi', 'zh'], 640)}</div>`)
 }
 
 const outputs = { cover: 'assets/cover.jpg', '1-enhance': 'assets/screenshots/1-enhance.jpg', '2-models': 'assets/screenshots/2-models.jpg', '3-languages': 'assets/screenshots/3-languages.jpg' }

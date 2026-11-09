@@ -3,14 +3,12 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react'
 import { read, set, settings, update } from 'orca'
 import {
-  ChevronDownIcon,
   CopyIcon,
   CornerDownLeftIcon,
   FileTextIcon,
   PaperclipIcon,
   ArrowUpToLineIcon,
   RotateCcwIcon,
-  SearchIcon,
   SendIcon,
   SlidersHorizontalIcon,
   SquareIcon,
@@ -22,7 +20,6 @@ import { totalPercent, stepPercent } from '../../src/progress.ts'
 import {
   busy,
   contextNotes,
-  contextOpen,
   contextShown,
   draft,
   effectiveEnter,
@@ -75,7 +72,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
 import { Badge } from '@/components/reui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
@@ -144,7 +140,7 @@ function ModelPicker() {
       value={options.some((option) => option.value === value) ? value : 'auto'}
       options={options}
       onChange={pickModel}
-      className="h-7 max-w-52 border-transparent bg-transparent px-2 shadow-none hover:bg-accent dark:bg-transparent"
+      className="h-7 border-transparent bg-transparent px-2 shadow-none hover:bg-accent dark:bg-transparent"
     />
   )
 }
@@ -207,7 +203,7 @@ function Composer({ refresh }: { refresh: () => void }) {
         </div>
       ) : null}
       <div className="flex items-center justify-between gap-1">
-        <div className="flex min-w-0 items-center gap-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
           <ModelPicker />
           <IconAction label={`${t('Options')}: ${optionsSummary()}`} variant={read(optionsOpen) ? 'secondary' : 'ghost'} onClick={() => update(optionsOpen, (open) => !open)}>
             <SlidersHorizontalIcon />
@@ -359,8 +355,8 @@ function RunCard() {
 }
 
 /**
- * The context sent with the prompt, always shown under the composer. Unfolding it before any run
- * gathers it (the old Preview); untick an item to leave it out.
+ * The context sent with the prompt, listed in the options. Opening them gathers it once (no model
+ * call); untick an item to leave it out.
  */
 function ContextList() {
   const shown = read(contextShown)
@@ -368,51 +364,37 @@ function ContextList() {
   const working = read(busy)
   const empty = shown.length === 0 && notes.length === 0
   const ex = new Set(read(excluded))
-  const included = shown.filter((item) => !ex.has(item.id))
-  const chars = included.reduce((sum, item) => sum + item.chars, 0)
-  const open = read(contextOpen) && !empty
+  useEffect(() => {
+    if (empty && read(busy) === null) void previewContext()
+  }, [empty])
+  if (empty) {
+    return working === 'preview' ? (
+      <div className="text-muted-foreground flex items-center gap-1.5 px-1 text-xs">
+        <Spinner className="size-3.5" />
+        {t('Gathering…')}
+      </div>
+    ) : null
+  }
   return (
-    <Collapsible
-      className="bg-background rounded-lg border"
-      open={open}
-      onOpenChange={(next) => {
-        if (next && empty) void previewContext()
-        else set(contextOpen, next)
-      }}
-    >
-      <CollapsibleTrigger disabled={working !== null && working !== 'enhance'} className="hover:bg-accent/50 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium">
-        <span className="flex min-w-0 items-center gap-1.5">
-          {working === 'preview' ? <Spinner className="size-3.5" /> : <SearchIcon className="text-muted-foreground size-3.5 shrink-0" />}
-          <span className="truncate">
-            {working === 'preview'
-              ? t('Gathering…')
-              : empty
-                ? t('Preview context')
-                : t('Context · {count} items · {chars} chars', { count: included.length, chars: chars.toLocaleString() })}
-          </span>
-        </span>
-        <ChevronDownIcon className={cn('size-4 shrink-0 transition-transform', open && 'rotate-180')} />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="flex flex-col gap-1.5 px-2.5 pb-2">
-        {shown.map((item) => (
-          <label key={item.id} className="flex cursor-pointer items-start gap-2">
-            <Checkbox checked={!ex.has(item.id)} onCheckedChange={(checked) => toggleItem(item.id, checked === true)} className="mt-0.5" />
-            <span className="min-w-0">
-              <span className="block truncate text-sm">{item.title ? say(item.title) : item.label}</span>
-              <span className="text-muted-foreground block text-xs">
-                {t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}
-                {itemWhy(item)}
-              </span>
+    <div className="bg-background flex flex-col gap-1.5 rounded-lg border px-2.5 py-2">
+      {shown.map((item) => (
+        <label key={item.id} className="flex cursor-pointer items-start gap-2">
+          <Checkbox checked={!ex.has(item.id)} onCheckedChange={(checked) => toggleItem(item.id, checked === true)} className="mt-0.5" />
+          <span className="min-w-0">
+            <span className="block truncate text-sm">{item.title ? say(item.title) : item.label}</span>
+            <span className="text-muted-foreground block text-xs">
+              {t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}
+              {itemWhy(item)}
             </span>
-          </label>
-        ))}
-        {notes.map((note) => (
-          <p key={JSON.stringify(note)} className="text-muted-foreground text-xs">
-            {say(note)}
-          </p>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+          </span>
+        </label>
+      ))}
+      {notes.map((note) => (
+        <p key={JSON.stringify(note)} className="text-muted-foreground text-xs">
+          {say(note)}
+        </p>
+      ))}
+    </div>
   )
 }
 
