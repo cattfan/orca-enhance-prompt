@@ -25,13 +25,6 @@
         "id": "enhance",
         "title": "Enhance Prompt",
         "icon": "lightbulb",
-        "entry": "src/panel.tsx",
-        "ui": "components"
-      },
-      {
-        "id": "enhance-web",
-        "title": "Enhance Prompt (web)",
-        "icon": "zap",
         "entry": "src/web-dist/index.html",
         "ui": "html"
       }
