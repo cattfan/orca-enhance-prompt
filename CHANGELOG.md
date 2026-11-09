@@ -3,6 +3,23 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.1.0] - 2026-11-09
+
+### Added
+
+- Fix this error: press the bug icon, pick the terminal where the build, tests or dev server failed, and Enhance reads the latest error (up to 150 lines) and writes a bug-fix prompt for the agent you send to. It follows Privacy → Read terminal output.
+- A Rules tab: your own rules for the rewriter, for every workspace or only one, used by every Enhance and by AI auto-enhance; and prompt structures, the headings a prompt is written under (built-in Task brief and Steps, or your own in any language), picked under Options in the composer.
+
+### Changed
+
+- Enhanced prompts follow Anthropic's and OpenAI's prompting guidance: the reasons you give are kept, instructions say what to do rather than what not to do, the tone is plain (no MUST / IMPORTANT), the agent is told when to stop and ask and to report the commands it ran with their output, and contradictory instructions are avoided.
+- Enhanced prompts no longer copy your AGENTS.md or CLAUDE.md (the agent reads them itself), name one or two check commands instead of every one, leave open choices to the agent, and stay short when the request is small; Concise really is concise; Claude Code gets Markdown headings only.
+- Deep and Max context is faster on large repositories: git status, log and diff run side by side.
+
+### Notes
+
+- `scripts/eval-prompts.mjs` checks the rewriter on fixed cases with a real model. Delete everything also deletes your rules and structures.
+
 ## [2.0.2] - 2026-11-09
 
 ### Fixed
@@ -275,6 +292,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.1.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.1.0
 [2.0.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.2
 [2.0.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.1
 [2.0.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.0.0
