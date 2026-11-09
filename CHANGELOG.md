@@ -3,6 +3,12 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.3.1] - 2026-11-09
+
+### Changed
+
+- The web panel's sidebar icon is a lightning bolt instead of a globe, so it reads as a tool rather than a web page.
+
 ## [2.3.0] - 2026-11-09
 
 ### Added
@@ -357,6 +363,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.3.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.3.1
 [2.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.3.0
 [2.2.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.2
 [2.2.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.1
