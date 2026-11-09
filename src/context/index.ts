@@ -221,8 +221,14 @@ async function dynamicParts(
   if (parts.isGit) {
     step('git', 'running')
     const skip = (id: string) => options.exclude.has(id)
-    // Status also ranks changed files higher, so it is read even when its item is unticked.
-    const status = await gitStatus(root, signal)
+    // Status, log and diff are independent reads: run them side by side (a large repository spends
+    // most of this step waiting on git). Status also ranks changed files, so it is read even unticked.
+    const diffChars = options.level === 'max' ? 9000 : 5000
+    const [status, log, diff] = await Promise.all([
+      gitStatus(root, signal),
+      skip('git:log') ? null : gitLog(root, 6, signal),
+      skip('git:diff') ? null : gitDiff(root, diffChars, (path) => !isExcluded(path, patterns), signal)
+    ])
     stopIfCancelled(signal)
     if (status && !skip('git:status') && (status.changed.length > 0 || status.branchLine)) {
       const shown = status.changed.filter((line) => !statusLinePaths(line).some((path) => isSensitive(path) || isExcluded(path, patterns)))
@@ -236,12 +242,7 @@ async function dynamicParts(
       )
     }
     if (status) changed = new Set(changedPaths(status.changed))
-    const log = skip('git:log') ? null : await gitLog(root, 6, signal)
-    stopIfCancelled(signal)
     if (log?.trim()) out.push(item('git:log', 'git', msg('label.log'), log.trim()))
-    const diffChars = options.level === 'max' ? 9000 : 5000
-    const diff = skip('git:diff') ? null : await gitDiff(root, diffChars, (path) => !isExcluded(path, patterns), signal)
-    stopIfCancelled(signal)
     if (diff) out.push(item('git:diff', 'git', msg('label.diff'), `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {
