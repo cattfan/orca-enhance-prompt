@@ -7,6 +7,7 @@ import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, gatherContext, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
+import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
@@ -26,7 +27,8 @@ import { PANEL_REQUEST_LIMIT_MS, type ModelsView } from './protocol.ts'
 import { parsePrivacy, type Privacy } from './privacy.ts'
 import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
-import { messageOf } from './llm.ts'
+import { BRAND, BRAND_SHORT } from './brand.ts'
+import { LlmError, messageOf } from './llm.ts'
 import { english, msg, type Message } from './messages.ts'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
@@ -218,6 +220,8 @@ export async function enhance(
     exclude?: string[]
     errorTerminalId?: string
     structureId?: string
+    /** Paths of image files on this machine to attach (see src/images.ts). */
+    images?: string[]
   },
   signal?: AbortSignal,
   progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) => StepReporter,
@@ -268,7 +272,12 @@ export async function enhance(
     rules: own.rules,
     structure: structureById(own.config, input.structureId)
   })
-  const user = buildUserMessage(prompt, gathered.items)
+  // Attached images: checked before any model is called; the user message lists them by path.
+  const images = await loadImages((input.images ?? []).filter((path) => typeof path === 'string' && path.trim())).catch((error: unknown) => {
+    if (error instanceof LlmError) throw hostError(error.text, error.code)
+    throw error
+  })
+  const user = [buildUserMessage(prompt, gathered.items), imagesBlock(images)].filter(Boolean).join('\n\n')
   const chosenModel = input.model?.trim().slice(0, 200)
   // The picked model applies to the picked profile only; the rest of the chain keeps its own models.
   const list = candidates(config.profiles, input.profileId ?? null, settings.fallbackEnabled).map((profile) =>
@@ -282,13 +291,16 @@ export async function enhance(
       user,
       chainOptions(settings, signal, {
         ...(deadline === undefined ? {} : { totalMs: left() }),
+        images,
         onAttempt: (profile, model, attempt, total) =>
           step('model', 'running', `${profile.name} · ${model || 'default'}${attempt > 1 ? ` · ${attempt}/${total}` : ''}`)
       })
     )
     step('model', 'done', `${result.profile.name} · ${result.attempts.find((attempt) => attempt.ok)?.model ?? ''}`)
+    // A model that cannot see images still got their paths; say so, and keep every path in the prompt.
+    if (images.length > 0 && imageSupport(result.profile) === 'none') gathered.notes.push(msg('note.images_paths_only'))
     return {
-      enhanced: cleanOutput(result.text),
+      enhanced: withImagePaths(cleanOutput(result.text), images),
       profile: result.profile,
       attempts: result.attempts,
       items: gathered.items,
@@ -344,21 +356,21 @@ const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
 /** Status bar wording per panel language ('auto' stays English: the worker cannot see Orca's locale). */
 const STATUS_TEXT: Record<string, { prefix: string; modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
   en: {
-    prefix: 'Enhance',
+    prefix: BRAND_SHORT,
     modes: { off: 'off', rules: 'rules', ai: 'AI' },
     tooltip: (mode) =>
-      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "Enhance Prompt".\nAuto-enhance: ${mode} (change it in the panel's Models tab or the command palette).\nSettings and updates: Settings → Plugins → Enhance Prompt.`
+      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "${BRAND}".\nAuto-enhance: ${mode} (change it in the panel's Models tab or the command palette).\nSettings and updates: Settings → Plugins → Enhance Prompt.`
   },
   vi: {
-    prefix: 'Enhance',
+    prefix: BRAND_SHORT,
     modes: { off: 'tắt', rules: 'luật', ai: 'AI' },
     tooltip: (mode) =>
-      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "Enhance Prompt".\nTự cải thiện: ${mode} (đổi trong tab Model của panel hoặc command palette).\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
+      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "${BRAND}".\nTự cải thiện: ${mode} (đổi trong tab Model của panel hoặc command palette).\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
   },
   zh: {
-    prefix: '优化',
+    prefix: BRAND_SHORT,
     modes: { off: '关', rules: '规则', ai: 'AI' },
-    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “Enhance Prompt”。\n自动优化：${mode}（在面板的“模型”标签或命令面板中更改）。\n设置与更新：Settings → Plugins → Enhance Prompt。`
+    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “${BRAND}”。\n自动优化：${mode}（在面板的“模型”标签或命令面板中更改）。\n设置与更新：Settings → Plugins → Enhance Prompt。`
   }
 }
 
@@ -512,6 +524,16 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('prompt.copy', async ({ text }) => copyToClipboard(text))
+
+  // An image the person attaches: checked here (path, type, size) before it is listed in the composer.
+  orca.panels.handle('images.inspect', async ({ path }) => {
+    try {
+      return await inspectImage(path)
+    } catch (error) {
+      if (error instanceof LlmError) throw hostError(error.text, error.code)
+      throw error
+    }
+  })
 
   orca.panels.handle('targets.list', async () => {
     const targets: { terminalId: string; label: string; agent: string | null }[] = []

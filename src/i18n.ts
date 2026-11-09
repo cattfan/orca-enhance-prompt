@@ -354,7 +354,24 @@ const VI: Record<string, string> = {
   'Feedback': 'Góp ý',
   'Found a bug, or something that could be better? Open an issue on GitHub: it is how the plugin gets fixed and improved.': 'Gặp lỗi, hoặc thấy chỗ nào có thể tốt hơn? Hãy tạo issue trên GitHub: đó là cách plugin được sửa và cải thiện.',
   'Open an issue on GitHub': 'Tạo issue trên GitHub',
-  'Open {url} in your browser.': 'Mở {url} trong trình duyệt.'
+  'Open {url} in your browser.': 'Mở {url} trong trình duyệt.',
+  'Progress: {percent}%': 'Tiến độ: {percent}%',
+  '{step}: {percent}%': '{step}: {percent}%',
+  '≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.': '≈ ước tính: model không báo tiến độ, nên phần của nó tăng theo thời gian và đạt 100% khi có câu trả lời.',
+  'Finishing…': 'Sắp xong…',
+  'Give the full path of an image file on this machine: {path}': 'Hãy nhập đường dẫn đầy đủ tới một file ảnh trên máy này: {path}',
+  'No image file at {path}.': 'Không có file ảnh ở {path}.',
+  '{name} is {size}; an image can be at most {max}.': '{name} nặng {size}; mỗi ảnh tối đa {max}.',
+  '{name} is not a PNG, JPEG, GIF or WebP image.': '{name} không phải ảnh PNG, JPEG, GIF hay WebP.',
+  'At most {max} images per prompt.': 'Mỗi prompt tối đa {max} ảnh.',
+  'This model cannot see images: it got their paths only, and the prompt lists them for the agent.': 'Model này không xem được ảnh: nó chỉ nhận đường dẫn, và prompt liệt kê các ảnh cho agent.',
+  'Attach images': 'Đính kèm ảnh',
+  'Attached images: {count}': 'Ảnh đã đính kèm: {count}',
+  'Remove {name}': 'Bỏ {name}',
+  'Image file path': 'Đường dẫn file ảnh',
+  'Full path of a PNG, JPEG, GIF or WebP file': 'Đường dẫn đầy đủ của file PNG, JPEG, GIF hoặc WebP',
+  'Attach': 'Đính kèm',
+  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': 'Tối đa {max} ảnh, mỗi ảnh 5 MB. Lấy đường dẫn file: Shift + chuột phải → Copy as path (Windows), Option + chuột phải → Copy as Pathname (macOS). Model xem được ảnh sẽ dùng ảnh; prompt luôn ghi đường dẫn ảnh để agent mở.'
 }
 
 const ZH: Record<string, string> = {
@@ -687,7 +704,24 @@ const ZH: Record<string, string> = {
   'Feedback': '反馈',
   'Found a bug, or something that could be better? Open an issue on GitHub: it is how the plugin gets fixed and improved.': '发现了 bug，或觉得哪里可以更好？请在 GitHub 上提 issue：插件就是这样被修复和改进的。',
   'Open an issue on GitHub': '在 GitHub 上提 issue',
-  'Open {url} in your browser.': '请在浏览器中打开 {url}。'
+  'Open {url} in your browser.': '请在浏览器中打开 {url}。',
+  'Progress: {percent}%': '进度：{percent}%',
+  '{step}: {percent}%': '{step}：{percent}%',
+  '≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.': '≈ 估算：模型不会报告自己的进度，因此它的占比随时间增长，收到回答时达到 100%。',
+  'Finishing…': '即将完成…',
+  'Give the full path of an image file on this machine: {path}': '请填写本机上图片文件的完整路径：{path}',
+  'No image file at {path}.': '{path} 没有图片文件。',
+  '{name} is {size}; an image can be at most {max}.': '{name} 大小为 {size}；每张图片最多 {max}。',
+  '{name} is not a PNG, JPEG, GIF or WebP image.': '{name} 不是 PNG、JPEG、GIF 或 WebP 图片。',
+  'At most {max} images per prompt.': '每个提示词最多 {max} 张图片。',
+  'This model cannot see images: it got their paths only, and the prompt lists them for the agent.': '该模型看不到图片：它只收到路径，提示词会为 agent 列出这些图片。',
+  'Attach images': '附加图片',
+  'Attached images: {count}': '已附加图片：{count}',
+  'Remove {name}': '移除 {name}',
+  'Image file path': '图片文件路径',
+  'Full path of a PNG, JPEG, GIF or WebP file': 'PNG、JPEG、GIF 或 WebP 文件的完整路径',
+  'Attach': '附加',
+  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': '最多 {max} 张图片，每张 5 MB。复制文件路径：Shift + 右键 → 复制为路径（Windows），Option + 右键 → 拷贝路径名称（macOS）。能看图的模型会使用图片；提示词始终列出图片路径，供 agent 打开。'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

@@ -63,6 +63,7 @@ Rules:
 - Say when the agent should stop and ask: only for a blocking unknown or an action that is hard to undo (deleting data, force-pushing, publishing, changing shared systems). Otherwise it picks the most reasonable option, states it as an assumption and carries on.
 - Ask for evidence at the end: the agent reports the commands it ran and what they printed (or what it observed), not just "it works".
 - Keep the instructions consistent: never give two that pull against each other (for example "wait for my confirmation" and "proceed without asking"); pick one.
+- When the request has <attached_images>, they are screenshots or pictures the user attached. If you can see them, use what they show (error text, layout, values) to make the prompt precise. Always tell the agent to open each image by its exact path, and never describe what you cannot see.
 - Output just the final prompt text, starting with its first line: no preamble, no explanation, no surrounding code fence.`
 
 const STYLE_RULES: Record<Style, string> = {

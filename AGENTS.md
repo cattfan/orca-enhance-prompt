@@ -22,6 +22,13 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **Every UI string goes through `t('...')`** from `src/i18n.ts`, with its Vietnamese and Chinese
   entries in the same change. `src/i18n.test.tsx` fails on a missing key. Worker messages the panel
   shows are translated there too, so keep their wording in step.
+- **The name "Enhance Prompt" is a brand**: use `BRAND` from `src/brand.ts`, never `t()`; text that
+  names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
+- **Flat colours only**: no gradients in the logo (`assets/icon.svg`, then `node scripts/make-icon.mjs`),
+  the listing pictures (`scripts/make-images.mjs`) or the guide pictures (`scripts/make-guide-images.mjs`).
+- **Attached images** are read only because the person picked them (by path; Orca panels have no file
+  picker): `src/images.ts` checks the path, type (by bytes) and size, and every enhanced prompt lists
+  their paths for the agent.
 - **Every new read checks its Privacy switch** (`settings.privacy.*` in the worker: project files,
   git, terminal output, environment keys, online model lists, history). The Preview, the run and
   the auto-enhance hook must all go through the same check. Add a test in `src/privacy.test.ts`.
@@ -49,6 +56,12 @@ for; approve it yourself, then run `node scripts/e2e.mjs --approve <fingerprint>
 `node scripts/eval-prompts.mjs` runs a few fixed cases through a real model (Claude Code, `haiku`, your
 subscription) and checks the output mechanically (no preamble, right language, no invented paths,
 details kept, length, structure headings). Run it after changing `src/prompts.ts`.
+
+`npm run mock:progress` (`node scripts/mock-progress.mjs [--vi] [--width 280]`) plays the run card through simulated runs
+(steps one after another, side by side, and a cancel) on the real panel code, with no worker, model or
+network: it prints the total and every step's percentage per frame and writes
+`.orca/mock-progress/index.html` (frames play like a video) and a PNG per frame. With `npm run dev` running, the same mock is at
+http://localhost:5173/mock-progress?lang=vi (`&width=260` for a narrow panel).
 
 `npm run dev` serves http://localhost:5173: the panel's scenarios from `src/panel.check.ts`, drawn by
 `scripts/render-panel.mjs`, redrawn on every save. Add a scenario there to preview a new state.

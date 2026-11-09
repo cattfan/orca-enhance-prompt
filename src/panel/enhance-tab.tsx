@@ -1,13 +1,14 @@
 // enhance-tab.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, read, RelativeTime, Row, Select, set, Progress, Spinner, Stack, Switch, Text, Textarea, update } from 'orca'
+import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, read, RelativeTime, Row, Select, set, Progress, Spinner, Stack, Switch, Text, Textarea, update, Input } from 'orca'
 import { CONTEXT_LEVEL_LABELS, isContextLevel, type ContextItemView } from '../presets.ts'
 import { isStyle, STYLE_LABELS } from '../prompts.ts'
 import { t } from '../i18n.ts'
+import { MAX_IMAGES } from '../image-limits.ts'
 import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
 import { rulesConfig } from './rules-tab.tsx'
-import { percent, type Step } from '../progress.ts'
-import { workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
-import { fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
+import { ESTIMATED_STEPS, stepPercent, totalPercent, type Step } from '../progress.ts'
+import { images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { addImage, removeImage, fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
 export function TargetPicker() {
@@ -119,6 +120,34 @@ export function stepText(entry: Step): string {
   return `${label} · ${t('{count} files', { count })}`
 }
 
+/** A step's share as shown: "≈" when estimated from time, "–" when skipped. */
+export function stepShare(entry: Step, now: number): string {
+  const share = stepPercent(entry, now)
+  if (share === null) return '–'
+  const estimated = entry.status === 'running' && entry.fraction === undefined && ESTIMATED_STEPS.has(entry.key)
+  return `${estimated ? '≈' : ''}${share}%`
+}
+
+/** One step: what it is on the left (cut when the panel is narrow), its share on the right; a bar under the running one. */
+function StepRow({ entry, now }: { entry: Step; now: number }) {
+  const running = entry.status === 'running'
+  const tone = entry.status === 'failed' ? 'danger' : running ? 'accent' : undefined
+  const muted = entry.status === 'pending' || entry.status === 'skipped'
+  return (
+    <Stack gap="none">
+      <Row justify="between" gap="xs">
+        <Text size="xs" truncate muted={muted} tone={tone}>
+          {`${STEP_GLYPH[entry.status]}  ${stepText(entry)}`}
+        </Text>
+        <Text size="xs" muted={!running} tone={tone}>
+          {stepShare(entry, now)}
+        </Text>
+      </Row>
+      {running ? <Progress label={t('{step}: {percent}%', { step: t(STEP_LABELS[entry.key]), percent: stepPercent(entry, now) ?? 0 })} labelHidden value={stepPercent(entry, now) ?? 0} /> : null}
+    </Stack>
+  )
+}
+
 /** Live progress of the current run, then how it ended when it did not end well. */
 export function RunCard() {
   const current = read(run)
@@ -137,11 +166,18 @@ export function RunCard() {
     )
   }
   const steps = current.steps
+  const now = read(tick)
+  const total = running ? totalPercent(steps, now) : (current.endPercent ?? totalPercent(steps, now))
   const active = steps.find((entry) => entry.status === 'running')
+  const estimating = steps.some((entry) => entry.status === 'running' && entry.fraction === undefined && ESTIMATED_STEPS.has(entry.key))
+  const finished = steps.filter((entry) => entry.status === 'done' || entry.status === 'skipped')
+  const next = steps.find((entry) => entry.status === 'pending')
+  // Between steps: the next one; all done: the answer is on its way.
+  const idle = finished.length === 0 ? t('Starting…') : next ? stepText(next) : t('Finishing…')
   const title = running
     ? active
       ? stepText(active)
-      : t('Starting…')
+      : idle
     : current.status === 'cancelled'
       ? t('Cancelled')
       : t('Enhance failed')
@@ -150,23 +186,32 @@ export function RunCard() {
       <Row justify="between" gap="xs">
         <Row gap="xs">
           {running ? <Spinner label={t('Enhancing')} labelHidden /> : null}
+          {/* The percentage comes first: a narrow panel cuts the title, never the number. */}
+          <Text weight="semibold" size="sm">
+            {`${total}%`}
+          </Text>
           <Text weight="semibold" size="sm" truncate tone={current.status === 'error' ? 'danger' : undefined}>
             {title}
           </Text>
         </Row>
-        <Text muted size="xs">
-          {running ? <RelativeTime at={current.startedAt} format="duration" /> : seconds((current.finishedAt ?? Date.now()) - current.startedAt)}
-        </Text>
+        <Row gap="xs">
+          <Text muted size="xs">
+            {running ? <RelativeTime at={current.startedAt} format="duration" /> : seconds((current.finishedAt ?? Date.now()) - current.startedAt)}
+          </Text>
+        </Row>
       </Row>
-      <Progress label={t('Progress')} labelHidden value={running ? Math.max(4, percent(steps)) : percent(steps)} />
+      <Progress label={t('Progress: {percent}%', { percent: total })} labelHidden value={total} />
       {steps.length > 0 ? (
         <Stack gap="none">
           {steps.map((entry) => (
-            <Text key={entry.key} size="xs" truncate muted={entry.status === 'pending' || entry.status === 'skipped'} tone={entry.status === 'failed' ? 'danger' : entry.status === 'running' ? 'accent' : undefined}>
-              {`${STEP_GLYPH[entry.status]}  ${stepText(entry)}`}
-            </Text>
+            <StepRow key={entry.key} entry={entry} now={now} />
           ))}
         </Stack>
+      ) : null}
+      {estimating ? (
+        <Text muted size="xs">
+          {t('≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.')}
+        </Text>
       ) : null}
       {current.status === 'error' && current.error ? (
         <Text size="xs" tone="danger">
@@ -206,6 +251,42 @@ export function optionsSummary(): string {
 }
 
 /** Style, context, output language and the Enter switch, shown under the composer when opened. */
+/** Images attached to the prompt: by path (Orca's panels have no file picker), checked by the worker. */
+export function ImagesBox() {
+  const list = read(images)
+  if (!read(imagesOpen) && list.length === 0) return null
+  return (
+    <Box gap="sm" padding="sm" radius="md" background="muted">
+      {list.map((image) => (
+        <Row key={image.path} justify="between" gap="xs">
+          <Text size="xs" truncate>
+            {`${image.name} · ${(image.bytes / (1024 * 1024)).toFixed(1)} MB`}
+          </Text>
+          <IconButton icon="close" label={t('Remove {name}', { name: image.name })} size="sm" variant="ghost" onPress={() => removeImage(image.path)} />
+        </Row>
+      ))}
+      {list.length < MAX_IMAGES ? (
+        <Row gap="xs">
+          <Input
+            label={t('Image file path')}
+            labelHidden
+            placeholder={t('Full path of a PNG, JPEG, GIF or WebP file')}
+            value={read(imageDraft)}
+            onChange={(value) => set(imageDraft, value)}
+            onSubmit={() => void addImage()}
+          />
+          <Button size="sm" variant="outline" icon="add" onPress={() => void addImage()} disabled={!read(imageDraft).trim()}>
+            {t('Attach')}
+          </Button>
+        </Row>
+      ) : null}
+      <Text muted size="xs">
+        {t('Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.', { max: MAX_IMAGES })}
+      </Text>
+    </Box>
+  )
+}
+
 /** "Fix this error": pick the terminal showing the error; the prompt goes to the target agent as usual. */
 export function FixErrorBox() {
   if (!read(fixOpen)) return null
@@ -398,6 +479,12 @@ export function EnhanceTab() {
           <ComposerModelPicker />
           <Row gap="xs">
             <IconButton
+              icon="upload"
+              label={read(images).length > 0 ? t('Attached images: {count}', { count: read(images).length }) : t('Attach images')}
+              variant={read(imagesOpen) || read(images).length > 0 ? 'outline' : 'ghost'}
+              onPress={() => update(imagesOpen, (open) => !open)}
+            />
+            <IconButton
               icon="bug"
               label={t('Fix an error from a terminal')}
               variant={read(fixOpen) ? 'outline' : 'ghost'}
@@ -427,6 +514,7 @@ export function EnhanceTab() {
             )}
           </Row>
         </Row>
+        <ImagesBox />
         <PromptOptions />
         <FixErrorBox />
       </Box>

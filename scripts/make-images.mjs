@@ -63,13 +63,13 @@ const iconData = `data:image/png;base64,${readFileSync(join(root, 'assets/icon.p
 const PAGE_CSS = `
 html,body{margin:0;width:1600px;height:1000px;overflow:hidden}
 body{font-family:Inter,"Segoe UI",system-ui,sans-serif;color:#fafafa;
-  background:radial-gradient(1200px 700px at 85% 10%,#2563eb55,transparent 60%),radial-gradient(900px 600px at 0% 100%,#7c3aed66,transparent 60%),linear-gradient(135deg,#0b1020,#141a33 55%,#0b1020)}
+  background:#0F172A}
 .stage{position:absolute;inset:0;display:flex;align-items:center;gap:64px;padding:0 90px;box-sizing:border-box}
 .copy{flex:1;min-width:0}
 .brand{display:flex;align-items:center;gap:14px;font-weight:600;font-size:22px;color:#c7d2fe;margin-bottom:26px}
 .brand img{width:44px;height:44px;border-radius:11px}
 h1{font-size:58px;line-height:1.08;margin:0 0 22px;letter-spacing:-1.5px}
-h1 em{font-style:normal;background:linear-gradient(90deg,#a78bfa,#60a5fa,#22d3ee);-webkit-background-clip:text;color:transparent}
+h1 em{font-style:normal;color:#818CF8}
 p.lead{font-size:23px;line-height:1.5;color:#cbd5e1;margin:0 0 30px;max-width:640px}
 ul.points{list-style:none;padding:0;margin:0;display:grid;gap:14px;font-size:19px;color:#e2e8f0}
 ul.points li{display:flex;gap:12px;align-items:flex-start}

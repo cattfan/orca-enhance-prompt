@@ -54,6 +54,8 @@ declare module 'orca' {
         errorTerminalId?: string
         /** A prompt structure (Rules tab) whose sections replace the style's shape. */
         structureId?: string
+        /** Paths of image files on this machine to attach (at most 4, 5 MB each; PNG, JPEG, GIF, WebP). */
+        images?: string[]
       }
       output: {
         enhanced: string
@@ -77,6 +79,8 @@ declare module 'orca' {
     }
     /** Copies `text` to the OS clipboard of the Orca host. */
     'prompt.copy': { input: { text: string }; output: { copied: boolean; error?: string } }
+    /** Checks an image file to attach: an absolute path to a PNG, JPEG, GIF or WebP of at most 5 MB. */
+    'images.inspect': { input: { path: string }; output: { path: string; name: string; bytes: number; type: string } }
     /** Agent terminals of the focused workspace, agents first. */
     'targets.list': {
       /** `workspace`: the focused workspace's name (rules can apply to one workspace). */

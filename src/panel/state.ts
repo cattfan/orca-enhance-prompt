@@ -78,7 +78,11 @@ export type Run = {
   status: 'running' | 'done' | 'error' | 'cancelled'
   error?: string
   finishedAt?: number
+  /** The run's share when it ended (failed or cancelled): the bar stops there instead of jumping. */
+  endPercent?: number
 }
+/** The clock the run card reads, moved every half second while a run goes (model estimates grow). */
+export const tick = atom(Date.now())
 export const run = atom<Run | null>(null)
 
 /** What the Privacy tab shows: stored data counts and the switches. */
@@ -97,6 +101,12 @@ export const lastRun = atom<LastRun>(null)
 export const contextShown = atom<ContextItemView[]>([])
 /** Notes are Messages; an older version saved plain strings. */
 export const contextNotes = atom<(Message | string)[]>([])
+/** Images attached to the draft (checked by the worker): their path, name, size and type. */
+export type AttachedImage = { path: string; name: string; bytes: number; type: string }
+export const images = atom<AttachedImage[]>([])
+/** The attach box is open, and the path being typed in it. */
+export const imagesOpen = atom('imagesOpen', false, { persist: 'plugin' })
+export const imageDraft = atom('')
 
 /**
  * Which project (workspace) the composer below belongs to: its key (Orca's workspace id, or its name
@@ -113,6 +123,7 @@ export type Slot = {
   contextShown: ContextItemView[]
   contextNotes: (Message | string)[]
   excluded: string[]
+  images?: AttachedImage[]
   at: number
 }
 /** Parked composers by project key; the oldest go past MAX_PARKED. */
@@ -131,6 +142,7 @@ export const KEPT: [Atom<never>, Atom<never>, unknown][] = [
   [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
   [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
   [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []],
+  [images, atom<AttachedImage[]>('images', [], { persist: 'plugin' }), []],
   [workspaceKey, atom<string | null>('workspaceKey', null, { persist: 'plugin' }), null],
   [parked, atom<Record<string, Slot>>('parked', {}, { persist: 'plugin' }), {}]
 ] as never

@@ -124,11 +124,15 @@ async function readJson(response: Response, baseUrl: string, signal?: AbortSigna
   }
 }
 
+/** A picture for a model that reads images: its type and bytes in base64. */
+export type LlmImage = { type: string; base64: string }
+
 export async function complete(
   config: LlmConfig,
   system: string,
   user: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  images: readonly LlmImage[] = []
 ): Promise<string> {
   if (!config.apiKey && !(config.provider === 'openai' && isLocalUrl(config.baseUrl))) {
     throw new LlmError(
@@ -154,7 +158,18 @@ export async function complete(
               max_tokens: config.maxTokens,
               temperature: config.temperature,
               system,
-              messages: [{ role: 'user', content: user }]
+              messages: [
+                {
+                  role: 'user',
+                  content:
+                    images.length === 0
+                      ? user
+                      : [
+                          ...images.map((image) => ({ type: 'image', source: { type: 'base64', media_type: image.type, data: image.base64 } })),
+                          { type: 'text', text: user }
+                        ]
+                }
+              ]
             })
           })
         : await fetch(endpointUrl(config.baseUrl, '/chat/completions'), {
@@ -170,7 +185,16 @@ export async function complete(
               temperature: config.temperature,
               messages: [
                 { role: 'system', content: system },
-                { role: 'user', content: user }
+                {
+                  role: 'user',
+                  content:
+                    images.length === 0
+                      ? user
+                      : [
+                          { type: 'text', text: user },
+                          ...images.map((image) => ({ type: 'image_url', image_url: { url: `data:${image.type};base64,${image.base64}` } }))
+                        ]
+                }
               ]
             })
           })

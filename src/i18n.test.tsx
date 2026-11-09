@@ -63,7 +63,7 @@ test('the panel renders in Vietnamese from the uiLanguage setting', async () => 
   // The language menu is in the Privacy section (gear icon).
   await view.press({ role: 'button', label: 'Quyền riêng tư' })
   await view.select({ label: 'Ngôn ngữ giao diện' }, 'zh')
-  await view.press({ role: 'button', label: '优化' })
+  await view.press({ role: 'button', label: 'Enhance Prompt' })
   assert.ok(view.find({ label: '你的提示词' }))
   assert.equal(host.data().settings.uiLanguage, 'zh')
   assert.deepEqual(view.errors, [])
@@ -109,4 +109,31 @@ test('worker notes, context labels and errors arrive as codes and show in the pa
   assert.ok(view.find({ text: /Tất cả model đều lỗi\. A: Yêu cầu đã bị huỷ hoặc hết thời gian chờ\./ }), JSON.stringify(view.summary()))
   assert.deepEqual(view.errors, [])
   await view.unmount()
+})
+
+test('the brand "Enhance Prompt" is the same in every language', async () => {
+  const { BRAND } = await import('./brand.ts')
+  assert.equal(BRAND, 'Enhance Prompt')
+  // Every translation of a text that names the plugin keeps the name as it is.
+  for (const [lang, dict] of Object.entries(dictionaries)) {
+    for (const [en, local] of Object.entries(dict)) {
+      if (en.includes(BRAND)) assert.ok(local.includes(BRAND), `${lang}: "${local}"`)
+    }
+  }
+  // The panel's header shows it, untranslated, in English, Vietnamese and Chinese.
+  for (const uiLanguage of ['en', 'vi', 'zh']) {
+    const host = mockHost({
+      settings: { uiLanguage },
+      requests: {
+        'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+        'targets.list': { targets: [] },
+        'models.detect': { found: [] },
+        'rules.get': { rules: [], structures: [] }
+      }
+    })
+    const view = await mount(panel, { host })
+    assert.ok(view.find({ type: 'Text', text: BRAND }), `${uiLanguage}: ${JSON.stringify(view.summary())}`)
+    assert.ok(view.find({ role: 'button', label: BRAND }))
+    await view.unmount()
+  }
 })

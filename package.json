@@ -9,7 +9,8 @@
     "check": "orca plugin check .",
     "validate": "orca plugin validate .",
     "dev": "node scripts/dev-server.mjs",
-    "images": "node scripts/make-images.mjs"
+    "images": "node scripts/make-images.mjs",
+    "mock:progress": "node scripts/mock-progress.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

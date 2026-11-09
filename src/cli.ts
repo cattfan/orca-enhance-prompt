@@ -67,7 +67,7 @@ export function detectClis(): { kind: Exclude<CliKind, 'custom-cli'>; path: stri
 const INSTRUCTION = 'Follow the instructions in the input exactly and output only the final prompt.'
 
 /** The arguments for each CLI; `outFile` is where Codex writes its last message. */
-export function cliArgs(kind: CliKind, model: string, outFile: string, customArgs: string): string[] {
+export function cliArgs(kind: CliKind, model: string, outFile: string, customArgs: string, images: readonly string[] = []): string[] {
   const m = model && SAFE_TOKEN.test(model) ? model : ''
   switch (kind) {
     case 'claude-code':
@@ -90,6 +90,8 @@ export function cliArgs(kind: CliKind, model: string, outFile: string, customArg
         '--color', 'never',
         '-o', outFile,
         ...(m ? ['-m', m] : []),
+        // Pictures attached to the prompt (checked image files on this machine).
+        ...images.flatMap((path) => ['-i', path]),
         '-'
       ]
     case 'gemini-cli':
@@ -170,7 +172,7 @@ export function readCommand(binary: string, args: string[], timeoutMs = 20_000):
 }
 
 export async function runCli(
-  options: { kind: CliKind; command: string; model: string; customArgs: string },
+  options: { kind: CliKind; command: string; model: string; customArgs: string; images?: readonly string[] },
   system: string,
   user: string,
   signal?: AbortSignal
@@ -182,7 +184,7 @@ export async function runCli(
   // A neutral working directory: no project rules, hooks or files of its own get loaded.
   const cwd = await mkdtemp(join(tmpdir(), 'enhance-prompt-'))
   const outFile = join(cwd, 'last-message.txt')
-  const args = cliArgs(options.kind, options.model, outFile, options.customArgs)
+  const args = cliArgs(options.kind, options.model, outFile, options.customArgs, options.images ?? [])
   const input = `<instructions>\n${system}\n</instructions>\n\n${user}`
   const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
   const cancelled = () => new LlmError(msg('error.timeout'), 'timeout')

@@ -161,6 +161,23 @@ createServer((req, res) => {
   } else if (url.pathname === '/api/state') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
     res.end(JSON.stringify(state))
+  } else if (url.pathname === '/mock-progress') {
+    // The progress mock (scripts/mock-progress.mjs), built on demand: ?lang=vi, ?width=280.
+    const lang = url.searchParams.get('lang') === 'vi' ? 'vi' : 'en'
+    const width = String(Number(url.searchParams.get('width')) || 380)
+    const args = ['scripts/mock-progress.mjs', ...(lang === 'vi' ? ['--vi'] : []), '--width', width, '--no-png']
+    execFile(process.execPath, args, { cwd: root, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
+        res.end(`The progress mock failed:\n${stderr || error.message}`)
+        return
+      }
+      const page = readFileSync(join(root, '.orca/mock-progress/index.html'), 'utf8')
+      const table = `<pre style="font:12px ui-monospace,monospace;color:#9a9a9a;white-space:pre-wrap">${stdout.replace(/[<&]/g, (c) => (c === '<' ? '&lt;' : '&amp;'))}</pre>`
+      const links = `<p style="margin:0 0 12px"><a style="color:#8ab4ff" href="/mock-progress?lang=en&width=${width}">English</a> · <a style="color:#8ab4ff" href="/mock-progress?lang=vi&width=${width}">Tiếng Việt</a> · <a style="color:#8ab4ff" href="/mock-progress?lang=${lang}&width=260">narrow</a> · <a style="color:#8ab4ff" href="/mock-progress?lang=${lang}&width=380">normal</a> · <a style="color:#8ab4ff" href="/">all scenarios</a></p>`
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+      res.end(page.replace('<body>', `<body>${links}`).replace('</body>', `${table}</body>`))
+    })
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' })
     res.write(`data: ${JSON.stringify({ building: state.building, at: state.at })}\n\n`)
@@ -172,5 +189,6 @@ createServer((req, res) => {
   }
 }).listen(port, '127.0.0.1', () => {
   console.log(`Enhance Prompt preview: http://localhost:${port}`)
+  console.log(`Progress mock:          http://localhost:${port}/mock-progress?lang=vi`)
   build()
 })

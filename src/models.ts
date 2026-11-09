@@ -3,6 +3,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { runCli, type CliKind } from './cli.ts'
 import { complete, isLocalUrl, isTransient, LlmError, messageOf } from './llm.ts'
 import { english, msg, type Message } from './messages.ts'
+import { imageSupport, type ImageData } from './images.ts'
 import {
   MODELS_KEY,
   modelsToJson,
@@ -122,6 +123,8 @@ export type ChainOptions = {
   fallbackOn: 'any' | 'transient'
   /** Progress: called before each model is tried (1-based `attempt` of `total`). */
   onAttempt?: (profile: ModelProfile, model: string, attempt: number, total: number) => void
+  /** Pictures attached to the prompt: each model gets them the way it can (see imageSupport). */
+  images?: readonly ImageData[]
 }
 
 export class ChainError extends Error {
@@ -186,7 +189,13 @@ export async function runChain(
       const text =
         profile.provider === 'cli'
           ? await runCli(
-              { kind: profile.preset as CliKind, command: profile.command, model, customArgs: profile.args },
+              {
+                kind: profile.preset as CliKind,
+                command: profile.command,
+                model,
+                customArgs: profile.args,
+                images: imageSupport(profile) === 'file' ? (options.images ?? []).map((image) => image.path) : []
+              },
               system,
               user,
               controller.signal
@@ -203,7 +212,8 @@ export async function runChain(
         },
         system,
         user,
-        controller.signal
+        controller.signal,
+        imageSupport(profile) === 'data' ? (options.images ?? []).map((image) => ({ type: image.type, base64: image.base64 })) : []
       )
       attempts.push({ profileId: profile.id, name: profile.name, model, ok: true, ms: Date.now() - attemptStart })
       return { text, profile, attempts }

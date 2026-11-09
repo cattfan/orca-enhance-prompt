@@ -195,6 +195,52 @@ const scenarios = {
       'rules.get': rulesSample
     }
   },
+  'guide-images': {
+    settings: { uiLanguage: 'en' },
+    requests: {
+      'models.get': models([base, gpt]),
+      'targets.list': agents,
+      'models.detect': detect(true),
+      'rules.get': rulesSample
+    },
+    persisted: {
+      plugin: {
+        tab: 'enhance',
+        draft: 'the login button is cut off on mobile, see the screenshot',
+        imagesOpen: true,
+        images: [
+          { path: 'C:\\Users\\me\\Pictures\\login-mobile.png', name: 'login-mobile.png', bytes: 412_000, type: 'image/png' },
+          { path: 'C:\\Users\\me\\Pictures\\console-error.png', name: 'console-error.png', bytes: 186_000, type: 'image/png' }
+        ],
+        profileChoice: 'claude-code'
+      }
+    }
+  },
+  'guide-fix': {
+    ...enhanceScenario('en'),
+    persisted: { plugin: { tab: 'enhance', draft: '', fixOpen: true, profileChoice: 'claude-code' } },
+    requests: {
+      ...enhanceScenario('en').requests,
+      'targets.list': { targets: [{ terminalId: 'agent', label: 'Claude Code · waiting', agent: 'claude' }, { terminalId: 'tests', label: 'Tests (pnpm test)', agent: null }], workspace: 'web-app' },
+      'rules.get': rulesSample
+    }
+  },
+  'guide-rules': {
+    settings: { uiLanguage: 'en' },
+    requests: {
+      'models.get': models([base, gpt]),
+      'targets.list': { ...agents, workspace: 'web-app' },
+      'models.detect': detect(true),
+      'rules.get': {
+        rules: [
+          { id: 'r1', text: 'Always tell the agent to run pnpm test before finishing.', enabled: true, scope: '' },
+          { id: 'r2', text: 'Use the design tokens in src/theme; no hard-coded colours.', enabled: true, scope: 'web-app' }
+        ],
+        structures: [{ id: 'mine', name: 'My brief', sections: ['Goal', 'Context', 'Requirements', 'Done when'] }]
+      }
+    },
+    persisted: { plugin: { tab: 'rules' } }
+  },
   'shot-rules-vi': {
     settings: { uiLanguage: 'vi' },
     requests: {

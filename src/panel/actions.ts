@@ -6,9 +6,10 @@ import { isContextLevel, presetById, type ContextItemView, type ProfileView } fr
 import { isStyle } from '../prompts.ts'
 import { t, uiLanguageSetting } from '../i18n.ts'
 import { PRIVACY_KEYS } from '../privacy.ts'
-import { type Step } from '../progress.ts'
+import { stepPercent, totalPercent, type Step } from '../progress.ts'
+import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -28,11 +29,12 @@ function snapshot(): Slot {
     contextShown: read(contextShown),
     contextNotes: read(contextNotes),
     excluded: read(excluded),
+    images: read(images),
     at: Date.now()
   }
 }
 
-const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0
+const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0 && (slot.images ?? []).length === 0
 
 /** Keeps a project's composer, newest first, at most MAX_PARKED projects. */
 function park(key: string, slot: Slot): void {
@@ -70,7 +72,8 @@ function switchWorkspace(key: string, name: string | null): void {
   put(contextShown, incoming?.contextShown ?? [])
   put(contextNotes, incoming?.contextNotes ?? [])
   set(excluded, incoming?.excluded ?? [])
-  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [] })
+  put(images, incoming?.images ?? [])
+  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], images: [] })
   put(workspaceKey, key)
   set(workspaceName, name)
   set(notice, null)
@@ -202,6 +205,7 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
         style: fix ? 'bugfix' : read(effectiveStyle),
         ...(fix ? { errorTerminalId: fix.terminalId } : {}),
         ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
+        ...(read(images).length > 0 ? { images: read(images).map((image) => image.path) } : {}),
         level: read(effectiveLevel),
         terminalId: read(target),
         profileId: choice === 'auto' ? null : choice,
@@ -245,11 +249,32 @@ function snapshotFor(name: string | null): Slot {
 /** Starts a fresh run; progress from an older run is ignored by its id. Exported for tests. */
 export function beginRun(runId: string, workspace?: { key: string | null; name: string | null }): string {
   set(run, { runId, startedAt: Date.now(), steps: [], status: 'running', ...(workspace ? { workspace } : {}) })
+  startTicking()
   return runId
 }
 
+let ticker: ReturnType<typeof setInterval> | null = null
+/** Moves the run card's clock while a run goes, so time-estimated shares grow; stops on its own. */
+function startTicking(): void {
+  if (ticker) return
+  ticker = setInterval(() => {
+    if (read(run)?.status !== 'running') stopTicking()
+    else set(tick, Date.now())
+  }, 500)
+}
+export function stopTicking(): void {
+  if (ticker) clearInterval(ticker)
+  ticker = null
+}
+
+/** The progress mock drives the clock itself (simulated time). */
+export function setNowForTest(ms: number): void {
+  stopTicking()
+  set(tick, ms)
+}
+
 /** Takes a worker snapshot when it belongs to the running run. Exported for tests. */
-export function applyProgress(snapshot: { runId: string; startedAt: number; steps: { key: string; status: Step['status']; detail?: string }[] }): void {
+export function applyProgress(snapshot: { runId: string; startedAt: number; steps: { key: string; status: Step['status']; detail?: string; fraction?: number; startedAt?: number }[] }): void {
   const current = read(run)
   if (current && current.runId === snapshot.runId && current.status === 'running') {
     set(run, { ...current, startedAt: snapshot.startedAt, steps: snapshot.steps.map((entry) => ({ ...entry, key: entry.key as Step['key'] })) })
@@ -263,8 +288,41 @@ export const OPEN_STEP_ENDS: Record<Run['status'], Step['status']> = { running: 
 export function finishRun(runId: string, status: Run['status'], error?: string): void {
   const current = read(run)
   if (!current || current.runId !== runId || current.status !== 'running') return
-  const steps: Step[] = current.steps.map((entry) => (entry.status === 'running' ? { ...entry, status: OPEN_STEP_ENDS[status] } : entry))
-  set(run, { ...current, steps, status, finishedAt: Date.now(), ...(error ? { error } : {}) })
+  // The card's clock (the progress mock runs it on simulated time).
+  const now = Math.max(Date.now(), read(tick))
+  // A step still running keeps the share it had reached (its estimate included), so the card shows
+  // where the run stopped; the bar keeps the run's share at that moment and never jumps to 100.
+  const steps: Step[] = current.steps.map((entry) => {
+    if (entry.status !== 'running') return entry
+    const reached = (stepPercent(entry, now) ?? 0) / 100
+    return { ...entry, status: OPEN_STEP_ENDS[status], ...(status === 'done' ? {} : { fraction: reached }) }
+  })
+  const endPercent = status === 'done' ? 100 : totalPercent(current.steps, now)
+  set(run, { ...current, steps, status, finishedAt: now, endPercent, ...(error ? { error } : {}) })
+  set(tick, now)
+  stopTicking()
+}
+
+/** Attaches an image by its path: the worker checks it (absolute path, PNG/JPEG/GIF/WebP, 5 MB). */
+export async function addImage(): Promise<void> {
+  const path = read(imageDraft).trim()
+  if (!path) return
+  if (read(images).length >= MAX_IMAGES) {
+    set(notice, { tone: 'warning', text: t('At most {max} images per prompt.', { max: MAX_IMAGES }) })
+    return
+  }
+  try {
+    const image = await plugin.request('images.inspect', { path })
+    if (!read(images).some((entry) => entry.path === image.path)) put(images, [...read(images), image])
+    set(imageDraft, '')
+    set(notice, null)
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+export function removeImage(path: string): void {
+  put(images, read(images).filter((image) => image.path !== path))
 }
 
 /** "Fix this error": a bug-fix prompt about the latest error in the chosen terminal, for the target agent. */

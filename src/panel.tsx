@@ -2,8 +2,9 @@
 import { Separator, IconButton, on, plugin, read, Row, set, settings, Stack, Text, type PanelContext } from 'orca'
 import { t } from './i18n.ts'
 import { VERSION } from './version.ts'
+import { BRAND } from './brand.ts'
 import { tab, notice, restoreSaved, history } from './panel/state.ts'
-import { workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
+import { stopTicking, workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
 import { EnhanceTab } from './panel/enhance-tab.tsx'
 import { HistoryTab } from './panel/history-tab.tsx'
 import { ModelsTab } from './panel/models-tab.tsx'
@@ -13,7 +14,10 @@ import { refreshRules, RulesTab } from './panel/rules-tab.tsx'
 export function setup(ctx: PanelContext): void {
   restoreSaved()
   // Closing or reloading the panel ends its run: stop the request so the worker stops the model too.
-  ctx.signal.addEventListener('abort', () => cancel())
+  ctx.signal.addEventListener('abort', () => {
+    cancel()
+    stopTicking()
+  })
   ctx.subscriptions.push(
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
@@ -56,7 +60,7 @@ function Nav() {
     <Row justify="between" gap="xs">
       <Row gap="xs">
         <Text weight="semibold" truncate>
-          {t(current.label)}
+          {current.value === 'enhance' ? BRAND : t(current.label)}
         </Text>
         <Text muted size="xs">
           {`v${VERSION}`}
@@ -67,7 +71,7 @@ function Nav() {
           <IconButton
             key={section.value}
             icon={section.icon}
-            label={section.value === 'history' ? `${t('History')} (${read(history).length})` : t(section.label)}
+            label={section.value === 'history' ? `${t('History')} (${read(history).length})` : section.value === 'enhance' ? BRAND : t(section.label)}
             variant={section.value === current.value ? 'outline' : 'ghost'}
             onPress={() => openSection(section.value)}
           />
@@ -89,4 +93,4 @@ export default function Panel() {
 }
 
 // Exported for tests.
-export { applyProgress, beginRun } from './panel/actions.ts'
+export { applyProgress, beginRun, finishRun as finishRunForTest, setNowForTest } from './panel/actions.ts'

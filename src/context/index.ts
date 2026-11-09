@@ -97,19 +97,30 @@ export function cachedStatic(root: string): StaticParts | null {
   return hit && Date.now() - hit.at < STATIC_TTL_MS * 4 ? hit : null
 }
 
-export async function staticParts(root: string, extraFiles: string[], fresh = false, allowGit = true, signal?: AbortSignal): Promise<StaticParts> {
+export async function staticParts(
+  root: string,
+  extraFiles: string[],
+  fresh = false,
+  allowGit = true,
+  signal?: AbortSignal,
+  /** How far the read has got, 0-1 (progress bar). */
+  onProgress: (fraction: number) => void = () => undefined
+): Promise<StaticParts> {
   const cacheKey = `${allowGit ? 'git' : 'nogit'}:${root}`
   const hit = staticCache.get(cacheKey)
   if (hit && !fresh && Date.now() - hit.at < STATIC_TTL_MS) return hit
   const isGit = allowGit && (await isGitRepo(root, signal))
+  onProgress(0.15)
   const listed = (isGit ? await gitFiles(root, signal) : null) ?? (await walkFiles(root, undefined, undefined, signal))
   // A cancelled read is incomplete: never cache it.
   stopIfCancelled(signal)
+  onProgress(0.5)
   const files = listed.filter((file) => !isSensitive(file))
   const items: ContextItem[] = []
   for (const rule of await readRuleFiles(root, files, extraFiles, 9000)) {
     items.push(item(`rules:${rule.name}`, 'rules', raw(rule.name), rule.content))
   }
+  onProgress(0.8)
   const stack = await detectStack(root, files)
   if (stack) items.push(item('stack', 'stack', msg('label.stack'), stack))
   if (files.length > 0) items.push(item('tree', 'tree', msg('label.tree', { count: files.length }), treeSummary(files)))
@@ -159,7 +170,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
 
   if (root) {
     stopIfCancelled(signal)
-    const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false, signal)
+    const parts = await staticParts(root, options.extraFiles, false, options.allowGit !== false, signal, (fraction) => step('project', 'running', undefined, fraction))
     items.push(...parts.items)
     step('project', 'done', String(parts.files.length))
     if (atLeast(level, 'deep')) {
@@ -224,10 +235,18 @@ async function dynamicParts(
     // Status, log and diff are independent reads: run them side by side (a large repository spends
     // most of this step waiting on git). Status also ranks changed files, so it is read even unticked.
     const diffChars = options.level === 'max' ? 9000 : 5000
+    // Each of the three reads that finishes is a third of the step.
+    let finished = 0
+    const counted = <T>(read: Promise<T> | T): Promise<T> =>
+      Promise.resolve(read).then((value) => {
+        finished++
+        if (finished < 3) step('git', 'running', undefined, finished / 3)
+        return value
+      })
     const [status, log, diff] = await Promise.all([
-      gitStatus(root, signal),
-      skip('git:log') ? null : gitLog(root, 6, signal),
-      skip('git:diff') ? null : gitDiff(root, diffChars, (path) => !isExcluded(path, patterns), signal)
+      counted(gitStatus(root, signal)),
+      counted(skip('git:log') ? null : gitLog(root, 6, signal)),
+      counted(skip('git:diff') ? null : gitDiff(root, diffChars, (path) => !isExcluded(path, patterns), signal))
     ])
     stopIfCancelled(signal)
     if (status && !skip('git:status') && (status.changed.length > 0 || status.branchLine)) {
@@ -256,7 +275,19 @@ async function dynamicParts(
   const keywords = weighted.map((entry) => entry.word)
   const grepTargets = weighted.filter((entry) => entry.word.length >= 4).slice(0, 8)
   const grepWords = grepTargets.map((entry) => entry.word)
-  const perWord = parts.isGit ? await Promise.all(grepWords.map((word) => gitGrepCount(root, word, signal))) : []
+  // Each word searched is a share of the step; ranking the files is the last tenth.
+  let searched = 0
+  const perWord = parts.isGit
+    ? await Promise.all(
+        grepWords.map((word) =>
+          gitGrepCount(root, word, signal).then((counts) => {
+            searched++
+            step('search', 'running', undefined, (searched / grepWords.length) * 0.9)
+            return counts
+          })
+        )
+      )
+    : []
   stopIfCancelled(signal)
   const content = contentScores(perWord, files.length, grepTargets.map((entry) => entry.weight))
   const mentionsTests = /\btest|spec|kiểm thử/i.test(options.prompt)
