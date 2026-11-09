@@ -53,11 +53,15 @@ Rules:
 - Keep every concrete detail the user gave: names, paths, error messages, code, URLs, numbers.
 - Write as instructions addressed to the agent ("Add...", "Investigate..."), not as a conversation.
 - Use the project context only to make the prompt more precise; do not summarize it back.
+- The agent reads the project's own rule files (AGENTS.md, CLAUDE.md, GEMINI.md) by itself. Do not restate them; mention a rule from them only when it changes how THIS task must be done.
+- Verification: name only the one or two commands that check this change (from the context), not every check the project has.
+- Do not decide things the user left open (exact UI wording, translations, names, numbers, design choices): leave them to the agent or list them as questions.
+- Match the length to the request: a small change gets a short prompt; never pad.
 - Output ONLY the final prompt text. No preamble, no explanation, no surrounding code fence.`
 
 const STYLE_RULES: Record<Style, string> = {
   balanced: `Shape: a one-line goal, then short sections only where useful: Context, Requirements, Constraints, Done when. Keep it compact; small requests stay small.`,
-  concise: `Shape: a tight, unambiguous prompt of a few sentences or bullet points. Fix grammar and vagueness; remove filler. Do not add sections.`,
+  concise: `Shape: a tight, unambiguous prompt of at most about five short lines (under ~600 characters): a few sentences or bullet points. Fix grammar and vagueness; remove filler. No sections or headings; add one open question only if it blocks the task.`,
   detailed: `Shape: a full spec with sections: Goal, Background, Requirements (numbered), Constraints / non-goals, Edge cases, Acceptance criteria, Deliverables. Be thorough but do not pad.`,
   bugfix: `Shape: a bug-fix brief: Symptom (actual vs expected), Reproduction steps (if known), Suspected area (only if given), Investigation steps (find the root cause before changing code), Fix requirements (minimal change, no unrelated refactors), Verification (add or update a regression test, run the relevant tests).`,
   feature: `Shape: a feature brief: Goal and user value, Behaviour / requirements, UI or API surface (if relevant), Constraints (match existing patterns, no new dependencies unless needed), Tests to add, Done when.`,
@@ -71,7 +75,7 @@ const STYLE_RULES: Record<Style, string> = {
 const AGENT_HINTS: { match: RegExp; hint: string }[] = [
   {
     match: /claude/i,
-    hint: 'Target is Claude Code: Markdown headings or XML tags (<context>, <requirements>) both work well; for multi-step work it may be told to plan first and use a todo list; state the exact verification command.'
+    hint: 'Target is Claude Code: write sections as Markdown headings (do not mix in XML tags); for multi-step work it may be told to plan first and use a todo list; state the exact verification command.'
   },
   {
     match: /codex/i,
@@ -137,7 +141,7 @@ function structureShape(sections: string[]): string {
   return [
     'Shape: write the prompt under exactly these headings, in this order:',
     ...sections.map((section, index) => `${index + 1}. ${section}`),
-    'Use the headings as given, translated into the output language when they are in another language. Leave a heading out only when nothing in the request or the context belongs under it; never invent content to fill one.'
+    'Use the headings as given, translated into the output language when they are in another language. Add no other headings: put open questions or assumptions under the closest heading. Leave a heading out only when nothing in the request or the context belongs under it; never invent content to fill one.'
   ].join('\n')
 }
 

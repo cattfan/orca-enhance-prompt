@@ -46,6 +46,10 @@ for; approve it yourself, then run `node scripts/e2e.mjs --approve <fingerprint>
 
 ## Live preview
 
+`node scripts/eval-prompts.mjs` runs a few fixed cases through a real model (Claude Code, `haiku`, your
+subscription) and checks the output mechanically (no preamble, right language, no invented paths,
+details kept, length, structure headings). Run it after changing `src/prompts.ts`.
+
 `npm run dev` serves http://localhost:5173: the panel's scenarios from `src/panel.check.ts`, drawn by
 `scripts/render-panel.mjs`, redrawn on every save. Add a scenario there to preview a new state.
 

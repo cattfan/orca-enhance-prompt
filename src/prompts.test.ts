@@ -80,3 +80,13 @@ test('formatForTerminal drops control characters a model could slip into the pro
   assert.equal(formatForTerminal('a\u0003\nb', 'single-line'), 'a b')
   assert.equal(terminalSafe('plain'), 'plain')
 })
+
+test('the rewriter is told not to copy rule files, to keep checks and length in proportion, and not to decide open choices', async () => {
+  const { buildSystemPrompt } = await import('./prompts.ts')
+  const system = buildSystemPrompt({ style: 'concise', language: 'auto', agent: 'claude' })
+  assert.match(system, /reads the project's own rule files \(AGENTS\.md, CLAUDE\.md, GEMINI\.md\) by itself/)
+  assert.match(system, /only the one or two commands that check this change/)
+  assert.match(system, /Do not decide things the user left open/)
+  assert.match(system, /at most about five short lines/)
+  assert.match(system, /Markdown headings \(do not mix in XML tags\)/)
+})
