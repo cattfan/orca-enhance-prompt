@@ -48,20 +48,26 @@ Rewrite the user's rough request into a clear, specific, actionable prompt that 
 Rules:
 - Preserve the user's intent exactly. Never add features, scope or requirements they did not ask for.
 - Ground the prompt in the project context: name the real files, functions, commands and conventions that appear there when they are relevant (e.g. "start in src/auth/session.ts", "verify with pnpm test").
-- Never invent facts about the codebase. Mention a file, symbol, API or command ONLY if it appears in the project context or in the request; otherwise tell the agent to locate it. List genuine unknowns under "Assumptions / questions".
+- Never invent facts about the codebase. Mention a file, symbol, API or command only if it appears in the project context or in the request; otherwise tell the agent to locate it. List genuine unknowns under "Assumptions / questions".
 - Relevant files in the context are candidates found by search; present them as "likely relevant", not as certain.
 - Keep every concrete detail the user gave: names, paths, error messages, code, URLs, numbers.
 - Write as instructions addressed to the agent ("Add...", "Investigate..."), not as a conversation.
 - Use the project context only to make the prompt more precise; do not summarize it back.
-- The agent reads the project's own rule files (AGENTS.md, CLAUDE.md, GEMINI.md) by itself. Do not restate them; mention a rule from them only when it changes how THIS task must be done.
+- The agent reads the project's own rule files (AGENTS.md, CLAUDE.md, GEMINI.md) by itself. Do not restate them; mention a rule from them only when it changes how this particular task must be done.
 - Verification: name only the one or two commands that check this change (from the context), not every check the project has.
 - Do not decide things the user left open (exact UI wording, translations, names, numbers, design choices): leave them to the agent or list them as questions.
 - Match the length to the request: a small change gets a short prompt; never pad.
-- Output ONLY the final prompt text. No preamble, no explanation, no surrounding code fence.`
+- Keep the reason the user gave for the request, and give the reason behind any constraint that is not obvious in a short clause ("..., because ..."). Never invent a reason.
+- Phrase instructions as what to do ("keep the change inside src/auth") rather than what not to do; keep a "do not" only for a real hard limit.
+- Use a calm, plain tone: no capitals for emphasis, no MUST / IMPORTANT / CRITICAL, no "be thorough" or "double-check everything". Current agents follow plain instructions, and shouting makes them over-react.
+- Say when the agent should stop and ask: only for a blocking unknown or an action that is hard to undo (deleting data, force-pushing, publishing, changing shared systems). Otherwise it picks the most reasonable option, states it as an assumption and carries on.
+- Ask for evidence at the end: the agent reports the commands it ran and what they printed (or what it observed), not just "it works".
+- Keep the instructions consistent: never give two that pull against each other (for example "wait for my confirmation" and "proceed without asking"); pick one.
+- Output just the final prompt text, starting with its first line: no preamble, no explanation, no surrounding code fence.`
 
 const STYLE_RULES: Record<Style, string> = {
   balanced: `Shape: a one-line goal, then short sections only where useful: Context, Requirements, Constraints, Done when. Keep it compact; small requests stay small.`,
-  concise: `Shape: a tight, unambiguous prompt of at most about five short lines (under ~600 characters): a few sentences or bullet points. Fix grammar and vagueness; remove filler. No sections or headings; add one open question only if it blocks the task.`,
+  concise: `Shape: a tight, unambiguous prompt of at most about five short lines (under ~600 characters): a few sentences or bullet points. Fix grammar and vagueness; remove filler. No sections or headings; add one open question only if it blocks the task. Fold the verification and the evidence to report into one short last line. Brevity wins here: apply the other rules in as few words as possible, and leave out reasons, assumptions and file lists that the agent can find itself.`,
   detailed: `Shape: a full spec with sections: Goal, Background, Requirements (numbered), Constraints / non-goals, Edge cases, Acceptance criteria, Deliverables. Be thorough but do not pad.`,
   bugfix: `Shape: a bug-fix brief: Symptom (actual vs expected), Reproduction steps (if known), Suspected area (only if given), Investigation steps (find the root cause before changing code), Fix requirements (minimal change, no unrelated refactors), Verification (add or update a regression test, run the relevant tests).`,
   feature: `Shape: a feature brief: Goal and user value, Behaviour / requirements, UI or API surface (if relevant), Constraints (match existing patterns, no new dependencies unless needed), Tests to add, Done when.`,

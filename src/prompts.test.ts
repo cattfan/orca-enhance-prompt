@@ -90,3 +90,16 @@ test('the rewriter is told not to copy rule files, to keep checks and length in 
   assert.match(system, /at most about five short lines/)
   assert.match(system, /Markdown headings \(do not mix in XML tags\)/)
 })
+
+test('the rewriter follows the vendors\' prompting guidance: reasons kept, positive phrasing, plain tone, when to ask, evidence, no contradictions', async () => {
+  const { buildSystemPrompt } = await import('./prompts.ts')
+  const system = buildSystemPrompt({ style: 'balanced', language: 'auto' })
+  assert.match(system, /Keep the reason the user gave/)
+  assert.match(system, /rather than what not to do/)
+  assert.match(system, /no MUST \/ IMPORTANT \/ CRITICAL/)
+  assert.match(system, /stop and ask: only for a blocking unknown or an action that is hard to undo/)
+  assert.match(system, /reports the commands it ran and what they printed/)
+  assert.match(system, /never give two that pull against each other/)
+  // The rewriter's own instructions follow the same tone.
+  assert.ok(!/\b(ONLY|THIS)\b/.test(system), 'capitals for emphasis in the system prompt')
+})

@@ -31,10 +31,11 @@ const PATH = /\b(?:src|scripts|docs)\/[\w./-]+\.\w+/g
 const known = new Set(context.flatMap((block) => [block.label, ...(block.content.match(PATH) ?? [])]))
 
 const CASES = [
-  { name: 'vague bug, Vietnamese', style: 'bugfix', prompt: 'panel mở chậm quá, sửa đi', language: 'vi', keep: [], noise: ['zz-'] },
+  { name: 'vague bug, Vietnamese', style: 'bugfix', prompt: 'panel mở chậm quá, sửa đi', language: 'vi', keep: [] },
   { name: 'feature, nothing in context about it', style: 'feature', prompt: 'add a dark mode toggle to the settings', language: 'en', keep: ['dark mode'], noise: ['zz-'] },
-  { name: 'concise rename', style: 'concise', prompt: 'rename the History tab to Log everywhere, also in the vi and zh translations', language: 'en', keep: ['History', 'Log'], maxChars: 700, noise: ['zz-', 'PANEL_REQUEST_LIMIT_MS'] },
+  { name: 'concise rename', style: 'concise', prompt: 'rename the History tab to Log everywhere, also in the vi and zh translations', language: 'en', keep: ['History', 'Log'], maxChars: 800, noise: ['zz-', 'PANEL_REQUEST_LIMIT_MS'] },
   { name: 'details kept, Vietnamese', style: 'balanced', prompt: 'khi gửi prompt dài hơn 4096 ký tự vào terminal thì bị lỗi "text: Too big", xử lý giúp', language: 'vi', keep: ['4096', 'Too big'] },
+  { name: 'reason kept, Vietnamese', style: 'balanced', prompt: 'tăng độ trễ trước khi nhấn Enter sau khi gửi lên 300 ms, vì Codex hay nhận thiếu đoạn cuối của prompt dài', language: 'vi', keep: ['300', 'Codex'], reason: true },
   { name: 'structure', style: 'balanced', prompt: 'thêm nút xuất lịch sử ra file CSV', language: 'vi', keep: ['CSV'], structure: { name: 'Mine', sections: ['Mục tiêu', 'Yêu cầu', 'Tiêu chí hoàn thành'] } }
 ]
 
@@ -71,6 +72,16 @@ for (const item of CASES) {
   if (checks > 3) problems.push(`lists ${checks} check commands`)
   if (/<(context|requirements|constraints|done_when)>/.test(text) && /^#{1,3} /m.test(text)) problems.push('mixes XML tags and Markdown headings')
   if (/<(context|requirements|constraints|done_when)>/.test(text)) problems.push('uses XML tags instead of headings')
+  // Anthropic and OpenAI: plain tone, no shouting.
+  const shouting = text.match(/\b(MUST|IMPORTANT|CRITICAL|NEVER|ALWAYS|PHẢI|KHÔNG ĐƯỢC)\b|!!/g) ?? []
+  if (shouting.length > 0) problems.push(`shouts (${[...new Set(shouting)].join(', ')})`)
+  // Say what to do rather than what not to do: most bullets should not be prohibitions.
+  const bullets = text.split('\n').filter((line) => /^\s*(?:[-*]|\d+[.)])\s/.test(line))
+  const negative = bullets.filter((line) => /^\s*(?:[-*]|\d+[.)])\s+(?:\*\*)?(do not|don't|never|avoid|không|đừng|tránh)\b/i.test(line))
+  if (negative.length > 2 && negative.length / Math.max(1, bullets.length) > 0.3) problems.push(`${negative.length} of ${bullets.length} bullets are prohibitions`)
+  // Claude Code: ask for evidence, not a claim.
+  if (item.style !== 'concise' && !/(report|evidence|output|printed|báo cáo|báo lại|kết quả|in ra|đầu ra)/i.test(text)) problems.push('asks for no evidence')
+  if (item.reason && !/(because|since|vì|do |bởi)/i.test(text)) problems.push('lost the reason the user gave')
   if (item.structure) {
     const missing = item.structure.sections.filter((section) => !text.includes(section))
     if (missing.length) problems.push(`missing headings: ${missing.join(', ')}`)
