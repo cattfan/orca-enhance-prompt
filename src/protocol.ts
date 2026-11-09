@@ -58,6 +58,8 @@ declare module 'orca' {
         images?: string[]
         /** Orca's id of the workspace the panel is in (several can share a name and branch). */
         workspaceId?: string
+        /** Attached files of any kind, by path (the web panel uploads them with attachments.put). */
+        files?: string[]
       }
       output: {
         enhanced: string
@@ -81,6 +83,10 @@ declare module 'orca' {
     }
     /** Copies `text` to the OS clipboard of the Orca host. */
     'prompt.copy': { input: { text: string }; output: { copied: boolean; error?: string } }
+    /** One chunk (base64, in order) of a file pasted, dropped or picked in the web panel; the last answers with its path. */
+    'attachments.put': { input: { id: string; name: string; index: number; total: number; data: string }; output: { path: string; bytes: number } | { received: number } }
+    /** The latest progress of a run (what `enhance.progress` last posted), for a caller that cannot hear panel events. */
+    'enhance.progress.get': { input: { runId: string }; output: PluginPanelEvents['enhance.progress'] | null }
     /** Checks an image file to attach: an absolute path to a PNG, JPEG, GIF or WebP of at most 5 MB. */
     'images.inspect': { input: { path: string }; output: { path: string; name: string; bytes: number; type: string } }
     /** Agent terminals of the focused workspace, agents first. */

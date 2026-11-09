@@ -1,20 +1,11 @@
 // privacy-tab.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { Button, Callout, Checkbox, Separator, KeyValue, read, Row, Select, set, Spinner, Stack, Text, update, shell } from 'orca'
+import { Button, Callout, Checkbox, Separator, KeyValue, read, Row, Select, set, Spinner, Stack, Text, update } from 'orca'
 import { t, UI_LANGUAGES, uiLanguageSetting } from '../i18n.ts'
-import { PRIVACY_KEYS } from '../privacy.ts'
-import { tab, dataSummary, privacy, confirmWipe, models, defaults, notice } from './state.ts'
-import { changeUiLanguage, setSetting, setRoles, clearData } from './actions.ts'
+import { tab, dataSummary, privacy, confirmWipe, models, defaults } from './state.ts'
+import { openIssues, changeUiLanguage, setSetting, setRoles, clearData } from './actions.ts'
 import { UI_LANGUAGE_LABELS, NoticeBar, Hint, Section } from './common.tsx'
-
-export const PRIVACY_ROWS: { key: (typeof PRIVACY_KEYS)[number]; label: string; hint: string }[] = [
-  { key: 'allowProjectFiles', label: 'Read project files', hint: 'Agent rules, README, manifest files and the file list of the focused workspace (Standard level and above). Off: only workspace and agent names are used.' },
-  { key: 'allowGit', label: 'Run git', hint: 'Read-only git status, log, diff, ls-files and grep in the focused workspace (Deep and Max levels).' },
-  { key: 'allowTerminalRead', label: 'Read terminal output', hint: 'The last lines of the terminal you picked, at the Max level only.' },
-  { key: 'allowTerminalSend', label: 'Send to terminals', hint: 'Type the prompt into the terminal you pick when you click Send. Off: use Copy instead.' },
-  { key: 'saveHistory', label: 'Save history', hint: 'Keep your prompts and enhanced prompts in the History tab, on this machine only.' },
-  { key: 'allowEnvKeys', label: 'Use API keys from environment variables', hint: 'OPENAI_API_KEY, ANTHROPIC_API_KEY and the others, when a model has no saved key.' },
-  { key: 'allowOnlineModelLists', label: 'Fetch model lists online', hint: "GET /models from your API providers and the public Claude Code settings schema, to keep model menus current. CLI lists are always local." }
-]
+import { PRIVACY_ROWS, ISSUES_URL } from './view.ts'
+export { PRIVACY_ROWS, ISSUES_URL }
 
 export function PrivacyTab() {
   const flags = read(privacy)
@@ -131,12 +122,4 @@ export function PrivacyTab() {
       <NoticeBar />
     </Stack>
   )
-}
-
-/** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
-export const ISSUES_URL = 'https://github.com/cattfan/orca-enhance-prompt/issues/new'
-
-async function openIssues(): Promise<void> {
-  const opened = await shell.openExternal(ISSUES_URL).catch(() => ({ opened: false }))
-  if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url: ISSUES_URL }) })
 }

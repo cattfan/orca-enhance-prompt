@@ -1,48 +1,12 @@
 // rules-tab.tsx: the Rules tab: your own rules for the rewriter, and prompt structures.
-import { Badge, Box, Button, Checkbox, IconButton, Input, plugin, read, Row, Select, set, Stack, Text, Textarea } from 'orca'
+import { Badge, Box, Button, Checkbox, IconButton, Input, read, Row, Select, set, Stack, Text, Textarea } from 'orca'
 import { t } from '../i18n.ts'
-import { BUILT_IN_STRUCTURES, MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
+import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES } from '../rules.ts'
 import { Hint, Section } from './common.tsx'
-import { notice, message, ruleDraft, ruleScope, rulesState, structureChoice, structureDraft, workspaceName } from './state.ts'
-
-/** The saved rules and structures, as the panel edits them. */
-export const rulesConfig = (): RulesConfig => read(rulesState)
-
-export async function refreshRules(): Promise<void> {
-  set(rulesState, await plugin.request('rules.get').catch(() => read(rulesState)))
-}
-
-/** Shown at once; the worker saves it and answers with what it kept. */
-function saveRules(change: (config: RulesConfig) => RulesConfig): void {
-  const next = change(read(rulesState))
-  set(rulesState, next)
-  plugin.request('rules.save', { config: next }).catch((error: unknown) => set(notice, { tone: 'danger', text: message(error) }))
-}
-
-function addRule(): void {
-  const text = read(ruleDraft).trim().slice(0, MAX_RULE_CHARS)
-  if (!text) return
-  const scope = read(ruleScope) === 'workspace' ? (read(workspaceName) ?? '') : ''
-  saveRules((config) => ({ ...config, rules: [...config.rules, { id: newId('rule'), text, enabled: true, scope }].slice(0, MAX_RULES) }))
-  set(ruleDraft, '')
-}
-
-function addStructure(): void {
-  const { name, sections } = read(structureDraft)
-  const list = sections
-    .split('\n')
-    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
-    .filter(Boolean)
-    .slice(0, MAX_SECTIONS)
-  if (!name.trim() || list.length === 0) return
-  saveRules((config) => ({ ...config, structures: [...config.structures, { id: newId('structure'), name: name.trim().slice(0, 40), sections: list }].slice(0, MAX_STRUCTURES) }))
-  set(structureDraft, { name: '', sections: '' })
-}
-
-function removeStructure(id: string): void {
-  saveRules((config) => ({ ...config, structures: config.structures.filter((structure) => structure.id !== id) }))
-  if (read(structureChoice) === id) set(structureChoice, '')
-}
+import { ruleDraft, ruleScope, structureDraft, workspaceName } from './state.ts'
+import { rulesConfig } from './view.ts'
+import { refreshRules, saveRules, addRule, addStructure, removeStructure } from './actions.ts'
+export { rulesConfig, refreshRules }
 
 export function RulesTab() {
   const config = rulesConfig()
@@ -98,8 +62,9 @@ export function RulesTab() {
         hint={t('Pick one under Options in the composer: the prompt is written under these headings instead of the style\'s shape.')}
       >
         <Stack gap="xs">
-          {[...BUILT_IN_STRUCTURES, ...config.structures].map((structure) => {
-            const builtIn = BUILT_IN_STRUCTURES.includes(structure)
+          {allStructures(config).map(({ structure, edited }) => {
+            // An edited built-in shows as saved (your words, untranslated) and can be deleted to restore it.
+            const builtIn = BUILT_IN_STRUCTURES.includes(structure) && !edited
             return (
               <Box key={structure.id} gap="none" padding="sm" border radius="md">
                 <Row justify="between" gap="xs">
@@ -133,7 +98,7 @@ export function RulesTab() {
           onChange={(value) => set(structureDraft, { ...draft, sections: value })}
         />
         <Row>
-          <Button icon="add" variant="outline" onPress={addStructure} disabled={!draft.name.trim() || !draft.sections.trim() || config.structures.length >= MAX_STRUCTURES}>
+          <Button icon="add" variant="outline" onPress={() => addStructure()} disabled={!draft.name.trim() || !draft.sections.trim() || config.structures.length >= MAX_STRUCTURES}>
             {t('Add structure')}
           </Button>
         </Row>

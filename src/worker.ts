@@ -8,6 +8,8 @@ import { copyToClipboard } from './clipboard.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
 import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
+import { cleanAttachments, loadFiles, putChunk } from './attachments.ts'
+import { MAX_IMAGES } from './image-limits.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
@@ -29,7 +31,7 @@ import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
 import { BRAND, BRAND_SHORT } from './brand.ts'
 import { LlmError, messageOf } from './llm.ts'
-import { english, msg, type Message } from './messages.ts'
+import { english, msg, raw, type Message } from './messages.ts'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
@@ -184,6 +186,12 @@ async function ownRules(orca: OrcaWorkerApi): Promise<{ config: RulesConfig; rul
   return { config, rules: rulesFor(config, focused?.displayName ?? null) }
 }
 
+/** Makes sure the prompt names every attached file the rewriter left out. */
+function withAttachedPaths(prompt: string, paths: readonly string[]): string {
+  const missing = paths.filter((path) => !prompt.includes(path))
+  return missing.length === 0 ? prompt : `${prompt.trimEnd()}\n\nAttached files (open them):\n${missing.map((path) => `- ${path}`).join('\n')}`
+}
+
 /** The latest error in a terminal's output, as a context item. */
 async function readErrorOutput(orca: OrcaWorkerApi, terminalId: string, step: StepReporter, signal?: AbortSignal): Promise<ContextItem> {
   step('error', 'running')
@@ -222,6 +230,8 @@ export async function enhance(
     structureId?: string
     /** Paths of image files on this machine to attach (see src/images.ts). */
     images?: string[]
+    /** Attached files of any kind (the web panel's paste, drop and picker), by path. */
+    files?: string[]
     /** Orca's id of the workspace the panel is in (several can share a name and branch). */
     workspaceId?: string
   },
@@ -280,7 +290,18 @@ export async function enhance(
     if (error instanceof LlmError) throw hostError(error.text, error.code)
     throw error
   })
-  const user = [buildUserMessage(prompt, gathered.items), imagesBlock(images)].filter(Boolean).join('\n\n')
+  // Other attached files: images among them join the images, short text goes in the context.
+  const files = await loadFiles((input.files ?? []).filter((path) => typeof path === 'string' && path.trim())).catch((error: unknown) => {
+    if (error instanceof LlmError) throw hostError(error.text, error.code)
+    throw error
+  })
+  for (const image of files.images) if (images.length < MAX_IMAGES && !images.some((entry) => entry.path === image.path)) images.push(image)
+  const attachedTexts = files.texts.map((file) => contextItem(`attach:${file.name}`, 'file', raw(file.name), file.content))
+  if (attachedTexts.length > 0) gathered.items = [...attachedTexts, ...gathered.items]
+  const otherFiles = files.paths.filter((path) => !images.some((image) => image.path === path))
+  const user = [buildUserMessage(prompt, gathered.items), imagesBlock(images), otherFiles.length > 0 ? `<attached_files>\n${otherFiles.map((path, index) => `${index + 1}. ${path}`).join('\n')}\n</attached_files>` : '']
+    .filter(Boolean)
+    .join('\n\n')
   const chosenModel = input.model?.trim().slice(0, 200)
   // The picked model applies to the picked profile only; the rest of the chain keeps its own models.
   const list = candidates(config.profiles, input.profileId ?? null, settings.fallbackEnabled).map((profile) =>
@@ -303,7 +324,7 @@ export async function enhance(
     // A model that cannot see images still got their paths; say so, and keep every path in the prompt.
     if (images.length > 0 && imageSupport(result.profile) === 'none') gathered.notes.push(msg('note.images_paths_only'))
     return {
-      enhanced: withImagePaths(cleanOutput(result.text), images),
+      enhanced: withAttachedPaths(withImagePaths(cleanOutput(result.text), images), otherFiles),
       profile: result.profile,
       attempts: result.attempts,
       items: gathered.items,
@@ -445,6 +466,15 @@ async function fetchCatalog(
  * One Enhance from the panel. It answers within the panel's wait (RUN_LIMITS.budgetMs); when the panel
  * has stopped waiting (closed, cancelled or timed out), the result is dropped and nothing is saved.
  */
+/** The latest progress of recent runs, by run id, for callers that cannot hear panel events (the web panel's dev server). */
+type ProgressSnapshot = Parameters<Parameters<typeof createProgress>[2]>[0]
+const latestProgress = new Map<string, ProgressSnapshot>()
+const MAX_TRACKED_RUNS = 20
+
+export function progressOf(runId: string): ProgressSnapshot | null {
+  return latestProgress.get(runId) ?? null
+}
+
 export async function enhanceRequest(
   orca: OrcaWorkerApi,
   input: Parameters<typeof enhance>[1] & { runId?: string },
@@ -456,9 +486,12 @@ export async function enhanceRequest(
   // Progress goes only to the panel that asked, and only when it asked for it.
   const progress = runId
     ? (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) =>
-        createProgress(runId, planSteps(level, allowProjectFiles, readsError), (snapshot) =>
+        createProgress(runId, planSteps(level, allowProjectFiles, readsError), (snapshot) => {
+          latestProgress.delete(runId)
+          latestProgress.set(runId, snapshot)
+          for (const old of [...latestProgress.keys()].slice(0, Math.max(0, latestProgress.size - MAX_TRACKED_RUNS))) latestProgress.delete(old)
           orca.panels.post('enhance.progress', snapshot, { panel: panelId })
-        )
+        })
     : undefined
   const result = await enhance(orca, input, signal, progress, RUN_LIMITS.budgetMs)
   // The panel gave up while the model was answering: it shows an error, so keep no trace either.
@@ -485,6 +518,7 @@ export async function enhanceRequest(
 /** Enhance, Preview context, Send, Copy and the list of terminals to send to. */
 function registerRunHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => enhanceRequest(orca, input, signal, panel.id))
+  orca.panels.handle('enhance.progress.get', async ({ runId }) => progressOf(runId))
 
   orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude, workspaceId }, { signal }) => {
     const settings = await readSettings(orca)
@@ -528,6 +562,17 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('prompt.copy', async ({ text }) => copyToClipboard(text))
+
+  // The web panel's pasted, dropped or picked files arrive in chunks (no path on disk in a frame).
+  void cleanAttachments()
+  orca.panels.handle('attachments.put', async (input) => {
+    try {
+      return await putChunk(input)
+    } catch (error) {
+      if (error instanceof LlmError) throw hostError(error.text, error.code)
+      throw error
+    }
+  })
 
   // An image the person attaches: checked here (path, type, size) before it is listed in the composer.
   orca.panels.handle('images.inspect', async ({ path }) => {

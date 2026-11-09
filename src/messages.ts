@@ -40,6 +40,8 @@ export const MESSAGES = {
   'error.image_too_large': '{name} is {size}; an image can be at most {max}.',
   'error.image_type': '{name} is not a PNG, JPEG, GIF or WebP image.',
   'error.image_count': 'At most {max} images per prompt.',
+  'error.attachment_bad': 'That attachment could not be received; try attaching it again.',
+  'error.file_too_large': '{name} is too large; an attachment can be at most {max}.',
   'note.images_paths_only': 'This model cannot see images: it got their paths only, and the prompt lists them for the agent.',
   'error.cancelled': 'Cancelled.',
   'error.send_off': 'Sending to terminals is off in Privacy.',

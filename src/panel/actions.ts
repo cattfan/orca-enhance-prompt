@@ -1,5 +1,7 @@
 // actions.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { plugin, read, set, settings, update, type JsonValue } from 'orca'
+import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
+import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
+import { ISSUES_URL } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { type Message } from '../messages.ts'
 import { isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
@@ -9,7 +11,7 @@ import { PRIVACY_KEYS } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { files, ruleDraft, ruleScope, structureDraft, type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -30,11 +32,12 @@ function snapshot(): Slot {
     contextNotes: read(contextNotes),
     excluded: read(excluded),
     images: read(images),
+    files: read(files),
     at: Date.now()
   }
 }
 
-const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0 && (slot.images ?? []).length === 0
+const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0 && (slot.images ?? []).length === 0 && (slot.files ?? []).length === 0
 
 /** Keeps a project's composer, newest first, at most MAX_PARKED projects. */
 function park(key: string, slot: Slot): void {
@@ -73,7 +76,8 @@ function switchWorkspace(key: string, name: string | null): void {
   put(contextNotes, incoming?.contextNotes ?? [])
   set(excluded, incoming?.excluded ?? [])
   put(images, incoming?.images ?? [])
-  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], images: [] })
+  put(files, incoming?.files ?? [])
+  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], images: [], files: [] })
   put(workspaceKey, key)
   set(workspaceName, name)
   set(notice, null)
@@ -236,6 +240,7 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
         ...(fix ? { errorTerminalId: fix.terminalId } : {}),
         ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
         ...(read(images).length > 0 ? { images: read(images).map((image) => image.path) } : {}),
+        ...(read(files).length > 0 ? { files: read(files).map((file) => file.path) } : {}),
         ...knownWorkspaceId(),
         level: read(effectiveLevel),
         terminalId: read(target),
@@ -350,6 +355,10 @@ export async function addImage(): Promise<void> {
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   }
+}
+
+export function removeFile(path: string): void {
+  put(files, read(files).filter((file) => file.path !== path))
 }
 
 export function removeImage(path: string): void {
@@ -622,4 +631,54 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   }
+}
+
+// ---- rules and structures
+
+export async function refreshRules(): Promise<void> {
+  set(rulesState, await plugin.request('rules.get').catch(() => read(rulesState)))
+}
+
+/** Shown at once; the worker saves it and answers with what it kept. */
+export function saveRules(change: (config: RulesConfig) => RulesConfig): void {
+  const next = change(read(rulesState))
+  set(rulesState, next)
+  plugin.request('rules.save', { config: next }).catch((error: unknown) => set(notice, { tone: 'danger', text: message(error) }))
+}
+
+export function addRule(): void {
+  const text = read(ruleDraft).trim().slice(0, MAX_RULE_CHARS)
+  if (!text) return
+  const scope = read(ruleScope) === 'workspace' ? (read(workspaceName) ?? '') : ''
+  saveRules((config) => ({ ...config, rules: [...config.rules, { id: newId('rule'), text, enabled: true, scope }].slice(0, MAX_RULES) }))
+  set(ruleDraft, '')
+}
+
+/** Saves the structure form: a new structure, or (with an id) an edit of one, built-in ones included. */
+export function addStructure(id?: string): void {
+  const { name, sections } = read(structureDraft)
+  const list = sections
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, MAX_SECTIONS)
+  if (!name.trim() || list.length === 0) return
+  const structure = { id: id ?? newId('structure'), name: name.trim().slice(0, 40), sections: list }
+  saveRules((config) => {
+    const exists = config.structures.some((entry) => entry.id === structure.id)
+    const structures = exists ? config.structures.map((entry) => (entry.id === structure.id ? structure : entry)) : [...config.structures, structure]
+    return { ...config, structures: structures.slice(0, MAX_STRUCTURES) }
+  })
+  set(structureDraft, { name: '', sections: '' })
+}
+
+export function removeStructure(id: string): void {
+  saveRules((config) => ({ ...config, structures: config.structures.filter((structure) => structure.id !== id) }))
+  if (read(structureChoice) === id) set(structureChoice, '')
+}
+
+/** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
+export async function openIssues(): Promise<void> {
+  const opened = await shell.openExternal(ISSUES_URL).catch(() => ({ opened: false }))
+  if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url: ISSUES_URL }) })
 }

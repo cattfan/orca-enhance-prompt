@@ -4,7 +4,8 @@
 import type { JsonValue } from 'orca'
 
 export const RULES_KEY = 'rules'
-export const MAX_RULES = 50
+// Rules are short and few in practice; this only guards storage against runaway growth.
+export const MAX_RULES = 1000
 export const MAX_RULE_CHARS = 500
 export const MAX_STRUCTURES = 20
 export const MAX_SECTIONS = 12
@@ -65,8 +66,17 @@ export function rulesFor(config: RulesConfig, workspace: string | null): string[
   return config.rules.filter((rule) => rule.enabled && (!rule.scope || rule.scope === workspace)).map((rule) => rule.text)
 }
 
-/** A built-in or saved structure by id; null for none or an unknown id. */
+/** A built-in or saved structure by id; null for none or an unknown id. A saved one with a built-in's id is that built-in, edited. */
 export function structureById(config: RulesConfig, structureId: string | null | undefined): Structure | null {
   if (!structureId) return null
-  return [...BUILT_IN_STRUCTURES, ...config.structures].find((structure) => structure.id === structureId) ?? null
+  return [...config.structures, ...BUILT_IN_STRUCTURES].find((structure) => structure.id === structureId) ?? null
+}
+
+/** Every structure to show: the built-ins (edited ones as saved), then your own. */
+export function allStructures(config: RulesConfig): { structure: Structure; builtIn: boolean; edited: boolean }[] {
+  const saved = new Map(config.structures.map((structure) => [structure.id, structure]))
+  const builtIns = BUILT_IN_STRUCTURES.map((structure) => ({ structure: saved.get(structure.id) ?? structure, builtIn: true, edited: saved.has(structure.id) }))
+  const builtInIds = new Set(BUILT_IN_STRUCTURES.map((structure) => structure.id))
+  const own = config.structures.filter((structure) => !builtInIds.has(structure.id)).map((structure) => ({ structure, builtIn: false, edited: false }))
+  return [...builtIns, ...own]
 }

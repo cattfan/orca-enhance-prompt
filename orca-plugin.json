@@ -27,6 +27,13 @@
         "icon": "lightbulb",
         "entry": "src/panel.tsx",
         "ui": "components"
+      },
+      {
+        "id": "enhance-web",
+        "title": "Enhance Prompt (web)",
+        "icon": "globe",
+        "entry": "src/web-dist/index.html",
+        "ui": "html"
       }
     ],
     "commands": [

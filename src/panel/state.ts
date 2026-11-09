@@ -116,6 +116,12 @@ export const images = atom<AttachedImage[]>([])
 /** The attach box is open, and the path being typed in it. */
 export const imagesOpen = atom('imagesOpen', false, { persist: 'plugin' })
 export const imageDraft = atom('')
+/**
+ * Files attached in the web panel (pasted, dropped or picked): the worker keeps them on disk and
+ * answers with their path. Images among them are read like images attached by path.
+ */
+export type AttachedFile = { path: string; name: string; bytes: number; type: string }
+export const files = atom<AttachedFile[]>([])
 
 /**
  * Which project (workspace) the composer below belongs to: its key (Orca's workspace id, or its name
@@ -133,6 +139,7 @@ export type Slot = {
   contextNotes: (Message | string)[]
   excluded: string[]
   images?: AttachedImage[]
+  files?: AttachedFile[]
   at: number
 }
 /** Parked composers by project key; the oldest go past MAX_PARKED. */
@@ -152,6 +159,7 @@ export const KEPT: [Atom<never>, Atom<never>, unknown][] = [
   [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
   [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []],
   [images, atom<AttachedImage[]>('images', [], { persist: 'plugin' }), []],
+  [files, atom<AttachedFile[]>('files', [], { persist: 'plugin' }), []],
   [workspaceKey, atom<string | null>('workspaceKey', null, { persist: 'plugin' }), null],
   [parked, atom<Record<string, Slot>>('parked', {}, { persist: 'plugin' }), {}]
 ] as never

@@ -84,3 +84,19 @@ http://localhost:5173/mock-progress?lang=vi (`&width=260` for a narrow panel).
 
 The plugin must stay free, have no tracking or analytics, and contain no obfuscated code.
 `publisher` is the repo owner, so leave it out of the manifest. Ids must not start with `orca-`.
+
+## Web panel (`enhance-web`, local preview)
+
+A second panel, `ui: "html"`, built with React + Tailwind + shadcn/ReUI from `web/` into
+`src/web-dist/` (committed: Orca runs no build step; minified, which the listing policy allows since the source is in `web/src`). Run `npm run web:build` before committing a change under `web/`. It reuses the
+components panel's state and actions (`src/panel/state.ts`, `actions.ts`, `view.ts`) unchanged:
+`web/src/orca-runtime.ts` stands in for the `orca` module inside the frame. Pasted, dropped or picked
+files go to the worker in chunks (`attachments.put`, `src/attachments.ts`) and reach the run as `files`.
+
+```sh
+npm run web:install   # once
+npm run web:dev       # http://localhost:5174 with sample data (?lang=vi&theme=dark&width=360)
+npm run web:build     # then orca plugin dev load . to see it in Orca
+```
+
+Its strings go through `t()` too; translations live in `src/i18n-dict.ts`.

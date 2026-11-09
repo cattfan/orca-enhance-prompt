@@ -10,7 +10,11 @@
     "validate": "orca plugin validate .",
     "dev": "node scripts/dev-server.mjs",
     "images": "node scripts/make-images.mjs",
-    "mock:progress": "node scripts/mock-progress.mjs"
+    "mock:progress": "node scripts/mock-progress.mjs",
+    "web:install": "npm --prefix web install",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:shot": "node scripts/shot-web.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

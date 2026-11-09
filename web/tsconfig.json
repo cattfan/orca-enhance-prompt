@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+    "typeRoots": ["../.orca/types", "./node_modules/@types"],
+    "types": ["orca", "orca-host", "orca-frame", "orca-services", "node"]
+  },
+  "include": ["src", "vite.config.ts", "orca-bridge.ts"]
+}

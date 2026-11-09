@@ -1,15 +1,13 @@
 // enhance-tab.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
 import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, read, RelativeTime, Row, Select, set, Progress, Spinner, Stack, Switch, Text, Textarea, update, Input, Toolbar } from 'orca'
-import { CONTEXT_LEVEL_LABELS, isContextLevel, type ContextItemView } from '../presets.ts'
-import { isStyle, STYLE_LABELS } from '../prompts.ts'
 import { t } from '../i18n.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
-import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
-import { rulesConfig } from './rules-tab.tsx'
-import { ESTIMATED_STEPS, stepPercent, totalPercent, type Step } from '../progress.ts'
-import { contextOpen, workspaceChoices, workspaceName, images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { stepPercent, totalPercent, type Step } from '../progress.ts'
+import { contextOpen, workspaceChoices, workspaceName, images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, outputChoice, excluded, target, pressEnter, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
 import { pickWorkspace, addImage, removeImage, fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
-import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
+import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds } from './common.tsx'
+import { contextKind, itemWhy, STEP_LABELS, STEP_GLYPH, stepText, stepShare, shortLabel, optionsSummary, structureOptions, structureValue, modelMenu, currentModelValue, pickModel } from './view.ts'
+export { contextKind, itemWhy, STEP_LABELS, STEP_GLYPH, stepText, stepShare, shortLabel, optionsSummary, structureOptions, modelMenu, currentModelValue, pickModel }
 
 export function TargetPicker() {
   const list = read(targets)
@@ -27,28 +25,6 @@ export function TargetPicker() {
       <IconButton icon="refresh" label={t('Refresh terminals')} variant="ghost" onPress={() => void refreshTargets()} />
     </Row>
   )
-}
-
-/** Context item names and kinds come from the worker in English; show them in the panel's language. */
-export function contextKind(kind: string): string {
-  const kinds: Record<string, () => string> = {
-    workspace: () => t('workspace'),
-    agent: () => t('agent'),
-    rules: () => t('rules'),
-    stack: () => t('stack'),
-    tree: () => t('tree'),
-    git: () => t('git'),
-    file: () => t('file'),
-    terminal: () => t('terminal'),
-    error: () => t('error')
-  }
-  return kinds[kind]?.() ?? kind
-}
-
-/** Why an item is in the context (keyword match, picked by AI, trimmed), after a separator. */
-export function itemWhy(item: ContextItemView): string {
-  if (item.why) return ` · ${say(item.why)}`
-  return item.note ? ` · ${item.note}` : ''
 }
 
 export function ContextPanel() {
@@ -100,36 +76,6 @@ export function RunInfo() {
       ) : null}
     </Stack>
   )
-}
-
-export const STEP_LABELS: Record<Step['key'], string> = {
-  error: 'Reading the error',
-  workspace: 'Reading workspace',
-  project: 'Reading project rules and stack',
-  git: 'Reading git changes',
-  search: 'Finding relevant code',
-  pick: 'AI picking files',
-  terminal: 'Reading terminal output',
-  model: 'Writing the prompt'
-}
-export const STEP_GLYPH: Record<Step['status'], string> = { pending: '○', running: '●', done: '✓', skipped: '–', failed: '✕' }
-
-export function stepText(entry: Step): string {
-  const label = t(STEP_LABELS[entry.key])
-  if (!entry.detail) return label
-  const count = Number(entry.detail)
-  if (entry.key === 'workspace' || entry.key === 'model' || !Number.isFinite(count)) return `${label} · ${entry.detail}`
-  if (entry.key === 'terminal') return `${label} · ${t('{count} lines', { count })}`
-  if (entry.key === 'git') return `${label} · ${t('{count} changed', { count })}`
-  return `${label} · ${t('{count} files', { count })}`
-}
-
-/** A step's share as shown: "≈" when estimated from time, "–" when skipped. */
-export function stepShare(entry: Step, now: number): string {
-  const share = stepPercent(entry, now)
-  if (share === null) return '–'
-  const estimated = entry.status === 'running' && entry.fraction === undefined && ESTIMATED_STEPS.has(entry.key)
-  return `${estimated ? '≈' : ''}${share}%`
 }
 
 /** One step: what it is on the left (cut when the panel is narrow), its share on the right; a bar under the running one. */
@@ -228,24 +174,6 @@ export function RunCard() {
       )}
     </Box>
   )
-}
-
-/** The word before ":" in a level label: "Deep: + git…" → "Deep". */
-export const shortLabel = (label: string) => label.split(/[:：]/)[0].trim()
-
-/** Style, context, output and model, folded under a one-line summary of the current choice. */
-/** One line naming the current options, used as the options button's tooltip. */
-export function optionsSummary(): string {
-  const styleValue = read(effectiveStyle)
-  const levelValue = read(effectiveLevel)
-  const output = outputOptions().find((option) => option.value === read(outputChoice))
-  return [
-    t(STYLE_LABELS[isStyle(styleValue) ? styleValue : 'balanced']),
-    shortLabel(t(CONTEXT_LEVEL_LABELS[isContextLevel(levelValue) ? levelValue : 'standard'])),
-    read(outputChoice) !== 'default' && output ? output.label.replace(/^[^:：]+[:：]\s*/, '') : ''
-  ]
-    .filter(Boolean)
-    .join(' · ')
 }
 
 /** Style, context, output language and the Enter switch, shown under the composer when opened. */
@@ -363,22 +291,6 @@ export function FixErrorBox() {
   )
 }
 
-/** "By style" plus every built-in and saved structure. */
-export function structureOptions() {
-  const config = rulesConfig()
-  return [
-    { value: 'style', label: t('By style') },
-    ...BUILT_IN_STRUCTURES.map((structure) => ({ value: structure.id, label: t(structure.name) })),
-    ...config.structures.map((structure) => ({ value: structure.id, label: structure.name }))
-  ]
-}
-
-/** The picked structure, or "By style" when it was deleted. */
-function structureValue(): string {
-  const id = read(structureChoice)
-  return id && structureById(rulesConfig(), id) ? id : 'style'
-}
-
 export function PromptOptions() {
   if (!read(optionsOpen)) return null
   return (
@@ -392,53 +304,6 @@ export function PromptOptions() {
       <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
     </Box>
   )
-}
-
-/** Every model of every enabled profile, from its live list, plus Auto. */
-export function modelMenu() {
-  const options: { value: string; label: string }[] = [
-    { value: 'auto', label: read(defaults).fallbackEnabled ? t('Auto (fallback)') : t('Auto') }
-  ]
-  for (const profile of read(enabledProfiles)) {
-    const catalog = read(catalogs)[profile.id]
-    const listed = catalog?.models ?? []
-    const seen = new Set<string>()
-    const add = (id: string, label: string) => {
-      if (seen.has(id)) return
-      seen.add(id)
-      const saved = id !== '' && id === profile.effectiveModel
-      options.push({
-        value: `${profile.id}${MODEL_SEP}${id || PROFILE_DEFAULT}`,
-        label: `${profile.name} · ${label}${saved ? ` · ${t('default')}` : ''}`
-      })
-    }
-    if (profile.provider === 'cli' && !profile.effectiveModel) add('', t('CLI default'))
-    else if (profile.effectiveModel && !listed.some((model) => model.id === profile.effectiveModel)) add(profile.effectiveModel, profile.effectiveModel)
-    for (const model of listed) add(model.id, shortModelName(model.id, model.label))
-  }
-  return options
-}
-
-export function currentModelValue(): string {
-  const choice = read(profileChoice)
-  if (choice === 'auto') return 'auto'
-  const profile = read(enabledProfiles).find((entry) => entry.id === choice)
-  if (!profile) return 'auto'
-  const model = read(modelChoice) || profile.effectiveModel
-  return `${choice}${MODEL_SEP}${model || PROFILE_DEFAULT}`
-}
-
-export function pickModel(value: string): void {
-  if (value === 'auto') {
-    set(profileChoice, 'auto')
-    set(modelChoice, '')
-    return
-  }
-  const [profileId, model] = value.split(MODEL_SEP)
-  const profile = read(enabledProfiles).find((entry) => entry.id === profileId)
-  set(profileChoice, profileId)
-  // The profile's own model is stored as '' so a later change to the profile follows through.
-  set(modelChoice, model === PROFILE_DEFAULT || model === profile?.effectiveModel ? '' : model)
 }
 
 /** The model menu in the composer: every model you can use right now, one click away. */
