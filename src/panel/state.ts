@@ -49,6 +49,13 @@ export const ruleScope = atom('all')
 export const structureDraft = atom({ name: '', sections: '' })
 /** The structure picked in the composer's options; '' = the style's own shape. */
 export const structureChoice = atom('structureChoice', '', { persist: 'plugin' })
+/**
+ * Which workspace a terminal belongs to, by Orca's id: learnt from Orca's agent events and from the
+ * person's pick, since several workspaces can share a name and branch (all "main", say).
+ */
+export const terminalWorkspaces = atom<Record<string, string>>('terminalWorkspaces', {}, { persist: 'plugin' })
+/** The folders the focused workspace could be, when Orca cannot tell (the person picks one). */
+export const workspaceChoices = atom<{ id: string; path: string }[]>([])
 /** The focused workspace's name, for rules that apply to one workspace. */
 export const workspaceName = atom<string | null>(null)
 export const historyFilter = atom('historyFilter', '')

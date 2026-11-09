@@ -5,7 +5,7 @@ import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
 import { apiCatalog, claudeCatalog, claudeProgramSignature, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
 import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
-import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, gatherContext, staticParts, type ContextItem } from './context/index.ts'
+import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
 import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
@@ -222,6 +222,8 @@ export async function enhance(
     structureId?: string
     /** Paths of image files on this machine to attach (see src/images.ts). */
     images?: string[]
+    /** Orca's id of the workspace the panel is in (several can share a name and branch). */
+    workspaceId?: string
   },
   signal?: AbortSignal,
   progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) => StepReporter,
@@ -256,7 +258,8 @@ export async function enhance(
     allowGit: settings.privacy.allowGit,
     allowTerminal: settings.privacy.allowTerminalRead,
     onStep: step,
-    signal
+    signal,
+    workspaceId: typeof input.workspaceId === 'string' ? input.workspaceId : null
   })
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
   // The error comes first and is never trimmed away by the context budget.
@@ -343,7 +346,7 @@ async function hookContext(orca: OrcaWorkerApi, allowProjectFiles: boolean): Pro
   items.push({ id: 'workspace', kind: 'workspace', label: 'Workspace', content: label, chars: label.length })
   if (!allowProjectFiles) return items
   const workspace = await findFocusedWorkspace(orca, focused)
-  const cached = workspace && workspace.hostId === null ? cachedStatic(workspace.path) : null
+  const cached = workspace && isLocalWorkspace(workspace) ? cachedStatic(workspace.path) : null
   if (cached) items.push(...cached.items.filter((entry) => entry.kind !== 'tree'))
   return items
 }
@@ -483,7 +486,7 @@ export async function enhanceRequest(
 function registerRunHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('prompt.enhance', async (input, { signal, panel }) => enhanceRequest(orca, input, signal, panel.id))
 
-  orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude }, { signal }) => {
+  orca.panels.handle('context.preview', async ({ prompt, terminalId, level, exclude, workspaceId }, { signal }) => {
     const settings = await readSettings(orca)
     const requested: ContextLevel = isContextLevel(level) ? level : settings.contextLevel
     // Preview reads exactly what a run would: the same Privacy switches apply.
@@ -498,7 +501,8 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
       excludePatterns: settings.excludePatterns,
       allowGit: settings.privacy.allowGit,
       allowTerminal: settings.privacy.allowTerminalRead,
-      signal
+      signal,
+      workspaceId: workspaceId ?? null
     })
     const notes = [...gathered.notes]
     if (allowed !== requested) notes.push(PROJECT_FILES_OFF)
@@ -535,7 +539,7 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     }
   })
 
-  orca.panels.handle('targets.list', async () => {
+  orca.panels.handle('targets.list', async (input) => {
     const targets: { terminalId: string; label: string; agent: string | null }[] = []
     const seen = new Set<string>()
     const agents = await orca.host.call('agents.list', {}).catch(() => null)
@@ -552,8 +556,14 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
         targets.push({ terminalId: terminal.id, label: terminal.title ?? terminal.id, agent: null })
       }
     }
-    const workspace = context ? await findFocusedWorkspace(orca, context) : null
-    return { targets, workspace: context?.displayName ?? null, workspaceId: workspace?.id ?? null }
+    // Which workspace this is: the panel knows the workspace of terminals Orca reported (or that the
+    // person picked); several workspaces can share a name and branch.
+    const raw = (input ?? {}) as { known?: unknown }
+    const known: Record<string, unknown> = raw.known && typeof raw.known === 'object' ? (raw.known as Record<string, unknown>) : {}
+    const hint = targets.map((target) => known[target.terminalId]).find((id) => typeof id === 'string') ?? null
+    const workspace = context ? await findFocusedWorkspace(orca, context, hint) : null
+    const choices = context && !workspace ? await focusedCandidates(orca, context) : []
+    return { targets, workspace: context?.displayName ?? null, workspaceId: workspace?.id ?? null, ...(choices.length > 0 ? { choices } : {}) }
   })
 }
 
@@ -820,7 +830,7 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
         const wantsHook = settings.autoEnhanceMode === 'ai' && settings.autoEnhanceContext
         if (!wantsHook && !atLeast(settings.contextLevel, 'standard')) return
         const workspace = await findFocusedWorkspace(orca, context)
-        if (workspace && workspace.hostId === null && settings.privacy.allowProjectFiles) {
+        if (workspace && isLocalWorkspace(workspace) && settings.privacy.allowProjectFiles) {
           await staticParts(workspace.path, settings.extraContextFiles, true, settings.privacy.allowGit)
         }
       } catch (error) {

@@ -376,3 +376,81 @@ test('when the panel stops waiting, a late answer is dropped and not saved to hi
   assert.equal(host.data().storage.history, undefined)
   await worker.deactivate()
 })
+
+test("a workspace on this machine is read even when Orca names its host 'local' (Orca 1.4.25x)", async () => {
+  const root = project()
+  stubFetch(() => openaiAnswer('ok'))
+  const host = mockHost({
+    storage: { models: { profiles: [profile('one', 'openai')] } },
+    secrets: { 'apiKey.one': 'k' },
+    results: {
+      'workspace.readContext': { branch: 'feat/publish-unify-ui', displayName: 'feat/publish-unify-ui', terminals: [] },
+      'workspace.list': {
+        workspaces: [
+          { id: 'w-local', kind: 'worktree', name: 'feat/publish-unify-ui', path: root, branch: 'feat/publish-unify-ui', hostId: 'local' },
+          { id: 'w-ssh', kind: 'worktree', name: 'remote', path: '/srv/app', branch: 'main', hostId: 'ssh-1' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host })
+  const answer = await worker.request('prompt.enhance', { prompt: 'fix validateSession', level: 'deep' })
+  const ids = answer.context.map((item) => item.id)
+  assert.ok(ids.includes('rules:AGENTS.md'), ids.join(','))
+  assert.ok(ids.some((id) => id.startsWith('file:')), ids.join(','))
+  assert.ok(!answer.notes.some((note) => note.code === 'note.remote'))
+  await worker.deactivate()
+
+  // A workspace on another host (SSH/WSL) is still skipped.
+  host.respond('workspace.readContext', { branch: 'main', displayName: 'remote', terminals: [] })
+  const remote = await mountWorker(main, { host })
+  const far = await remote.request('prompt.enhance', { prompt: 'fix it', level: 'standard' })
+  assert.ok(far.notes.some((note) => note.code === 'note.remote'))
+  await remote.deactivate()
+})
+
+test('several workspaces named "main" on branch main: the panel\'s hint or the person\'s pick says which folder', async () => {
+  const one = project()
+  const two = project()
+  writeFileSync(join(two, 'AGENTS.md'), '# Rules\nThis is the second checkout.')
+  stubFetch(() => openaiAnswer('ok'))
+  const host = mockHost({
+    storage: { models: { profiles: [profile('one', 'openai')] } },
+    secrets: { 'apiKey.one': 'k' },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'main', terminals: [{ id: 'term-2', title: 'Claude' }] },
+      'workspace.list': {
+        workspaces: [
+          { id: 'ws-1', kind: 'worktree', name: 'main', path: one, branch: 'main', hostId: 'local' },
+          { id: 'ws-2', kind: 'worktree', name: 'main', path: two, branch: 'main', hostId: 'local' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host })
+  // Nothing known: Orca cannot tell, so the panel gets the folders to pick from.
+  const unknown = await worker.request('targets.list', {})
+  assert.equal(unknown.workspaceId, null)
+  assert.deepEqual(unknown.choices?.map((choice) => choice.id), ['ws-1', 'ws-2'])
+  // The panel knows term-2 is in ws-2 (from Orca's agent events, or the pick).
+  const known = await worker.request('targets.list', { known: { 'term-2': 'ws-2' } })
+  assert.equal(known.workspaceId, 'ws-2')
+  assert.equal(known.choices, undefined)
+  // A run in that workspace reads that folder.
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(String(init?.body))
+    return new Response(JSON.stringify(openaiAnswer('ok')), { status: 200 })
+  }) as typeof fetch
+  const answer = await worker.request('prompt.enhance', { prompt: 'fix it', level: 'standard', workspaceId: 'ws-2' })
+  assert.ok(answer.context.some((item) => item.id === 'rules:AGENTS.md'))
+  assert.match(bodies[0], /second checkout/)
+  // A hint that no longer fits the focused workspace is not trusted.
+  const stale = await worker.request('context.preview', { prompt: 'x', level: 'standard', workspaceId: 'ws-gone' })
+  assert.ok(stale.notes.some((note) => note.code === 'note.workspace_unknown'))
+  await worker.deactivate()
+})

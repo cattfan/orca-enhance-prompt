@@ -56,6 +56,8 @@ declare module 'orca' {
         structureId?: string
         /** Paths of image files on this machine to attach (at most 4, 5 MB each; PNG, JPEG, GIF, WebP). */
         images?: string[]
+        /** Orca's id of the workspace the panel is in (several can share a name and branch). */
+        workspaceId?: string
       }
       output: {
         enhanced: string
@@ -69,7 +71,7 @@ declare module 'orca' {
     }
     /** What context would be sent, without calling a model (no AI file picking). */
     'context.preview': {
-      input: { prompt: string; terminalId?: string | null; level?: string; exclude?: string[] }
+      input: { prompt: string; terminalId?: string | null; level?: string; exclude?: string[]; workspaceId?: string }
       output: { context: ContextItemView[]; notes: Message[]; chars: number }
     }
     /** Types `text` into an agent terminal. */
@@ -83,10 +85,18 @@ declare module 'orca' {
     'images.inspect': { input: { path: string }; output: { path: string; name: string; bytes: number; type: string } }
     /** Agent terminals of the focused workspace, agents first. */
     'targets.list': {
+      /** `known`: the workspace id of terminals the panel has seen (Orca's agent events, or the person's pick). */
+      input: { known?: Record<string, string> }
+      /** `choices`: the folders the focused workspace could be when several share its name and branch. */
       /** `workspace`: the focused workspace's name (rules can apply to one workspace). */
       /** `workspaceId`: Orca's id of the focused workspace (null when it cannot tell): the panel keeps each
        *  project's draft and result apart by it. */
-      output: { targets: { terminalId: string; label: string; agent: string | null }[]; workspace?: string | null; workspaceId?: string | null }
+      output: {
+        targets: { terminalId: string; label: string; agent: string | null }[]
+        workspace?: string | null
+        workspaceId?: string | null
+        choices?: { id: string; path: string }[]
+      }
     }
     'models.get': { output: ModelsView }
     /** Adds or updates a profile (and its key). */

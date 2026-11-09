@@ -357,8 +357,6 @@ const VI: Record<string, string> = {
   'Open {url} in your browser.': 'Mở {url} trong trình duyệt.',
   'Progress: {percent}%': 'Tiến độ: {percent}%',
   '{step}: {percent}%': '{step}: {percent}%',
-  '≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.': '≈ ước tính: model không báo tiến độ, nên phần của nó tăng theo thời gian và đạt 100% khi có câu trả lời.',
-  'Finishing…': 'Sắp xong…',
   'Give the full path of an image file on this machine: {path}': 'Hãy nhập đường dẫn đầy đủ tới một file ảnh trên máy này: {path}',
   'No image file at {path}.': 'Không có file ảnh ở {path}.',
   '{name} is {size}; an image can be at most {max}.': '{name} nặng {size}; mỗi ảnh tối đa {max}.',
@@ -371,7 +369,12 @@ const VI: Record<string, string> = {
   'Image file path': 'Đường dẫn file ảnh',
   'Full path of a PNG, JPEG, GIF or WebP file': 'Đường dẫn đầy đủ của file PNG, JPEG, GIF hoặc WebP',
   'Attach': 'Đính kèm',
-  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': 'Tối đa {max} ảnh, mỗi ảnh 5 MB. Lấy đường dẫn file: Shift + chuột phải → Copy as path (Windows), Option + chuột phải → Copy as Pathname (macOS). Model xem được ảnh sẽ dùng ảnh; prompt luôn ghi đường dẫn ảnh để agent mở.'
+  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': 'Tối đa {max} ảnh, mỗi ảnh 5 MB. Lấy đường dẫn file: Shift + chuột phải → Copy as path (Windows), Option + chuột phải → Copy as Pathname (macOS). Model xem được ảnh sẽ dùng ảnh; prompt luôn ghi đường dẫn ảnh để agent mở.',
+  'Finishing…': 'Sắp xong…',
+  'Which folder is this project?': 'Dự án này ở thư mục nào?',
+  'Several projects are named {name} on the same branch. Pick its folder so the right files are read.': 'Có nhiều dự án cùng tên {name} trên cùng một nhánh. Chọn thư mục của dự án này để đọc đúng file.',
+  'Project folder': 'Thư mục dự án',
+  'Choose a folder': 'Chọn thư mục'
 }
 
 const ZH: Record<string, string> = {
@@ -707,8 +710,6 @@ const ZH: Record<string, string> = {
   'Open {url} in your browser.': '请在浏览器中打开 {url}。',
   'Progress: {percent}%': '进度：{percent}%',
   '{step}: {percent}%': '{step}：{percent}%',
-  '≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.': '≈ 估算：模型不会报告自己的进度，因此它的占比随时间增长，收到回答时达到 100%。',
-  'Finishing…': '即将完成…',
   'Give the full path of an image file on this machine: {path}': '请填写本机上图片文件的完整路径：{path}',
   'No image file at {path}.': '{path} 没有图片文件。',
   '{name} is {size}; an image can be at most {max}.': '{name} 大小为 {size}；每张图片最多 {max}。',
@@ -721,7 +722,12 @@ const ZH: Record<string, string> = {
   'Image file path': '图片文件路径',
   'Full path of a PNG, JPEG, GIF or WebP file': 'PNG、JPEG、GIF 或 WebP 文件的完整路径',
   'Attach': '附加',
-  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': '最多 {max} 张图片，每张 5 MB。复制文件路径：Shift + 右键 → 复制为路径（Windows），Option + 右键 → 拷贝路径名称（macOS）。能看图的模型会使用图片；提示词始终列出图片路径，供 agent 打开。'
+  'Up to {max} images of 5 MB. Copy a file\'s path: Shift + right-click → Copy as path (Windows), Option + right-click → Copy as Pathname (macOS). Models that can see images use them; the prompt always lists their paths so the agent can open them.': '最多 {max} 张图片，每张 5 MB。复制文件路径：Shift + 右键 → 复制为路径（Windows），Option + 右键 → 拷贝路径名称（macOS）。能看图的模型会使用图片；提示词始终列出图片路径，供 agent 打开。',
+  'Finishing…': '即将完成…',
+  'Which folder is this project?': '这个项目在哪个文件夹？',
+  'Several projects are named {name} on the same branch. Pick its folder so the right files are read.': '有多个项目在同一分支上都叫 {name}。请选择它的文件夹，以便读取正确的文件。',
+  'Project folder': '项目文件夹',
+  'Choose a folder': '选择文件夹'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

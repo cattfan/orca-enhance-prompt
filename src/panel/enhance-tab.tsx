@@ -7,8 +7,8 @@ import { MAX_IMAGES } from '../image-limits.ts'
 import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
 import { rulesConfig } from './rules-tab.tsx'
 import { ESTIMATED_STEPS, stepPercent, totalPercent, type Step } from '../progress.ts'
-import { images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
-import { addImage, removeImage, fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
+import { workspaceChoices, workspaceName, images, imagesOpen, imageDraft, tick, workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { pickWorkspace, addImage, removeImage, fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
 export function TargetPicker() {
@@ -169,7 +169,6 @@ export function RunCard() {
   const now = read(tick)
   const total = running ? totalPercent(steps, now) : (current.endPercent ?? totalPercent(steps, now))
   const active = steps.find((entry) => entry.status === 'running')
-  const estimating = steps.some((entry) => entry.status === 'running' && entry.fraction === undefined && ESTIMATED_STEPS.has(entry.key))
   const finished = steps.filter((entry) => entry.status === 'done' || entry.status === 'skipped')
   const next = steps.find((entry) => entry.status === 'pending')
   // Between steps: the next one; all done: the answer is on its way.
@@ -207,11 +206,6 @@ export function RunCard() {
             <StepRow key={entry.key} entry={entry} now={now} />
           ))}
         </Stack>
-      ) : null}
-      {estimating ? (
-        <Text muted size="xs">
-          {t('≈ estimated: a model reports no progress of its own, so its share grows with time and reaches 100% when the answer arrives.')}
-        </Text>
       ) : null}
       {current.status === 'error' && current.error ? (
         <Text size="xs" tone="danger">
@@ -251,6 +245,26 @@ export function optionsSummary(): string {
 }
 
 /** Style, context, output language and the Enter switch, shown under the composer when opened. */
+/** Several workspaces share this one's name and branch: the person picks its folder once. */
+export function WorkspacePicker() {
+  const choices = read(workspaceChoices)
+  if (choices.length === 0) return null
+  return (
+    <Callout tone="warning" title={t('Which folder is this project?')}>
+      <Stack gap="xs">
+        <Text size="sm">{t('Several projects are named {name} on the same branch. Pick its folder so the right files are read.', { name: read(workspaceName) ?? '?' })}</Text>
+        <Select
+          label={t('Project folder')}
+          labelHidden
+          placeholder={t('Choose a folder')}
+          options={choices.map((choice) => ({ value: choice.id, label: choice.path }))}
+          onChange={(value) => void pickWorkspace(value)}
+        />
+      </Stack>
+    </Callout>
+  )
+}
+
 /** Images attached to the prompt: by path (Orca's panels have no file picker), checked by the worker. */
 export function ImagesBox() {
   const list = read(images)
@@ -465,6 +479,7 @@ export function EnhanceTab() {
           </Row>
         </Callout>
       ) : null}
+      <WorkspacePicker />
       <Box gap="sm" padding="sm" border radius="lg">
         <Textarea
           label={t('Your prompt')}

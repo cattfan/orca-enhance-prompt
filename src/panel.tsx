@@ -4,7 +4,7 @@ import { t } from './i18n.ts'
 import { VERSION } from './version.ts'
 import { BRAND } from './brand.ts'
 import { tab, notice, restoreSaved, history } from './panel/state.ts'
-import { stopTicking, workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
+import { learnTerminals, stopTicking, workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
 import { EnhanceTab } from './panel/enhance-tab.tsx'
 import { HistoryTab } from './panel/history-tab.tsx'
 import { ModelsTab } from './panel/models-tab.tsx'
@@ -22,7 +22,11 @@ export function setup(ctx: PanelContext): void {
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
     on('workspace.removed', ({ workspaceId }) => workspaceRemoved(workspaceId)),
-    on('agent.status.changed', () => void refreshTargets()),
+    on('agent.status.changed', ({ terminalId, workspaceId }) => {
+      // Orca says which workspace this agent's terminal is in: keep it for telling workspaces apart.
+      if (terminalId && workspaceId) learnTerminals([terminalId], workspaceId)
+      void refreshTargets()
+    }),
     plugin.on('enhance.progress', applyProgress),
     plugin.on('hook.enhanced', ({ agent, mode, model }) =>
       set(notice, { tone: 'neutral', text: t('Auto-enhanced ({mode}) a prompt for {agent}.', { mode: model ? `${mode}, ${model}` : mode, agent: agent ?? t('an agent') }) })

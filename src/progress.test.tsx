@@ -246,7 +246,8 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
   assert.ok(model, JSON.stringify(view.summary()))
   const estimate = Number(String(model.text).slice(1, -1))
   assert.ok(estimate > 50 && estimate < 95, String(estimate))
-  assert.ok(view.find({ text: /≈ estimated: a model reports no progress of its own/ }))
+  // No explanation line under the steps: the ≈ next to the share is enough.
+  assert.equal(view.find({ text: /estimated/ }), null)
 
   // Cancel: the bar stays where it was, never 100%, and the card ends.
   const before = Number(String(view.find({ type: 'Progress', label: /^Progress: / })!.props.value))

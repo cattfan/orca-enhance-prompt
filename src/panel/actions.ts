@@ -9,7 +9,7 @@ import { PRIVACY_KEYS } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -77,6 +77,33 @@ function switchWorkspace(key: string, name: string | null): void {
   put(workspaceKey, key)
   set(workspaceName, name)
   set(notice, null)
+}
+
+/** Remembers the workspace of these terminals (newest 300). */
+export function learnTerminals(terminalIds: string[], workspaceId: string): void {
+  const known = read(terminalWorkspaces)
+  if (terminalIds.every((id) => known[id] === workspaceId)) return
+  const next = { ...known }
+  for (const id of terminalIds) {
+    delete next[id]
+    next[id] = workspaceId
+  }
+  const ids = Object.keys(next)
+  for (const id of ids.slice(0, Math.max(0, ids.length - 300))) delete next[id]
+  set(terminalWorkspaces, next)
+}
+
+/** The person says which folder the focused workspace is: its terminals are remembered as being there. */
+export async function pickWorkspace(workspaceId: string): Promise<void> {
+  learnTerminals(read(targets).map((item) => item.terminalId), workspaceId)
+  set(workspaceChoices, [])
+  await refreshTargets()
+}
+
+/** Orca's id of the workspace the composer belongs to, when it is known (not just its name). */
+export function knownWorkspaceId(): Record<string, string> {
+  const key = read(workspaceKey)
+  return key && !key.startsWith('name:') ? { workspaceId: key } : {}
 }
 
 /** Orca removed a project: forget what was parked for it. */
@@ -156,7 +183,10 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list, workspace, workspaceId } = await plugin.request('targets.list')
+    const { targets: list, workspace, workspaceId, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
+    set(workspaceChoices, choices ?? [])
+    // Once known, the workspace of these terminals stays known (the next lookup needs no guess).
+    if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
     // Before the terminals: the composer must follow the project first, so that a target of the new
     // project is never shown next to a prompt of the old one.
     switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null)
@@ -206,6 +236,7 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
         ...(fix ? { errorTerminalId: fix.terminalId } : {}),
         ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
         ...(read(images).length > 0 ? { images: read(images).map((image) => image.path) } : {}),
+        ...knownWorkspaceId(),
         level: read(effectiveLevel),
         terminalId: read(target),
         profileId: choice === 'auto' ? null : choice,
@@ -338,7 +369,7 @@ export async function previewContext(): Promise<void> {
   try {
     const answer = await plugin.request(
       'context.preview',
-      { prompt: read(draft), level: read(effectiveLevel), terminalId: read(target), exclude: read(excluded) },
+      { prompt: read(draft), level: read(effectiveLevel), terminalId: read(target), exclude: read(excluded), ...knownWorkspaceId() },
       { timeoutMs: 60_000 }
     )
     showContext(answer.context, answer.notes)

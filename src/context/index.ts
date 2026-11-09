@@ -25,6 +25,12 @@ export const atLeast = (level: ContextLevel, min: ContextLevel) => LEVEL_RANK[le
 
 type Workspace = { id: string; name: string; path: string; branch: string | null; hostId: string | null }
 
+/**
+ * Whether a workspace's files are on this machine. Orca names this machine's host `local` (older
+ * versions left it null); any other host is SSH or WSL, whose files the plugin cannot read.
+ */
+export const isLocalWorkspace = (workspace: { hostId: string | null }) => workspace.hostId === null || workspace.hostId === 'local'
+
 export type GatherOptions = {
   level: ContextLevel
   prompt: string
@@ -42,6 +48,8 @@ export type GatherOptions = {
   onStep?: StepReporter
   /** Cancel: running git commands are stopped and the gather ends with a cancelled error. */
   signal?: AbortSignal
+  /** Orca's id of the focused workspace, when the panel knows it (several may share a name). */
+  workspaceId?: string | null
 }
 
 /** Ends a gather that was cancelled (between steps, and after any step a cancel cut short). */
@@ -67,14 +75,30 @@ const item = (id: string, kind: string, label: Message, content: string, why?: M
   ...(why ? { note: english(why), why } : {})
 })
 
+/**
+ * The workspaces the focused one could be when several share its name and branch (several checkouts
+ * on "main", say): the person picks one. Empty when it is clear.
+ */
+export async function focusedCandidates(orca: OrcaWorkerApi, focused: { displayName: string; branch: string }): Promise<{ id: string; path: string }[]> {
+  if (!orca.host.has('workspace.list')) return []
+  const list = await orca.host.call('workspace.list', {}).catch(() => null)
+  const exact = (list?.workspaces ?? []).filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch && isLocalWorkspace(ws))
+  return exact.length > 1 ? exact.map((ws) => ({ id: ws.id, path: ws.path })) : []
+}
+
 /** The focused workspace's entry in workspace.list, matched by name and branch. */
 export async function findFocusedWorkspace(
   orca: OrcaWorkerApi,
-  focused: { displayName: string; branch: string }
+  focused: { displayName: string; branch: string },
+  /** Orca's id of the focused workspace when the panel knows it (from its terminals); checked here. */
+  hint?: string | null
 ): Promise<Workspace | null> {
   if (!orca.host.has('workspace.list')) return null
   try {
     const { workspaces } = await orca.host.call('workspace.list', {})
+    // Orca tells the panel which workspace a terminal is in; trust it while it still fits the focus.
+    const hinted = hint ? workspaces.find((ws) => ws.id === hint) : undefined
+    if (hinted && (hinted.name === focused.displayName || (hinted.branch ?? '') === focused.branch)) return hinted
     const exact = workspaces.filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch)
     if (exact.length === 1) return exact[0]
     const byBranch = focused.branch ? workspaces.filter((ws) => ws.branch === focused.branch) : []
@@ -158,10 +182,10 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   let root: string | null = null
   if (atLeast(level, 'standard')) step('project', 'running')
   if (focused && atLeast(level, 'standard')) {
-    const workspace = await findFocusedWorkspace(orca, focused)
+    const workspace = await findFocusedWorkspace(orca, focused, options.workspaceId)
     if (!workspace) {
       notes.push(msg('note.workspace_unknown'))
-    } else if (workspace.hostId !== null) {
+    } else if (!isLocalWorkspace(workspace)) {
       notes.push(msg('note.remote'))
     } else {
       root = workspace.path

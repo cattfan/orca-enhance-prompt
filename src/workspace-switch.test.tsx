@@ -171,3 +171,36 @@ test('a project removed before its answer comes back: the answer goes nowhere el
     assert.equal(shownResult(view), null)
     assert.deepEqual(w.sent, [])
   }))
+
+test('the panel learns a terminal\'s workspace from Orca\'s agent events, and asks for the folder when it cannot tell', async () => {
+  const known: Record<string, string>[] = []
+  let choices: { id: string; path: string }[] | undefined = [
+    { id: 'ws-1', path: 'C:/work/app-one' },
+    { id: 'ws-2', path: 'C:/work/app-two' }
+  ]
+  const host = mockHost({
+    requests: {
+      'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+      'models.detect': { found: [] },
+      'rules.get': { rules: [], structures: [] },
+      'targets.list': (input) => {
+        known.push({ ...(input?.known ?? {}) })
+        const resolved = input?.known?.['term-x']
+        return { targets: [{ terminalId: 'term-x', label: 'Claude · waiting', agent: 'claude' }], workspace: 'main', workspaceId: resolved ?? null, ...(resolved ? {} : { choices }) }
+      }
+    }
+  })
+  const view = await mount(panel, { host })
+  assert.ok(view.find({ text: /Several projects are named main on the same branch/ }), JSON.stringify(view.summary()))
+  await view.select({ label: 'Project folder' }, 'ws-2')
+  await view.settled()
+  assert.equal(known.at(-1)?.['term-x'], 'ws-2')
+  assert.equal(view.find({ text: /Several projects are named main/ }), null)
+  // An agent event from Orca names the workspace of another terminal: remembered for next time.
+  choices = undefined
+  await view.emit('agent.status.changed', { workspaceId: 'ws-9', paneKey: 'p', terminalId: 'term-y', state: 'working', receivedAt: Date.now() })
+  await view.settled()
+  assert.equal(known.at(-1)?.['term-y'], 'ws-9')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
