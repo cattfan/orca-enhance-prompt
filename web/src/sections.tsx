@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { read, set, update } from 'orca'
 import { ArrowDownIcon, ArrowUpIcon, RotateCcwIcon, CheckIcon, CopyIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { t } from '../../src/i18n.ts'
+import { currentLanguage, t } from '../../src/i18n.ts'
 import { presetById, type ProfileView } from '../../src/presets.ts'
 import { isStyle, STYLE_LABELS } from '../../src/prompts.ts'
 import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES } from '../../src/rules.ts'
@@ -74,7 +74,7 @@ import { Field, Group, Hint, IconAction, Pick, Row, Section, Segmented } from '.
 
 const ago = (at: number) => {
   const minutes = Math.round((Date.now() - at) / 60_000)
-  const format = new Intl.RelativeTimeFormat(document.documentElement.lang || undefined, { numeric: 'auto' })
+  const format = new Intl.RelativeTimeFormat(currentLanguage(), { numeric: 'auto' })
   if (minutes < 60) return format.format(-minutes, 'minute')
   if (minutes < 1440) return format.format(-Math.round(minutes / 60), 'hour')
   return format.format(-Math.round(minutes / 1440), 'day')

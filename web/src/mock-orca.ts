@@ -34,11 +34,11 @@ const profile = (id: string, name: string, preset: string, provider: string, mod
   keySource, effectiveModel: model, effectiveBaseUrl: provider === 'cli' ? '' : 'https://api.openai.com/v1'
 })
 let models = {
-  profiles: [profile('claude', 'Claude Code', 'claude-cli', 'cli', 'sonnet', 'subscription'), profile('gpt', 'OpenAI', 'openai', 'openai', 'gpt-5-mini', 'secret')],
+  profiles: [profile('claude', 'Claude Code', 'claude-code', 'cli', 'sonnet', 'subscription'), profile('gpt', 'OpenAI', 'openai', 'openai', 'gpt-5-mini', 'secret')],
   presets: [
     { id: 'openai', label: 'OpenAI', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini' },
     { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-5' },
-    { id: 'claude-cli', label: 'Claude Code (subscription)', provider: 'cli', baseUrl: '', model: '' }
+    { id: 'claude-code', label: 'Claude Code (subscription)', provider: 'cli', baseUrl: '', model: '' }
   ],
   fromEnv: false,
   hookProfileId: null,
@@ -52,6 +52,37 @@ const wait = (ms: number, signal?: AbortSignal) =>
       reject(Object.assign(new Error('Cancelled'), { code: 'aborted' }))
     })
   })
+
+/** What a real run returns for "login page is broken on mobile" (sample data for the preview and pictures). */
+const SAMPLE_PROMPT = `Fix the login page layout on mobile screens (under 640 px wide).
+
+## Context
+- Next.js 15 app, Tailwind CSS; the page is app/(auth)/login/page.tsx with components/LoginForm.tsx.
+- Recent change: commit a41c9e2 "Move auth forms to the new Card component".
+
+## Task
+1. Reproduce at 375 px and 414 px widths: the form overflows and the submit button is hidden.
+2. Find the cause (likely fixed widths in Card or LoginForm) and fix it with responsive classes.
+3. Keep the desktop layout unchanged.
+
+## Done when
+- No horizontal scroll from 320 px up; the button is visible without zooming.
+- pnpm test and pnpm lint pass.`
+
+const SAMPLE_PROMPT_VI = `Sửa bố cục trang đăng nhập trên màn hình điện thoại (dưới 640 px).
+
+## Bối cảnh
+- Ứng dụng Next.js 15, Tailwind CSS; trang nằm ở app/(auth)/login/page.tsx và components/LoginForm.tsx.
+- Thay đổi gần đây: commit a41c9e2 "Move auth forms to the new Card component".
+
+## Việc cần làm
+1. Tái hiện ở độ rộng 375 px và 414 px: form tràn ra ngoài, nút đăng nhập bị khuất.
+2. Tìm nguyên nhân (có thể do độ rộng cố định trong Card hoặc LoginForm) và sửa bằng class responsive.
+3. Giữ nguyên bố cục trên máy tính.
+
+## Xong khi
+- Không có thanh cuộn ngang từ 320 px trở lên; nút hiện đầy đủ.
+- pnpm test và pnpm lint đều qua.`
 
 async function enhance(input: Record<string, unknown>, signal?: AbortSignal) {
   const runId = String(input.runId)
@@ -67,7 +98,7 @@ async function enhance(input: Record<string, unknown>, signal?: AbortSignal) {
   emit('enhance.progress', { runId, startedAt, steps })
   const files = (input.files as string[] | undefined) ?? []
   return {
-    enhanced: `## Goal\n${String(input.prompt)}\n\n## Context\n- Stack: TypeScript, Orca plugin\n- Relevant: src/panel/actions.ts\n\n## Done when\n- Tests pass (orca plugin test .)${files.length ? `\n\nAttached files:\n${files.map((file) => `- ${file}`).join('\n')}` : ''}`,
+    enhanced: `${/[à-ỹ]/i.test(String(input.prompt)) ? SAMPLE_PROMPT_VI : SAMPLE_PROMPT}${files.length ? `\n\nAttached files:\n${files.map((file) => `- ${file}`).join('\n')}` : ''}`,
     model: 'sonnet',
     profileName: 'Claude Code',
     ms: Date.now() - startedAt,
@@ -86,11 +117,11 @@ let attachmentCount = 0
 const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSignal) => unknown> = {
   'models.get': () => models,
   'models.catalog': (input) => ({
-    models: input.preset === 'claude-cli' ? [{ id: 'sonnet', label: 'sonnet: Sonnet, newest' }, { id: 'opus', label: 'opus: Opus, newest' }, { id: 'haiku', label: 'haiku: Haiku, newest' }] : [{ id: 'gpt-5-mini', label: 'GPT-5 mini' }, { id: 'gpt-5', label: 'GPT-5' }],
+    models: input.preset === 'claude-code' ? [{ id: 'sonnet', label: 'sonnet: Sonnet, newest' }, { id: 'opus', label: 'opus: Opus, newest' }, { id: 'haiku', label: 'haiku: Haiku, newest' }] : [{ id: 'gpt-5-mini', label: 'GPT-5 mini' }, { id: 'gpt-5', label: 'GPT-5' }],
     source: 'mock',
     fetchedAt: Date.now()
   }),
-  'models.detect': () => ({ found: [{ preset: 'codex-cli', label: 'Codex (subscription)', path: 'C:/bin/codex.exe', added: false }] }),
+  'models.detect': () => ({ found: [{ preset: 'codex', label: 'Codex (subscription)', path: 'C:/bin/codex.exe', added: false }] }),
   'models.save': (input) => {
     const next = { ...profile(String(input.id ?? `p${Date.now()}`), String(input.name), String(input.preset), String(input.provider), String(input.model), 'secret'), ...input }
     const exists = models.profiles.some((entry) => entry.id === next.id)
