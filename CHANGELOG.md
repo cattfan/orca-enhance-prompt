@@ -3,6 +3,24 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.3.0] - 2026-11-09
+
+### Added
+
+- A new web panel, Enhance Prompt (web), drawn with React and shadcn/ReUI next to the existing one: paste a screenshot, drop files or attach them with the paperclip, and press Enter to enhance (Shift+Enter for a new line).
+- Attached files of any kind (up to 8, 10 MB each): images go to models that read images, short text files join the context, and the enhanced prompt lists every file's path so your agent can open it.
+- Built-in prompt structures can be edited, and restored to their default.
+- The Custom only style's instructions can be written in the panel's options.
+
+### Changed
+
+- In the web panel, rules apply to the project you are in, notices are toasts, and the colours are neutral black and white.
+- A project can keep up to 1000 rules instead of 50.
+
+### Notes
+
+- Translations now live in src/i18n-dict.ts, shared by both panels. The web panel's source is in web/ and builds into src/web-dist (npm run web:build).
+
 ## [2.2.2] - 2026-11-09
 
 ### Changed
@@ -339,6 +357,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.3.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.3.0
 [2.2.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.2
 [2.2.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.1
 [2.2.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.2.0
