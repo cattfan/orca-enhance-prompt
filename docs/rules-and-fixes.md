@@ -34,7 +34,7 @@ shape.
 When a build, test run or dev server fails in another terminal, the agent does not see it. Instead
 of copying the error by hand:
 
-1. Press the **bug** icon in the composer.
+1. Press **Fix error** under the prompt box.
 2. Under **Error in**, pick the terminal that shows the error (it defaults to one that is not an agent).
 3. Press **Fix this error**.
 

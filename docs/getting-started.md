@@ -30,7 +30,7 @@ Go back to the **Enhance** tab and describe what you want, as roughly as you lik
 login page is broken on mobile
 ```
 
-The prompt box and its toolbar sit in one card: the model menu, **Options** (filter icon), **Preview context** (🔍) and **Enhance**.
+The prompt box and its tools sit in one card: the model menu and **Enhance**, then **Images**, **Fix error**, **Options** and **Preview** (which unfolds the list of context that would be sent).
 
 The model menu lists every model you can use right now, like the model menu in ChatGPT or Claude: **Auto** runs your models in order with fallback, or pick one, such as **Claude Code · sonnet** or **Codex · GPT-6.1-Sol**. The lists come from each CLI or API and stay current; see [Model lists stay current](models.md#model-lists-stay-current).
 

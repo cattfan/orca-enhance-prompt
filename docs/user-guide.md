@@ -27,7 +27,7 @@ every language.
 4. Read and edit the result, pick the agent terminal, then press **Send**. Nothing reaches the agent
    before you press Send; turn on **Press Enter after sending** under Options to submit it too.
 
-Under **Options** (the filter icon): style (Balanced, Bug fix, Plan first…), how much project context
+Under **Options** (under the prompt box): style (Balanced, Bug fix, Plan first…), how much project context
 to read, the output language, and a prompt structure.
 
 ## 2. Attach images
@@ -36,7 +36,7 @@ to read, the output language, and a prompt structure.
 
 Screenshots help when the problem is visual or the error is in a dialog.
 
-1. Press the **upload** icon in the composer.
+1. Press **Images** under the prompt box.
 2. Paste the **full path** of an image file on this machine and press **Attach** (or Enter).
    - Windows: Shift + right-click the file → **Copy as path** (the quotes are fine).
    - macOS: Option + right-click → **Copy "…" as Pathname**.
@@ -83,7 +83,7 @@ had reached.
 
 When a build, test run or dev server fails in another terminal, the agent does not see it.
 
-1. Press the **bug** icon.
+1. Press **Fix error** under the prompt box.
 2. Under **Error in**, pick the terminal with the error (it starts on one that is not an agent).
 3. Press **Fix this error**. The latest error block (up to 150 lines) goes first in the context and
    the prompt is written as a bug-fix brief for the agent you send to. Text already in the composer
