@@ -3,6 +3,13 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.4.3] - 2026-11-09
+
+### Changed
+
+- The logo keeps its shape on dark backgrounds: the icon has a thin light edge, and the logo next to the title turns white in the dark theme.
+- The README, the user guide and the docs show and describe the new panel: paste, drop or attach files, Enter to enhance, the options with the context list, rules per project, editable structures and What's new.
+
 ## [2.4.2] - 2026-11-09
 
 ### Added
@@ -393,6 +400,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.4.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.3
 [2.4.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.2
 [2.4.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.1
 [2.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.0
