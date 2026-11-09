@@ -1,5 +1,6 @@
 // The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
 import type { Message } from './messages.ts'
+import type { RulesConfig } from './rules.ts'
 import type { ContextItemView, ProfileView, Preset, Provider } from './presets.ts'
 
 /** The longest a panel may wait for its worker (Orca caps `timeoutMs` at 120000). */
@@ -51,6 +52,8 @@ declare module 'orca' {
         runId?: string
         /** "Fix this error": the terminal whose latest error the prompt is about. */
         errorTerminalId?: string
+        /** A prompt structure (Rules tab) whose sections replace the style's shape. */
+        structureId?: string
       }
       output: {
         enhanced: string
@@ -76,7 +79,8 @@ declare module 'orca' {
     'prompt.copy': { input: { text: string }; output: { copied: boolean; error?: string } }
     /** Agent terminals of the focused workspace, agents first. */
     'targets.list': {
-      output: { targets: { terminalId: string; label: string; agent: string | null }[] }
+      /** `workspace`: the focused workspace's name (rules can apply to one workspace). */
+      output: { targets: { terminalId: string; label: string; agent: string | null }[]; workspace?: string | null }
     }
     'models.get': { output: ModelsView }
     /** Adds or updates a profile (and its key). */
@@ -112,6 +116,10 @@ declare module 'orca' {
     'history.remove': { input: { id: string }; output: { ok: true } }
     /** Deletes the whole history (in order with new entries being saved). */
     'history.clear': { output: { ok: true } }
+    /** Rules tab: your rules and prompt structures. */
+    'rules.get': { output: RulesConfig }
+    /** Replaces them (cleaned and capped); answers with what was saved. */
+    'rules.save': { input: { config: RulesConfig }; output: RulesConfig }
     /** What the plugin keeps: history entries, saved models, saved keys, cached model lists. */
     'data.summary': { output: { history: number; profiles: number; keys: number; catalogs: number } }
     /** Deletes history, cached model lists, or everything (models and their keys too). */

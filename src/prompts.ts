@@ -103,8 +103,14 @@ export function buildSystemPrompt(options: {
   language: string
   customInstructions?: string
   agent?: string | null
+  /** The person's own rules (Rules tab), always followed. */
+  rules?: string[]
+  /** A prompt structure: these sections replace the style's shape. */
+  structure?: { name: string; sections: string[] } | null
 }): string {
-  const parts = [BASE, STYLE_RULES[options.style]]
+  const sections = options.structure?.sections.filter((section) => section.trim()) ?? []
+  const shape = sections.length > 0 ? structureShape(sections) : STYLE_RULES[options.style]
+  const parts = [BASE, shape]
   const hint = agentHint(options.agent)
   if (hint) {
     parts.push(hint)
@@ -119,7 +125,20 @@ export function buildSystemPrompt(options: {
   if (custom) {
     parts.push(`Custom instructions from the user (follow them):\n${custom}`)
   }
+  const rules = (options.rules ?? []).map((rule) => rule.trim()).filter(Boolean)
+  if (rules.length > 0) {
+    parts.push(`Rules from the user (always follow them; they win over the shape above):\n${rules.map((rule) => `- ${rule}`).join('\n')}`)
+  }
   return parts.join('\n\n')
+}
+
+/** The shape for a prompt structure: these headings, in this order. */
+function structureShape(sections: string[]): string {
+  return [
+    'Shape: write the prompt under exactly these headings, in this order:',
+    ...sections.map((section, index) => `${index + 1}. ${section}`),
+    'Use the headings as given, translated into the output language when they are in another language. Leave a heading out only when nothing in the request or the context belongs under it; never invent content to fill one.'
+  ].join('\n')
 }
 
 const escapeAttr = (value: string) => value.replace(/["<>&]/g, (c) => ({ '"': '&quot;', '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] ?? c)

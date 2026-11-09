@@ -7,6 +7,7 @@ import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, gatherContext, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
+import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
   candidates,
@@ -173,6 +174,14 @@ async function pickFilesWithModel(
   return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string').slice(0, 8) : []
 }
 
+/** The Rules tab: the saved rules and structures, and the rules that apply in the focused workspace. */
+async function ownRules(orca: OrcaWorkerApi): Promise<{ config: RulesConfig; rules: string[] }> {
+  const config = parseRulesConfig(await orca.storage.get(RULES_KEY).catch(() => null))
+  if (config.rules.length === 0) return { config, rules: [] }
+  const focused = config.rules.some((rule) => rule.scope) ? await orca.host.call('workspace.readContext', {}).catch(() => null) : null
+  return { config, rules: rulesFor(config, focused?.displayName ?? null) }
+}
+
 /** The latest error in a terminal's output, as a context item. */
 async function readErrorOutput(orca: OrcaWorkerApi, terminalId: string, step: StepReporter, signal?: AbortSignal): Promise<ContextItem> {
   step('error', 'running')
@@ -208,6 +217,7 @@ export async function enhance(
     language?: string
     exclude?: string[]
     errorTerminalId?: string
+    structureId?: string
   },
   signal?: AbortSignal,
   progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) => StepReporter,
@@ -249,11 +259,14 @@ export async function enhance(
   if (errorItem) gathered.items = [errorItem, ...fitBudget(gathered.items, Math.max(0, 45_000 - errorItem.chars))]
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
+  const own = await ownRules(orca)
   const system = buildSystemPrompt({
     style,
     language,
     customInstructions: settings.customInstructions,
-    agent: settings.adaptToAgent ? (agentItem?.content.split(' ')[0] ?? null) : null
+    agent: settings.adaptToAgent ? (agentItem?.content.split(' ')[0] ?? null) : null,
+    rules: own.rules,
+    structure: structureById(own.config, input.structureId)
   })
   const user = buildUserMessage(prompt, gathered.items)
   const chosenModel = input.model?.trim().slice(0, 200)
@@ -517,7 +530,7 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
         targets.push({ terminalId: terminal.id, label: terminal.title ?? terminal.id, agent: null })
       }
     }
-    return { targets }
+    return { targets, workspace: context?.displayName ?? null }
   })
 }
 
@@ -658,8 +671,19 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
   })
 }
 
-/** Privacy section: what is stored, and wiping it. */
+/** Privacy section: what is stored, and wiping it. Also the Rules tab's rules and structures. */
 function registerDataHandlers(orca: OrcaWorkerApi): void {
+  // Saves land in the order they were asked for; the panel sends the whole list each time.
+  let rulesQueue: Promise<unknown> = Promise.resolve()
+  orca.panels.handle('rules.get', async () => parseRulesConfig(await orca.storage.get(RULES_KEY)))
+  orca.panels.handle('rules.save', async ({ config }) => {
+    const clean = parseRulesConfig(rulesToJson(config))
+    const write = rulesQueue.then(() => orca.storage.set(RULES_KEY, rulesToJson(clean)))
+    rulesQueue = write.catch(() => undefined)
+    await write
+    return clean
+  })
+
   // History edits from the panel go through the same queue as new entries, so none is lost.
   orca.panels.handle('history.remove', async ({ id }) => {
     await withHistory(async () => {
@@ -699,6 +723,7 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       const config = await loadModels(orca)
       for (const profile of config.profiles) await orca.secrets.delete(secretName(profile.id)).catch(() => undefined)
       await orca.storage.delete(MODELS_KEY)
+      await orca.storage.delete(RULES_KEY)
     }
     return { ok: true as const }
   })
@@ -720,11 +745,13 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
     try {
       const config = await loadModels(orca)
       const items = settings.autoEnhanceContext ? await hookContext(orca, settings.privacy.allowProjectFiles) : []
+      const own = await ownRules(orca)
       const system = buildSystemPrompt({
         style: settings.defaultStyle,
         language: settings.outputLanguage,
         customInstructions: settings.customInstructions,
-        agent: settings.adaptToAgent ? event.agent : null
+        agent: settings.adaptToAgent ? event.agent : null,
+        rules: own.rules
       })
       // CLI models take seconds to start; the hook has under 2 s, so it uses API models only.
       const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled).filter(

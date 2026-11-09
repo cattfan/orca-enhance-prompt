@@ -1,6 +1,7 @@
 // state.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
 import { atom, derived, read, set, type Atom, type JsonValue } from 'orca'
 import { HISTORY_KEY, parseHistory } from '../history.ts'
+import type { RulesConfig } from '../rules.ts'
 import { isMessage, render, type Message } from '../messages.ts'
 import { type ContextItemView } from '../presets.ts'
 import { t } from '../i18n.ts'
@@ -38,6 +39,18 @@ export const fixOpen = atom(false)
 export const errorTerminal = atom<string | null>('errorTerminal', null)
 export const pressEnter = atom<boolean | null>('pressEnter', null)
 export const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
+/**
+ * Rules tab: rules and structures as the worker last saved them, and its two forms. Saved through the
+ * worker (not a storage atom): quick edits in a row could otherwise be undone by a late echo.
+ */
+export const rulesState = atom<RulesConfig>({ rules: [], structures: [] })
+export const ruleDraft = atom('')
+export const ruleScope = atom('all')
+export const structureDraft = atom({ name: '', sections: '' })
+/** The structure picked in the composer's options; '' = the style's own shape. */
+export const structureChoice = atom('structureChoice', '', { persist: 'plugin' })
+/** The focused workspace's name, for rules that apply to one workspace. */
+export const workspaceName = atom<string | null>(null)
 export const historyFilter = atom('historyFilter', '')
 /** History entries drawn at once; "Show more" adds a page. */
 export const HISTORY_PAGE = 50

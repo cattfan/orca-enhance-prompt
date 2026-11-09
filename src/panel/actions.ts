@@ -8,7 +8,7 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { PRIVACY_KEYS } from '../privacy.ts'
 import { type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 
@@ -79,8 +79,9 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list } = await plugin.request('targets.list')
+    const { targets: list, workspace } = await plugin.request('targets.list')
     set(targets, list)
+    set(workspaceName, workspace ?? null)
     const current = read(target)
     // The error usually sits in a terminal that is not the agent's (build, tests, dev server).
     const errorFrom = read(errorTerminal)
@@ -122,6 +123,7 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
         // Fixing an error is a bug-fix brief whatever the composer's style.
         style: fix ? 'bugfix' : read(effectiveStyle),
         ...(fix ? { errorTerminalId: fix.terminalId } : {}),
+        ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
         level: read(effectiveLevel),
         terminalId: read(target),
         profileId: choice === 'auto' ? null : choice,
@@ -419,6 +421,7 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
     if (what === 'catalogs' || what === 'all') set(catalogs, {})
     if (what === 'all') {
       for (const [now, , empty] of KEPT) set(now, empty as never)
+      set(rulesState, { rules: [], structures: [] })
       forgetSaved()
     }
     set(confirmWipe, false)

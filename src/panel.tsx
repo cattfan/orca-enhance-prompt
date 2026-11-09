@@ -7,6 +7,7 @@ import { EnhanceTab } from './panel/enhance-tab.tsx'
 import { HistoryTab } from './panel/history-tab.tsx'
 import { ModelsTab } from './panel/models-tab.tsx'
 import { PrivacyTab } from './panel/privacy-tab.tsx'
+import { refreshRules, RulesTab } from './panel/rules-tab.tsx'
 
 export function setup(ctx: PanelContext): void {
   restoreSaved()
@@ -24,6 +25,7 @@ export function setup(ctx: PanelContext): void {
   void refreshDefaults()
   void refreshModels()
   void refreshTargets()
+  void refreshRules()
   void detectClis()
   // The stored-data counts read every saved key; load them only for the section that shows them.
   if (read(tab) === 'privacy') void refreshDataSummary()
@@ -33,6 +35,7 @@ const SECTIONS = [
   { value: 'enhance', label: 'Enhance', icon: 'lightbulb' },
   { value: 'history', label: 'History', icon: 'book' },
   { value: 'models', label: 'Models', icon: 'agent' },
+  { value: 'rules', label: 'Rules', icon: 'wrench' },
   { value: 'privacy', label: 'Privacy', icon: 'settings' }
 ] as const
 
@@ -73,7 +76,7 @@ export default function Panel() {
     <Stack gap="sm">
       <Nav />
       <Separator />
-      {current === 'history' ? <HistoryTab /> : current === 'models' ? <ModelsTab /> : current === 'privacy' ? <PrivacyTab /> : <EnhanceTab />}
+      {current === 'history' ? <HistoryTab /> : current === 'models' ? <ModelsTab /> : current === 'privacy' ? <PrivacyTab /> : current === 'rules' ? <RulesTab /> : <EnhanceTab />}
     </Stack>
   )
 }

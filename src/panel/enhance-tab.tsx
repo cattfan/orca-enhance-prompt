@@ -3,8 +3,10 @@ import { Badge, Box, Button, Callout, Checkbox, Collapsible, Grid, IconButton, r
 import { CONTEXT_LEVEL_LABELS, isContextLevel, type ContextItemView } from '../presets.ts'
 import { isStyle, STYLE_LABELS } from '../prompts.ts'
 import { t } from '../i18n.ts'
+import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
+import { rulesConfig } from './rules-tab.tsx'
 import { percent, type Step } from '../progress.ts'
-import { fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
 import { fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
@@ -219,6 +221,22 @@ export function FixErrorBox() {
   )
 }
 
+/** "By style" plus every built-in and saved structure. */
+export function structureOptions() {
+  const config = rulesConfig()
+  return [
+    { value: 'style', label: t('By style') },
+    ...BUILT_IN_STRUCTURES.map((structure) => ({ value: structure.id, label: t(structure.name) })),
+    ...config.structures.map((structure) => ({ value: structure.id, label: structure.name }))
+  ]
+}
+
+/** The picked structure, or "By style" when it was deleted. */
+function structureValue(): string {
+  const id = read(structureChoice)
+  return id && structureById(rulesConfig(), id) ? id : 'style'
+}
+
 export function PromptOptions() {
   if (!read(optionsOpen)) return null
   return (
@@ -227,6 +245,7 @@ export function PromptOptions() {
         <Select label={t('Style')} value={read(effectiveStyle)} options={styleOptions()} onChange={(value) => set(style, value)} />
         <Select label={t('Context')} value={read(effectiveLevel)} options={levelOptions()} onChange={(value) => set(level, value)} />
         <Select label={t('Output language')} value={read(outputChoice)} options={outputOptions()} onChange={(value) => set(outputChoice, value)} />
+        <Select label={t('Structure')} value={structureValue()} options={structureOptions()} onChange={(value) => set(structureChoice, value === 'style' ? '' : value)} />
       </Grid>
       <Switch label={t('Press Enter after sending')} checked={read(effectiveEnter)} onChange={(value) => set(pressEnter, value)} />
     </Box>
