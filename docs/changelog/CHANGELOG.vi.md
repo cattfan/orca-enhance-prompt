@@ -2,6 +2,12 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.4.5] - 2026-11-09
+
+### Thay đổi
+
+- Logo và hình nền cover được vẽ lại bằng gpt-image-2.6-sunburst: ngôi sao to và rõ hơn ở kích thước nhỏ, cover thoáng hơn. Mọi ảnh giới thiệu, ảnh README và ảnh hướng dẫn đều dùng bản mới.
+
 ## [2.4.4] - 2026-11-09
 
 ### Thay đổi
