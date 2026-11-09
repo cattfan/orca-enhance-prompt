@@ -530,7 +530,8 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
         targets.push({ terminalId: terminal.id, label: terminal.title ?? terminal.id, agent: null })
       }
     }
-    return { targets, workspace: context?.displayName ?? null }
+    const workspace = context ? await findFocusedWorkspace(orca, context) : null
+    return { targets, workspace: context?.displayName ?? null, workspaceId: workspace?.id ?? null }
   })
 }
 

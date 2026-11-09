@@ -6,7 +6,7 @@ import { t } from '../i18n.ts'
 import { BUILT_IN_STRUCTURES, structureById } from '../rules.ts'
 import { rulesConfig } from './rules-tab.tsx'
 import { percent, type Step } from '../progress.ts'
-import { structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { workspaceKey, structureChoice, fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
 import { fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
@@ -124,6 +124,18 @@ export function RunCard() {
   const current = read(run)
   if (!current || current.status === 'done') return null
   const running = current.status === 'running'
+  // A run started in another project: say whose it is, show none of its details here.
+  if (current.workspace && current.workspace.key !== read(workspaceKey)) {
+    if (!running) return null
+    return (
+      <Row gap="xs">
+        <Spinner label={t('Enhancing')} labelHidden />
+        <Text muted size="sm" truncate>
+          {t('Writing the prompt for {name}…', { name: current.workspace.name ?? '?' })}
+        </Text>
+      </Row>
+    )
+  }
   const steps = current.steps
   const active = steps.find((entry) => entry.status === 'running')
   const title = running

@@ -2,7 +2,7 @@
 import { Separator, IconButton, on, plugin, read, Row, set, settings, Stack, Text, type PanelContext } from 'orca'
 import { t } from './i18n.ts'
 import { tab, notice, restoreSaved, history } from './panel/state.ts'
-import { cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
+import { workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
 import { EnhanceTab } from './panel/enhance-tab.tsx'
 import { HistoryTab } from './panel/history-tab.tsx'
 import { ModelsTab } from './panel/models-tab.tsx'
@@ -16,6 +16,7 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push(
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
+    on('workspace.removed', ({ workspaceId }) => workspaceRemoved(workspaceId)),
     on('agent.status.changed', () => void refreshTargets()),
     plugin.on('enhance.progress', applyProgress),
     plugin.on('hook.enhanced', ({ agent, mode, model }) =>

@@ -23,7 +23,7 @@ const RELEVANT_FILES: Record<ContextLevel, number> = { off: 0, basic: 0, standar
 
 export const atLeast = (level: ContextLevel, min: ContextLevel) => LEVEL_RANK[level] >= LEVEL_RANK[min]
 
-type Workspace = { name: string; path: string; branch: string | null; hostId: string | null }
+type Workspace = { id: string; name: string; path: string; branch: string | null; hostId: string | null }
 
 export type GatherOptions = {
   level: ContextLevel

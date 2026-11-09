@@ -72,6 +72,8 @@ export const customModel = atom(false)
 export type Run = {
   runId: string
   startedAt: number
+  /** The project the run was started in (its key and name): its answer belongs there. */
+  workspace?: { key: string | null; name: string | null }
   steps: Step[]
   status: 'running' | 'done' | 'error' | 'cancelled'
   error?: string
@@ -97,6 +99,27 @@ export const contextShown = atom<ContextItemView[]>([])
 export const contextNotes = atom<(Message | string)[]>([])
 
 /**
+ * Which project (workspace) the composer below belongs to: its key (Orca's workspace id, or its name
+ * and branch when Orca cannot tell the id) and name. The draft, the result and what the last run used
+ * belong to that project; switching projects parks them under its key and brings back the new one's.
+ */
+export const workspaceKey = atom<string | null>(null)
+/** What a project left in the composer, kept while you work in another one. */
+export type Slot = {
+  name: string | null
+  draft: string
+  result: string
+  lastRun: LastRun
+  contextShown: ContextItemView[]
+  contextNotes: (Message | string)[]
+  excluded: string[]
+  at: number
+}
+/** Parked composers by project key; the oldest go past MAX_PARKED. */
+export const parked = atom<Record<string, Slot>>({})
+export const MAX_PARKED = 20
+
+/**
  * The draft, the last result and what the last run used are kept across panel runs (Orca writes
  * `persist: 'plugin'` atoms to panel-state.json in the plugin's data folder) only while "Save history"
  * is on. The panel works on the in-memory atoms above; `put` mirrors them into these saved copies,
@@ -107,7 +130,9 @@ export const KEPT: [Atom<never>, Atom<never>, unknown][] = [
   [result, atom('result', '', { persist: 'plugin' }), ''],
   [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
   [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
-  [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []]
+  [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []],
+  [workspaceKey, atom<string | null>('workspaceKey', null, { persist: 'plugin' }), null],
+  [parked, atom<Record<string, Slot>>('parked', {}, { persist: 'plugin' }), {}]
 ] as never
 
 export const mayKeep = () => read(privacy).saveHistory !== false

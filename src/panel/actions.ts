@@ -8,9 +8,83 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { PRIVACY_KEYS } from '../privacy.ts'
 import { type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
+/** The project of the run in flight; filled in if the panel learns its key only after the run started. */
+let runOrigin: { key: string | null; name: string | null } | null = null
+/** Projects Orca has removed: an answer for one of them is dropped, never shown elsewhere. */
+const removedWorkspaces = new Set<string>()
+
+// ---------------------------------------------------------------- projects
+
+/** The composer as it is now, to park under its project. */
+function snapshot(): Slot {
+  return {
+    name: read(workspaceName),
+    draft: read(draft),
+    result: read(result),
+    lastRun: read(lastRun),
+    contextShown: read(contextShown),
+    contextNotes: read(contextNotes),
+    excluded: read(excluded),
+    at: Date.now()
+  }
+}
+
+const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0
+
+/** Keeps a project's composer, newest first, at most MAX_PARKED projects. */
+function park(key: string, slot: Slot): void {
+  const next = { ...read(parked) }
+  delete next[key]
+  if (!isEmpty(slot)) next[key] = slot
+  const keys = Object.keys(next).sort((a, b) => next[b].at - next[a].at)
+  for (const old of keys.slice(MAX_PARKED)) delete next[old]
+  put(parked, next)
+}
+
+/**
+ * The focused project changed: what the composer holds goes back to the project it was written in, and
+ * the new project's own draft and result (or an empty composer) come in. A prompt is never shown, and
+ * so never sent, in a project other than its own.
+ */
+function switchWorkspace(key: string, name: string | null): void {
+  const old = read(workspaceKey)
+  if (old === key) {
+    set(workspaceName, name)
+    return
+  }
+  if (old === null) {
+    // First answer since the panel opened: the composer already belongs to this project.
+    put(workspaceKey, key)
+    set(workspaceName, name)
+    if (runOrigin && runOrigin.key === null) runOrigin.key = key
+    return
+  }
+  park(old, snapshot())
+  const incoming = read(parked)[key]
+  put(draft, incoming?.draft ?? '')
+  put(result, incoming?.result ?? '')
+  put(lastRun, incoming?.lastRun ?? null)
+  put(contextShown, incoming?.contextShown ?? [])
+  put(contextNotes, incoming?.contextNotes ?? [])
+  set(excluded, incoming?.excluded ?? [])
+  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [] })
+  put(workspaceKey, key)
+  set(workspaceName, name)
+  set(notice, null)
+}
+
+/** Orca removed a project: forget what was parked for it. */
+export function workspaceRemoved(workspaceId: string): void {
+  removedWorkspaces.add(workspaceId)
+  if (read(parked)[workspaceId]) {
+    const next = { ...read(parked) }
+    delete next[workspaceId]
+    put(parked, next)
+  }
+}
 
 // ---------------------------------------------------------------- data
 
@@ -79,9 +153,11 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list, workspace } = await plugin.request('targets.list')
+    const { targets: list, workspace, workspaceId } = await plugin.request('targets.list')
+    // Before the terminals: the composer must follow the project first, so that a target of the new
+    // project is never shown next to a prompt of the old one.
+    switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null)
     set(targets, list)
-    set(workspaceName, workspace ?? null)
     const current = read(target)
     // The error usually sits in a terminal that is not the agent's (build, tests, dev server).
     const errorFrom = read(errorTerminal)
@@ -110,7 +186,9 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
   if (!prompt || read(busy)) return
   const controller = new AbortController()
   inFlight = controller
-  const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`)
+  const origin = { key: read(workspaceKey), name: read(workspaceName) }
+  runOrigin = origin
+  const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, origin)
   set(busy, 'enhance')
   set(notice, null)
   try {
@@ -134,22 +212,39 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
       },
       { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
     )
-    put(result, answer.enhanced)
-    put(lastRun, { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts })
-    showContext(answer.context, answer.notes)
+    const ran = { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts }
+    if (origin.key === read(workspaceKey)) {
+      put(result, answer.enhanced)
+      put(lastRun, ran)
+      showContext(answer.context, answer.notes)
+    } else if (origin.key !== null && !removedWorkspaces.has(origin.key)) {
+      // The person moved to another project meanwhile: the prompt waits in its own project.
+      const slot = read(parked)[origin.key]
+      park(origin.key, { ...(slot ?? snapshotFor(origin.name)), result: answer.enhanced, lastRun: ran, contextShown: answer.context, contextNotes: answer.notes, at: Date.now() })
+      set(notice, { tone: 'neutral', text: t('The enhanced prompt is kept for {name}: go back to that project to send it.', { name: origin.name ?? '?' }) })
+    } else {
+      // Its project is gone (or unknown): showing it here could send it to the wrong agent.
+      set(notice, { tone: 'warning', text: t('The project this prompt was written for is closed, so its enhanced prompt was dropped.') })
+    }
     finishRun(runId, 'done')
   } catch (error) {
     if (controller.signal.aborted) finishRun(runId, 'cancelled')
     else finishRun(runId, 'error', message(error))
   } finally {
     if (inFlight === controller) inFlight = null
+    if (runOrigin === origin) runOrigin = null
     set(busy, null)
   }
 }
 
+/** An empty composer of a project that has nothing parked. */
+function snapshotFor(name: string | null): Slot {
+  return { name, draft: '', result: '', lastRun: null, contextShown: [], contextNotes: [], excluded: [], at: Date.now() }
+}
+
 /** Starts a fresh run; progress from an older run is ignored by its id. Exported for tests. */
-export function beginRun(runId: string): string {
-  set(run, { runId, startedAt: Date.now(), steps: [], status: 'running' })
+export function beginRun(runId: string, workspace?: { key: string | null; name: string | null }): string {
+  set(run, { runId, startedAt: Date.now(), steps: [], status: 'running', ...(workspace ? { workspace } : {}) })
   return runId
 }
 

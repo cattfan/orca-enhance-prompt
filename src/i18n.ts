@@ -347,7 +347,10 @@ const VI: Record<string, string> = {
   'Assumptions / questions': 'Giả định / câu hỏi',
   'Verify': 'Kiểm tra',
   'Background': 'Bối cảnh',
-  'everywhere': 'mọi nơi'
+  'everywhere': 'mọi nơi',
+  'The enhanced prompt is kept for {name}: go back to that project to send it.': 'Prompt đã cải thiện được giữ cho {name}: quay lại dự án đó để gửi.',
+  'The project this prompt was written for is closed, so its enhanced prompt was dropped.': 'Dự án viết prompt này đã đóng nên prompt đã cải thiện bị bỏ.',
+  'Writing the prompt for {name}…': 'Đang viết prompt cho {name}…'
 }
 
 const ZH: Record<string, string> = {
@@ -673,7 +676,10 @@ const ZH: Record<string, string> = {
   'Assumptions / questions': '假设 / 问题',
   'Verify': '验证',
   'Background': '背景',
-  'everywhere': '全部'
+  'everywhere': '全部',
+  'The enhanced prompt is kept for {name}: go back to that project to send it.': '优化后的提示词已为 {name} 保留：回到该项目再发送。',
+  'The project this prompt was written for is closed, so its enhanced prompt was dropped.': '写这个提示词的项目已关闭，因此优化后的提示词已丢弃。',
+  'Writing the prompt for {name}…': '正在为 {name} 写提示词…'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

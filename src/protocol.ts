@@ -80,7 +80,9 @@ declare module 'orca' {
     /** Agent terminals of the focused workspace, agents first. */
     'targets.list': {
       /** `workspace`: the focused workspace's name (rules can apply to one workspace). */
-      output: { targets: { terminalId: string; label: string; agent: string | null }[]; workspace?: string | null }
+      /** `workspaceId`: Orca's id of the focused workspace (null when it cannot tell): the panel keeps each
+       *  project's draft and result apart by it. */
+      output: { targets: { terminalId: string; label: string; agent: string | null }[]; workspace?: string | null; workspaceId?: string | null }
     }
     'models.get': { output: ModelsView }
     /** Adds or updates a profile (and its key). */
