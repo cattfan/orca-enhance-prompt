@@ -115,6 +115,8 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 **Ngoài ra:**
 
+- **[Sửa lỗi này](../rules-and-fixes.md#fix-this-error)**: chọn terminal đang báo lỗi (build, test, dev server); Enhance đọc lỗi và viết prompt sửa lỗi cho agent.
+- **[Quy tắc và cấu trúc prompt](../rules-and-fixes.md)**: quy tắc cho mọi workspace hoặc một workspace, và các mục bạn muốn prompt được viết theo.
 - **[Tự cải thiện](../auto-enhance.md)**: viết lại prompt mà chính Orca gửi cho agent (khi launch, task, orchestration), bằng luật của bạn hoặc một model nhanh.
 - **[Prompt theo từng agent](../context-levels.md#agent-aware-prompts)**: định dạng hợp với Claude Code, Codex, Gemini CLI hay Aider.
 - **[Chín kiểu prompt](../getting-started.md#styles)**: Cân bằng, Ngắn gọn, Đặc tả chi tiết, Sửa lỗi, Tính năng mới, Refactor, Review code, Lập kế hoạch trước, Chỉ hướng dẫn riêng.
@@ -157,6 +159,7 @@ Tài liệu chi tiết bằng tiếng Anh:
 | [Your first enhanced prompt](../getting-started.md) | Mở panel, thêm model, cải thiện, gửi |
 | [Context levels](../context-levels.md) | Mỗi mức đọc gì và cách kiểm soát |
 | [Models](../models.md) | CLI subscription, API key, danh sách model, fallback |
+| [Rules, structures and Fix this error](../rules-and-fixes.md) | Quy tắc, cấu trúc prompt, sửa lỗi từ terminal, cách prompt được viết |
 | [Auto-enhance](../auto-enhance.md) | Tự cải thiện prompt Orca gửi cho agent |
 | [Settings](../settings.md) | Mọi tuỳ chọn và giá trị mặc định |
 | [Privacy & permissions](../privacy.md) | Chạy gì, đọc gì, gửi đi đâu |

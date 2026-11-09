@@ -10,7 +10,7 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 | --- | --- |
 | Read project files | No rules, README, manifests or file list; Standard and above fall back to workspace and agent names |
 | Run git | No `git` commands; files are listed by walking the folder |
-| Read terminal output | The Max level skips the terminal |
+| Read terminal output | The Max level skips the terminal, and Fix this error is refused |
 | Send to terminals | **Send** is refused; use **Copy** |
 | Save history | Nothing is added to History |
 | Use API keys from environment variables | Only keys you saved in the Models tab |

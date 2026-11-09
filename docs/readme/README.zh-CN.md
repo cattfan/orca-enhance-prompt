@@ -115,6 +115,8 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 **另外还有：**
 
+- **[修复此错误](../rules-and-fixes.md#fix-this-error)**：选择构建、测试或开发服务器报错的终端，Enhance 读取错误并为 agent 写好修复提示词。
+- **[规则与提示词结构](../rules-and-fixes.md)**：适用于所有或单个工作区的规则，以及提示词要使用的标题。
 - **[自动优化](../auto-enhance.md)**：改写 Orca 自己发给 agent 的提示词（启动、任务、编排），使用你的规则或快速模型。
 - **[按 agent 定制](../context-levels.md#agent-aware-prompts)**：针对 Claude Code、Codex、Gemini CLI 或 Aider 调整格式。
 - **[九种风格](../getting-started.md#styles)**：均衡、简洁、详细规格、修复 bug、新功能、重构、代码审查、先做计划、仅自定义指令。
@@ -157,6 +159,7 @@ orca plugin update cattfan.enhance-prompt
 | [Your first enhanced prompt](../getting-started.md) | 打开面板、添加模型、优化、发送 |
 | [Context levels](../context-levels.md) | 每个级别读取什么，如何控制 |
 | [Models](../models.md) | 订阅 CLI、API key、模型列表、回退 |
+| [Rules, structures and Fix this error](../rules-and-fixes.md) | 规则、提示词结构、从终端修复错误、提示词的写法 |
 | [Auto-enhance](../auto-enhance.md) | 改写 Orca 发给 agent 的提示词 |
 | [Settings](../settings.md) | 所有选项及默认值 |
 | [Privacy & permissions](../privacy.md) | 运行什么、读取什么、发送到哪里 |

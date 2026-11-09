@@ -117,6 +117,8 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 
 **Also in the box:**
 
+- **[Fix this error](docs/rules-and-fixes.md#fix-this-error)**: pick the terminal where the build, tests or dev server failed; Enhance reads the error and writes a bug-fix prompt for your agent.
+- **[Your rules and prompt structures](docs/rules-and-fixes.md)**: rules for every workspace or one, and the headings you want prompts written under.
 - **[Auto-enhance](docs/auto-enhance.md)**: rewrite the prompts Orca itself sends to agents (launch, task and orchestration prompts), with your rules or a fast model.
 - **[Agent-aware prompts](docs/context-levels.md#agent-aware-prompts)**: shaped for Claude Code, Codex, Gemini CLI or Aider when you pick the target terminal.
 - **[Nine styles](docs/getting-started.md#styles)**: Balanced, Concise, Detailed spec, Bug fix, New feature, Refactor, Code review, Plan first, or only your own instructions.
@@ -180,6 +182,7 @@ Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 | [Your first enhanced prompt](docs/getting-started.md) | Open the panel, add a model, enhance, send |
 | [Context levels](docs/context-levels.md) | What each level reads and how to control it |
 | [Models](docs/models.md) | Subscription CLIs, API keys, live model lists, fallback |
+| [Rules, structures and Fix this error](docs/rules-and-fixes.md) | Your rules, prompt headings, fixing an error from a terminal, how prompts are written |
 | [Auto-enhance](docs/auto-enhance.md) | Rewriting prompts Orca sends to agents |
 | [Settings](docs/settings.md) | Every option, with defaults |
 | [Privacy & permissions](docs/privacy.md) | What runs, what is read, where it goes |
