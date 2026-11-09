@@ -26,7 +26,7 @@ const branch = out('git', ['rev-parse', '--abbrev-ref', 'HEAD'])
 if (branch !== 'main') fail(`releases are made from main, not ${branch}`)
 // Untrimmed: each porcelain line starts with a two-letter status that may begin with a space.
 const stray = unexpectedChanges(raw('git', ['status', '--porcelain', '--untracked-files=all']))
-if (stray.length > 0) fail(`commit or remove these first (a release commits only ${RELEASE_FILES.join(' and ')}):\n  ${stray.join('\n  ')}`)
+if (stray.length > 0) fail(`commit or remove these first (a release commits only ${RELEASE_FILES.join(', ')}):\n  ${stray.join('\n  ')}`)
 
 const latest = latestTag(out('git', ['tag', '--list', 'v*']).split('\n'))
 const problem = versionProblem(latest, version)
@@ -40,6 +40,9 @@ try {
   fail(`cannot read orca-plugin.json: ${error.message}`)
 }
 if (manifest.version !== version) fail(`orca-plugin.json version is ${manifest.version}, not ${version}`)
+// The panel shows src/version.ts: it must say the same.
+const shown = /VERSION = '([^']+)'/.exec(readFileSync('src/version.ts', 'utf8'))?.[1]
+if (shown !== version) fail(`src/version.ts says ${shown}, not ${version}`)
 const changelog = readFileSync('CHANGELOG.md', 'utf8')
 const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const section = new RegExp(`## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|\\n\\[\\d)`).exec(changelog)

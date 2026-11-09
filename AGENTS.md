@@ -55,12 +55,12 @@ details kept, length, structure headings). Run it after changing `src/prompts.ts
 
 ## Releases
 
-1. Bump `version` in `orca-plugin.json`: patch for fixes, minor for features, major for breaking changes.
+1. Bump `version` in `orca-plugin.json` and `VERSION` in `src/version.ts` (shown in the panel's header): patch for fixes, minor for features, major for breaking changes.
    Minor and patch are single digits 0-9 and carry over like an odometer: 1.8.9 -> 1.9.0,
    1.9.0 -> 2.0.0 (never 1.10.0), 13.9.9 -> 14.0.0.
 2. Add a section at the top of `CHANGELOG.md` (Added / Changed / Fixed / Security / Notes) and its link at the bottom.
 3. Run `node scripts/release.mjs X.Y.Z`. It refuses to start unless you are on `main`, nothing but
-   those two files is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
+   those files (and `src/version.ts`) is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
    the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`). It then runs tsc, the tests,
    `orca plugin check` and `orca plugin validate`, commits only those two files with the subject
    `vX.Y.Z: <first sentence of the first changelog bullet>` (never cut) and the section as body,

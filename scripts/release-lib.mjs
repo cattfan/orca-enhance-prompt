@@ -48,7 +48,7 @@ export function versionProblem(latest, version) {
 }
 
 /** Files a release commit may contain; anything else changed or untracked stops the release. */
-export const RELEASE_FILES = ['orca-plugin.json', 'CHANGELOG.md']
+export const RELEASE_FILES = ['orca-plugin.json', 'CHANGELOG.md', 'src/version.ts']
 
 /** Paths in `git status --porcelain` output that are not release files. */
 export function unexpectedChanges(porcelain) {

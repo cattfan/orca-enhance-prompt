@@ -1,6 +1,7 @@
 // No build step: Orca strips the types and compiles the JSX when the panel loads.
 import { Separator, IconButton, on, plugin, read, Row, set, settings, Stack, Text, type PanelContext } from 'orca'
 import { t } from './i18n.ts'
+import { VERSION } from './version.ts'
 import { tab, notice, restoreSaved, history } from './panel/state.ts'
 import { workspaceRemoved, cancel, refreshDefaults, refreshModels, refreshTargets, applyProgress, detectClis, refreshDataSummary } from './panel/actions.ts'
 import { EnhanceTab } from './panel/enhance-tab.tsx'
@@ -53,9 +54,14 @@ function Nav() {
   const current = SECTIONS.find((section) => section.value === read(tab)) ?? SECTIONS[0]
   return (
     <Row justify="between" gap="xs">
-      <Text weight="semibold" truncate>
-        {t(current.label)}
-      </Text>
+      <Row gap="xs">
+        <Text weight="semibold" truncate>
+          {t(current.label)}
+        </Text>
+        <Text muted size="xs">
+          {`v${VERSION}`}
+        </Text>
+      </Row>
       <Row gap="none">
         {SECTIONS.map((section) => (
           <IconButton

@@ -20,7 +20,7 @@ test('versions count like an odometer and must follow the last tag', () => {
 })
 
 test('only orca-plugin.json and CHANGELOG.md may be changed when releasing', () => {
-  assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n M CHANGELOG.md\n'), [])
+  assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n M CHANGELOG.md\n M src/version.ts\n'), [])
   assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n?? src/zz-perf.test.ts\nR  a.ts -> b.ts\n'), ['src/zz-perf.test.ts', 'b.ts'])
 })
 
