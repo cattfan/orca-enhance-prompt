@@ -3,6 +3,22 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.4.2] - 2026-11-09
+
+### Added
+
+- What's new and the changelog: click the version next to the title. After an update, What's new opens once by itself.
+- The logo next to the panel's title.
+
+### Changed
+
+- The context sent is always listed in the options (opening them gathers it); the fold and its title are gone.
+- The model menu in the composer is wider.
+
+### Fixed
+
+- The listing pictures show whole panels instead of cutting off their bottom corners.
+
 ## [2.4.1] - 2026-11-09
 
 ### Changed
@@ -377,6 +393,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.4.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.2
 [2.4.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.1
 [2.4.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.0
 [2.3.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.3.1
