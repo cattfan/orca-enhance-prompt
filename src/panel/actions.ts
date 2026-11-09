@@ -8,7 +8,7 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { PRIVACY_KEYS } from '../privacy.ts'
 import { type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { type Form, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { type Form, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 
@@ -82,6 +82,11 @@ export async function refreshTargets(): Promise<void> {
     const { targets: list } = await plugin.request('targets.list')
     set(targets, list)
     const current = read(target)
+    // The error usually sits in a terminal that is not the agent's (build, tests, dev server).
+    const errorFrom = read(errorTerminal)
+    if (!errorFrom || !list.some((item) => item.terminalId === errorFrom)) {
+      set(errorTerminal, list.find((item) => !item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
+    }
     if (!current || !list.some((item) => item.terminalId === current)) {
       set(target, list.find((item) => item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
     }
@@ -99,8 +104,8 @@ export function showContext(items: ContextItemView[], notes: (Message | string)[
 
 // ---------------------------------------------------------------- actions
 
-export async function enhanceNow(): Promise<void> {
-  const prompt = read(draft).trim()
+export async function enhanceNow(fix?: { terminalId: string; prompt: string }): Promise<void> {
+  const prompt = read(draft).trim() || fix?.prompt || ''
   if (!prompt || read(busy)) return
   const controller = new AbortController()
   inFlight = controller
@@ -114,7 +119,9 @@ export async function enhanceNow(): Promise<void> {
       {
         prompt,
         runId,
-        style: read(effectiveStyle),
+        // Fixing an error is a bug-fix brief whatever the composer's style.
+        style: fix ? 'bugfix' : read(effectiveStyle),
+        ...(fix ? { errorTerminalId: fix.terminalId } : {}),
         level: read(effectiveLevel),
         terminalId: read(target),
         profileId: choice === 'auto' ? null : choice,
@@ -161,6 +168,14 @@ export function finishRun(runId: string, status: Run['status'], error?: string):
   if (!current || current.runId !== runId || current.status !== 'running') return
   const steps: Step[] = current.steps.map((entry) => (entry.status === 'running' ? { ...entry, status: OPEN_STEP_ENDS[status] } : entry))
   set(run, { ...current, steps, status, finishedAt: Date.now(), ...(error ? { error } : {}) })
+}
+
+/** "Fix this error": a bug-fix prompt about the latest error in the chosen terminal, for the target agent. */
+export async function fixError(): Promise<void> {
+  const terminalId = read(errorTerminal)
+  if (!terminalId) return
+  const name = read(targets).find((item) => item.terminalId === terminalId)?.label ?? terminalId
+  await enhanceNow({ terminalId, prompt: t('Fix the error shown in the output of {name}: find the root cause, fix it, and verify the fix.', { name }) })
 }
 
 export async function previewContext(): Promise<void> {

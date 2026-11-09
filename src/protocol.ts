@@ -49,6 +49,8 @@ declare module 'orca' {
         exclude?: string[]
         /** Set by the panel to receive `enhance.progress` for this run. */
         runId?: string
+        /** "Fix this error": the terminal whose latest error the prompt is about. */
+        errorTerminalId?: string
       }
       output: {
         enhanced: string

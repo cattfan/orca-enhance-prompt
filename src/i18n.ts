@@ -306,7 +306,17 @@ const VI: Record<string, string> = {
   '{name}: no API key': '{name}: chưa có API key',
   'All models failed. {list}': 'Tất cả model đều lỗi. {list}',
   '{name}: {reason}': '{name}: {reason}',
-  'Out of time.': 'Hết thời gian.'
+  'Out of time.': 'Hết thời gian.',
+  'Fix an error from a terminal': 'Sửa lỗi từ một terminal',
+  'Error in': 'Lỗi ở',
+  'Fix this error': 'Sửa lỗi này',
+  'Reads the latest error in that terminal (build, tests, dev server) and writes a bug-fix prompt for the agent you send to. Your text above, if any, is added.': 'Đọc lỗi mới nhất trong terminal đó (build, test, dev server) và viết prompt sửa lỗi cho agent bạn gửi tới. Nếu ô trên có nội dung, nội dung đó được đưa vào.',
+  'Fix the error shown in the output of {name}: find the root cause, fix it, and verify the fix.': 'Sửa lỗi hiện trong output của {name}: tìm nguyên nhân gốc, sửa, rồi kiểm tra lại.',
+  'Reading the error': 'Đang đọc lỗi',
+  'Error output: {name}': 'Output lỗi: {name}',
+  'Reading terminal output is off in Privacy.': 'Đọc output terminal đang tắt trong Quyền riêng tư.',
+  'That terminal has no output to fix.': 'Terminal đó không có output nào để sửa.',
+  'error': 'lỗi'
 }
 
 const ZH: Record<string, string> = {
@@ -591,7 +601,17 @@ const ZH: Record<string, string> = {
   '{name}: no API key': '{name}：没有 API 密钥',
   'All models failed. {list}': '所有模型都失败了。{list}',
   '{name}: {reason}': '{name}：{reason}',
-  'Out of time.': '时间已用完。'
+  'Out of time.': '时间已用完。',
+  'Fix an error from a terminal': '修复终端中的错误',
+  'Error in': '错误来源',
+  'Fix this error': '修复此错误',
+  'Reads the latest error in that terminal (build, tests, dev server) and writes a bug-fix prompt for the agent you send to. Your text above, if any, is added.': '读取该终端中最新的错误（构建、测试、开发服务器），并为你要发送的 agent 写一个修复提示词。上面若有文字，也会一并加入。',
+  'Fix the error shown in the output of {name}: find the root cause, fix it, and verify the fix.': '修复 {name} 输出中显示的错误：找出根本原因，修复它，并验证修复。',
+  'Reading the error': '读取错误',
+  'Error output: {name}': '错误输出：{name}',
+  'Reading terminal output is off in Privacy.': '“隐私”中已关闭读取终端输出。',
+  'That terminal has no output to fix.': '该终端没有可修复的输出。',
+  'error': '错误'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

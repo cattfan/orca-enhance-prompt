@@ -4,8 +4,8 @@ import { CONTEXT_LEVEL_LABELS, isContextLevel, type ContextItemView } from '../p
 import { isStyle, STYLE_LABELS } from '../prompts.ts'
 import { t } from '../i18n.ts'
 import { percent, type Step } from '../progress.ts'
-import { tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
-import { refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
+import { fixOpen, errorTerminal, tab, draft, result, style, level, profileChoice, modelChoice, outputChoice, excluded, target, pressEnter, catalogs, run, optionsOpen, busy, lastRun, contextShown, contextNotes, put, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, enabledProfiles, say } from './state.ts'
+import { fixError, refreshTargets, enhanceNow, previewContext, cancel, toggleItem, send, copy } from './actions.ts'
 import { outputOptions, styleOptions, levelOptions, NoticeBar, seconds, MODEL_SEP, PROFILE_DEFAULT, shortModelName } from './common.tsx'
 
 export function TargetPicker() {
@@ -36,7 +36,8 @@ export function contextKind(kind: string): string {
     tree: () => t('tree'),
     git: () => t('git'),
     file: () => t('file'),
-    terminal: () => t('terminal')
+    terminal: () => t('terminal'),
+    error: () => t('error')
   }
   return kinds[kind]?.() ?? kind
 }
@@ -95,6 +96,7 @@ export function RunInfo() {
 }
 
 export const STEP_LABELS: Record<Step['key'], string> = {
+  error: 'Reading the error',
   workspace: 'Reading workspace',
   project: 'Reading project rules and stack',
   git: 'Reading git changes',
@@ -190,6 +192,33 @@ export function optionsSummary(): string {
 }
 
 /** Style, context, output language and the Enter switch, shown under the composer when opened. */
+/** "Fix this error": pick the terminal showing the error; the prompt goes to the target agent as usual. */
+export function FixErrorBox() {
+  if (!read(fixOpen)) return null
+  const list = read(targets)
+  const working = read(busy)
+  return (
+    <Box gap="sm" padding="sm" radius="md" background="muted">
+      <Row gap="xs" wrap>
+        <Select
+          label={t('Error in')}
+          placeholder={list.length === 0 ? t('No terminals in this workspace') : t('Choose a terminal')}
+          value={read(errorTerminal) ?? undefined}
+          options={list.map((item) => ({ value: item.terminalId, label: item.label }))}
+          onChange={(value) => set(errorTerminal, value)}
+          disabled={list.length === 0}
+        />
+        <Button variant="solid" icon="bug" onPress={() => void fixError()} disabled={!read(errorTerminal) || working !== null}>
+          {t('Fix this error')}
+        </Button>
+      </Row>
+      <Text muted size="xs">
+        {t('Reads the latest error in that terminal (build, tests, dev server) and writes a bug-fix prompt for the agent you send to. Your text above, if any, is added.')}
+      </Text>
+    </Box>
+  )
+}
+
 export function PromptOptions() {
   if (!read(optionsOpen)) return null
   return (
@@ -338,6 +367,12 @@ export function EnhanceTab() {
           <ComposerModelPicker />
           <Row gap="xs">
             <IconButton
+              icon="bug"
+              label={t('Fix an error from a terminal')}
+              variant={read(fixOpen) ? 'outline' : 'ghost'}
+              onPress={() => update(fixOpen, (open) => !open)}
+            />
+            <IconButton
               icon="filter"
               label={`${t('Options')}: ${optionsSummary()}`}
               variant={read(optionsOpen) ? 'outline' : 'ghost'}
@@ -362,6 +397,7 @@ export function EnhanceTab() {
           </Row>
         </Row>
         <PromptOptions />
+        <FixErrorBox />
       </Box>
       <RunCard />
       <NoticeBar />

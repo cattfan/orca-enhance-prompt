@@ -51,6 +51,11 @@ function stopIfCancelled(signal?: AbortSignal): void {
 
 export type GatherResult = { items: ContextItem[]; notes: Message[]; root: string | null }
 
+/** A context item made outside the gather (the error output of "Fix this error"). */
+export function contextItem(id: string, kind: string, label: Message, content: string): ContextItem {
+  return item(id, kind, label, content)
+}
+
 /** `label` is a Message for the panel; the model reads its English text. A file's label is its path. */
 const item = (id: string, kind: string, label: Message, content: string, why?: Message): ContextItem => ({
   id,
@@ -300,7 +305,7 @@ async function dynamicParts(
 
 /** Keeps items in priority order until the budget; trims the one that crosses it. */
 export function fitBudget(items: ContextItem[], budget: number): ContextItem[] {
-  const priority: Record<string, number> = { workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6 }
+  const priority: Record<string, number> = { error: 0, workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6 }
   const sorted = [...items].sort((a, b) => (priority[a.kind] ?? 9) - (priority[b.kind] ?? 9))
   const out: ContextItem[] = []
   let used = 0

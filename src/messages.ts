@@ -26,12 +26,15 @@ export const MESSAGES = {
   'label.tree': 'Repository tree ({count} files)',
   'label.status': 'Git status ({count} changed)',
   'label.terminal': 'Recent output: {name}',
+  'label.error': 'Error output: {name}',
   'why.keyword': 'keyword match',
   'why.ai': 'picked by AI',
   'why.trimmed': 'trimmed',
 
   // Errors and results.
   'error.no_prompt': 'Write a prompt first.',
+  'error.terminal_read_off': 'Reading terminal output is off in Privacy.',
+  'error.no_error_output': 'That terminal has no output to fix.',
   'error.cancelled': 'Cancelled.',
   'error.send_off': 'Sending to terminals is off in Privacy.',
   'error.nothing_to_send': 'Nothing to send.',

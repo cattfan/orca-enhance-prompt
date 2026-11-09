@@ -5,7 +5,8 @@ import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
 import { apiCatalog, claudeCatalog, claudeProgramSignature, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
 import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
-import { atLeast, cachedStatic, findFocusedWorkspace, gatherContext, staticParts, type ContextItem } from './context/index.ts'
+import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, gatherContext, staticParts, type ContextItem } from './context/index.ts'
+import { extractError } from './terminal-error.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
   candidates,
@@ -172,6 +173,22 @@ async function pickFilesWithModel(
   return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string').slice(0, 8) : []
 }
 
+/** The latest error in a terminal's output, as a context item. */
+async function readErrorOutput(orca: OrcaWorkerApi, terminalId: string, step: StepReporter, signal?: AbortSignal): Promise<ContextItem> {
+  step('error', 'running')
+  const read = await orca.host.call('terminal.read', { terminalId, maxLines: 400 }, signal ? { signal } : undefined).catch(() => null)
+  const { text, found } = extractError(read?.lines ?? [])
+  if (!text) {
+    step('error', 'failed')
+    throw hostError(msg('error.no_error_output'), 'invalid_params')
+  }
+  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
+  const name = focused?.terminals.find((terminal) => terminal.id === terminalId)?.title ?? terminalId
+  step('error', 'done', String(text.split('\n').length))
+  const note = found ? '' : '(no error line found: the last lines of the output)\n'
+  return contextItem('error', 'error', msg('label.error', { name }), note + text)
+}
+
 /** Privacy: without project files, nothing beyond workspace and agent names. */
 export function allowedLevel(requested: ContextLevel, settings: Settings): ContextLevel {
   return !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
@@ -190,9 +207,10 @@ export async function enhance(
     model?: string
     language?: string
     exclude?: string[]
+    errorTerminalId?: string
   },
   signal?: AbortSignal,
-  progress?: (level: ContextLevel, allowProjectFiles: boolean) => StepReporter,
+  progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) => StepReporter,
   budgetMs?: number
 ) {
   const deadline = budgetMs === undefined ? undefined : Date.now() + budgetMs
@@ -205,7 +223,11 @@ export async function enhance(
   const style: Style = isStyle(input.style) ? input.style : settings.defaultStyle
   const requested: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
   const level = allowedLevel(requested, settings)
-  const step = progress?.(level, settings.privacy.allowProjectFiles) ?? (() => undefined)
+  const errorTerminalId = typeof input.errorTerminalId === 'string' && input.errorTerminalId ? input.errorTerminalId.slice(0, 200) : null
+  // "Fix this error" reads a terminal: the same Privacy switch as terminal output in the context.
+  if (errorTerminalId && !settings.privacy.allowTerminalRead) throw hostError(msg('error.terminal_read_off'), 'not_permitted')
+  const step = progress?.(level, settings.privacy.allowProjectFiles, Boolean(errorTerminalId)) ?? (() => undefined)
+  const errorItem = errorTerminalId ? await readErrorOutput(orca, errorTerminalId, step, signal) : null
 
   const gathered = await gatherContext(orca, {
     level,
@@ -223,6 +245,8 @@ export async function enhance(
     signal
   })
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
+  // The error comes first and is never trimmed away by the context budget.
+  if (errorItem) gathered.items = [errorItem, ...fitBudget(gathered.items, Math.max(0, 45_000 - errorItem.chars))]
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
   const system = buildSystemPrompt({
@@ -403,8 +427,8 @@ export async function enhanceRequest(
   const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
   // Progress goes only to the panel that asked, and only when it asked for it.
   const progress = runId
-    ? (level: ContextLevel, allowProjectFiles: boolean) =>
-        createProgress(runId, planSteps(level, allowProjectFiles), (snapshot) =>
+    ? (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) =>
+        createProgress(runId, planSteps(level, allowProjectFiles, readsError), (snapshot) =>
           orca.panels.post('enhance.progress', snapshot, { panel: panelId })
         )
     : undefined

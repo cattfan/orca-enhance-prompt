@@ -2,7 +2,7 @@
 // each marked running, done, skipped or failed as the worker actually reaches it. The panel draws
 // the latest snapshot; the model call has no percentage of its own, so it counts as one step.
 
-export type StepKey = 'workspace' | 'project' | 'git' | 'search' | 'pick' | 'terminal' | 'model'
+export type StepKey = 'error' | 'workspace' | 'project' | 'git' | 'search' | 'pick' | 'terminal' | 'model'
 export type StepStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed'
 export type Step = { key: StepKey; status: StepStatus; detail?: string }
 export type ProgressSnapshot = { runId: string; startedAt: number; steps: Step[] }
@@ -10,8 +10,8 @@ export type ProgressSnapshot = { runId: string; startedAt: number; steps: Step[]
 const RANK = { off: 0, basic: 1, standard: 2, deep: 3, max: 4 } as const
 
 /** The steps a run will go through, in order. */
-export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean): StepKey[] {
-  const steps: StepKey[] = []
+export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean, readsError = false): StepKey[] {
+  const steps: StepKey[] = readsError ? ['error'] : []
   if (RANK[level] >= RANK.basic) steps.push('workspace')
   if (RANK[level] >= RANK.standard && allowProjectFiles) steps.push('project')
   if (RANK[level] >= RANK.deep && allowProjectFiles) steps.push('git', 'search')
