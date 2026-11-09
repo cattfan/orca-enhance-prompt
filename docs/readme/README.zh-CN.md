@@ -167,6 +167,12 @@ orca plugin update cattfan.enhance-prompt
 
 ---
 
+## 反馈与问题
+
+遇到 bug、觉得哪里难用或慢，或者写出的提示词不对？请[在 GitHub 上提 issue](https://github.com/cattfan/orca-enhance-prompt/issues/new)，帮助插件修复和改进。面板里也有这个按钮（齿轮图标 → 反馈）。
+
+---
+
 ## 许可证
 
 Enhance Prompt 基于 [MIT 许可证](../../LICENSE) 免费开源。与 Orca、Anthropic、OpenAI、Google 无关联。

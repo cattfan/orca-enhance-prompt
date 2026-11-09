@@ -192,7 +192,7 @@ Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 
 ## Community &amp; Support
 
-- **Bugs &amp; ideas:** [Open an issue](https://github.com/cattfan/orca-enhance-prompt/issues).
+- **Bugs &amp; ideas:** [Open an issue](https://github.com/cattfan/orca-enhance-prompt/issues/new). Any feedback helps: something broken, confusing, slow, or a prompt that came out wrong. The panel links here too (gear icon → Feedback).
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md) and [releases](https://github.com/cattfan/orca-enhance-prompt/releases).
 - **Privacy:** no tracking or analytics. See [Privacy &amp; permissions](docs/privacy.md).
 - **Show support:** [Star](https://github.com/cattfan/orca-enhance-prompt) this repo.

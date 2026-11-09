@@ -202,3 +202,25 @@ test('history changes run one after another, so a slow writer is never overtaken
   })
   assert.equal(store[0], 'after')
 })
+
+test('the gear section links to GitHub issues for feedback', async () => {
+  const { mount } = await import('orca/testing')
+  const panel = await import('./panel.tsx')
+  const { PRESETS } = await import('./presets.ts')
+  const host = mockHost({
+    requests: {
+      'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+      'targets.list': { targets: [] },
+      'models.detect': { found: [] },
+      'rules.get': { rules: [], structures: [] },
+      'data.summary': { history: 0, profiles: 0, keys: 0, catalogs: 0 }
+    }
+  })
+  const view = await mount(panel, { host, persisted: { plugin: { tab: 'privacy' } } })
+  assert.ok(view.find({ text: /Open an issue on GitHub: it is how the plugin gets fixed/ }))
+  await view.press({ role: 'button', text: 'Open an issue on GitHub' })
+  const opened = host.callsOf('shell.openExternal') as { url: string }[]
+  assert.deepEqual(opened.map((call) => call.url), ['https://github.com/cattfan/orca-enhance-prompt/issues/new'])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})

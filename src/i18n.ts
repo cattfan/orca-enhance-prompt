@@ -350,7 +350,11 @@ const VI: Record<string, string> = {
   'everywhere': 'mọi nơi',
   'The enhanced prompt is kept for {name}: go back to that project to send it.': 'Prompt đã cải thiện được giữ cho {name}: quay lại dự án đó để gửi.',
   'The project this prompt was written for is closed, so its enhanced prompt was dropped.': 'Dự án viết prompt này đã đóng nên prompt đã cải thiện bị bỏ.',
-  'Writing the prompt for {name}…': 'Đang viết prompt cho {name}…'
+  'Writing the prompt for {name}…': 'Đang viết prompt cho {name}…',
+  'Feedback': 'Góp ý',
+  'Found a bug, or something that could be better? Open an issue on GitHub: it is how the plugin gets fixed and improved.': 'Gặp lỗi, hoặc thấy chỗ nào có thể tốt hơn? Hãy tạo issue trên GitHub: đó là cách plugin được sửa và cải thiện.',
+  'Open an issue on GitHub': 'Tạo issue trên GitHub',
+  'Open {url} in your browser.': 'Mở {url} trong trình duyệt.'
 }
 
 const ZH: Record<string, string> = {
@@ -679,7 +683,11 @@ const ZH: Record<string, string> = {
   'everywhere': '全部',
   'The enhanced prompt is kept for {name}: go back to that project to send it.': '优化后的提示词已为 {name} 保留：回到该项目再发送。',
   'The project this prompt was written for is closed, so its enhanced prompt was dropped.': '写这个提示词的项目已关闭，因此优化后的提示词已丢弃。',
-  'Writing the prompt for {name}…': '正在为 {name} 写提示词…'
+  'Writing the prompt for {name}…': '正在为 {name} 写提示词…',
+  'Feedback': '反馈',
+  'Found a bug, or something that could be better? Open an issue on GitHub: it is how the plugin gets fixed and improved.': '发现了 bug，或觉得哪里可以更好？请在 GitHub 上提 issue：插件就是这样被修复和改进的。',
+  'Open an issue on GitHub': '在 GitHub 上提 issue',
+  'Open {url} in your browser.': '请在浏览器中打开 {url}。'
 }
 
 const DICTS: Record<UiLanguage, Record<string, string>> = { en: {}, vi: VI, zh: ZH }

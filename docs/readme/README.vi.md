@@ -167,6 +167,12 @@ Tài liệu chi tiết bằng tiếng Anh:
 
 ---
 
+## Góp ý và báo lỗi
+
+Gặp lỗi, thấy chỗ nào khó dùng, chậm, hay prompt viết ra chưa đúng ý? Hãy [tạo issue trên GitHub](https://github.com/cattfan/orca-enhance-prompt/issues/new) để plugin được sửa và cải thiện. Trong panel cũng có nút này (biểu tượng bánh răng → Góp ý).
+
+---
+
 ## Giấy phép
 
 Enhance Prompt miễn phí và mã nguồn mở theo [giấy phép MIT](../../LICENSE). Không liên kết với Orca, Anthropic, OpenAI hay Google.

@@ -1,8 +1,8 @@
 // privacy-tab.tsx: part of the Enhance Prompt panel (entry: src/panel.tsx).
-import { Button, Callout, Checkbox, Separator, KeyValue, read, Row, Select, set, Spinner, Stack, Text, update } from 'orca'
+import { Button, Callout, Checkbox, Separator, KeyValue, read, Row, Select, set, Spinner, Stack, Text, update, shell } from 'orca'
 import { t, UI_LANGUAGES, uiLanguageSetting } from '../i18n.ts'
 import { PRIVACY_KEYS } from '../privacy.ts'
-import { tab, dataSummary, privacy, confirmWipe, models, defaults } from './state.ts'
+import { tab, dataSummary, privacy, confirmWipe, models, defaults, notice } from './state.ts'
 import { changeUiLanguage, setSetting, setRoles, clearData } from './actions.ts'
 import { UI_LANGUAGE_LABELS, NoticeBar, Hint, Section } from './common.tsx'
 
@@ -119,7 +119,24 @@ export function PrivacyTab() {
           </Button>
         </Row>
       </Section>
+      <Separator />
+      <Section title={t('Feedback')}>
+        <Text size="sm">{t('Found a bug, or something that could be better? Open an issue on GitHub: it is how the plugin gets fixed and improved.')}</Text>
+        <Row>
+          <Button size="sm" variant="outline" icon="open-external" onPress={() => void openIssues()}>
+            {t('Open an issue on GitHub')}
+          </Button>
+        </Row>
+      </Section>
       <NoticeBar />
     </Stack>
   )
+}
+
+/** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
+export const ISSUES_URL = 'https://github.com/cattfan/orca-enhance-prompt/issues/new'
+
+async function openIssues(): Promise<void> {
+  const opened = await shell.openExternal(ISSUES_URL).catch(() => ({ opened: false }))
+  if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url: ISSUES_URL }) })
 }
