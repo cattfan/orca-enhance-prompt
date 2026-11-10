@@ -2,6 +2,34 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.5.4] - 2026-11-10
+
+### Sửa lỗi
+
+- Các model Claude mới trên Anthropic API không còn từ chối yêu cầu vì temperature: plugin không gửi temperature cho model nào nữa. Opus 4.7 trở lên và Fable 5 từ chối yêu cầu có đặt giá trị này. Ô Temperature không còn trong form model; các model đã lưu vẫn chạy bình thường.
+- Câu trả lời dừng ở giới hạn token của model không còn được hiện như thể đã trọn vẹn. Panel nêu tên model và giới hạn của nó, nhắc bạn tăng **Số token tối đa** trong tab Model, và chế độ dự phòng chuyển sang model kế tiếp. Model mới bắt đầu ở 8.000 token tối đa thay vì 2.000 (model bạn đã lưu giữ nguyên giới hạn của nó), và yêu cầu gửi tới API của chính OpenAI dùng `max_completion_tokens`, tham số mà các model hiện tại của họ đòi hỏi.
+- Khi có nhiều dự án cùng tên trên cùng một nhánh, bản nháp và câu trả lời không còn bị mất lúc Orca xác định được bạn đang ở dự án nào trong khi prompt đang được viết.
+- Tự cải thiện (AI): ký tự điều khiển trong câu trả lời của model được loại bỏ trước khi Orca gõ nó, và câu trả lời rỗng không bao giờ thay thế prompt của bạn.
+- Bỏ tick một tệp chữ đính kèm trong danh sách ngữ cảnh thì nội dung của nó không được gửi nữa (tệp vẫn được ghi theo đường dẫn); trước đây nó vẫn bị gửi. Hai tệp đính kèm cùng tên được liệt kê riêng, và gỡ một tệp thì mục của nó rời khỏi danh sách.
+- **Xoá toàn bộ** cũng xoá các tệp bạn đã đính kèm.
+- Thẻ tiến độ không còn hiện thời gian âm trong chốc lát khi một lần chạy bắt đầu.
+- Hộp thoại xác nhận hiện dấu đầu dòng của danh sách, và nhãn cho trình đọc màn hình của nút đóng, vòng xoay chờ và vùng thông báo theo ngôn ngữ của panel.
+
+### Thay đổi
+
+- Tệp chữ đính kèm dài được gửi cho model dưới dạng phần đầu và phần cuối, tổng cộng 20.000 ký tự, kèm một dòng cho biết đã lược bao nhiêu, thay vì 200.000 byte đầu tiên. Danh sách ngữ cảnh đánh dấu nó là đã cắt bớt; agent vẫn nhận đường dẫn của tệp và có thể mở toàn bộ.
+- Tệp đính kèm không còn nữa (tệp đính kèm được giữ một ngày) được nêu tên, và panel nhắc bạn đính kèm lại.
+
+### Bảo mật
+
+- Tệp dự án không được đọc qua liên kết dẫn ra ngoài workspace hoặc dẫn tới tệp bí mật (`.env`, key).
+- Một lần chạy chỉ đọc tệp đính kèm trong thư mục đính kèm riêng của plugin, nên một yêu cầu không thể khiến tệp khác trên máy này bị đọc.
+
+### Ghi chú
+
+- **Sửa lỗi này** và đính kèm ảnh bằng đường dẫn đã không còn nút bấm từ khi panel web thay panel cũ (2.4.0). Mã của chúng nay được gỡ bỏ; dán, kéo-thả và nút kẹp giấy vẫn đính kèm ảnh như trước.
+- Mã của panel cũ, các công cụ xem trước của nó và những bản dịch không còn hiện ở đâu đã được gỡ, và các bài test giờ chạy đúng phần trạng thái và hành động mà panel thật sự dùng. Các tệp của panel nhẹ hơn khoảng 55 KB.
+
 ## [2.5.3] - 2026-11-10
 
 ### Sửa lỗi
