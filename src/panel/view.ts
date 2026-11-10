@@ -7,7 +7,7 @@ import { t } from '../i18n.ts'
 import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+import { type Catalog, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
 
 export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', vi: 'VI', zh: '中文' }
 export const OUTPUT_LANGUAGE_LABELS: Record<string, string> = {
@@ -46,6 +46,15 @@ export const KEY_LABEL: Record<ProfileView['keySource'], string> = {
 }
 
 export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+
+/**
+ * How long a run has taken, for its card: up to `now` while it runs, then up to its end. Never below
+ * zero: the worker's clock starts a moment after the panel's, and "-0.0 s" must not show.
+ */
+export function runSeconds(current: Pick<Run, 'status' | 'startedAt' | 'finishedAt'>, now: number): string {
+  const end = current.status === 'running' ? now : (current.finishedAt ?? now)
+  return seconds(Math.max(0, end - current.startedAt))
+}
 
 /** Why Enhance cannot answer yet, for the warning under the composer: no enabled model, or none with a key. */
 export function modelWarning(): 'no-model' | 'no-key' | null {

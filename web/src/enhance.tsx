@@ -75,6 +75,7 @@ import {
   optionsSummary,
   outputOptions,
   pickModel,
+  runSeconds,
   seconds,
   STEP_GLYPH,
   STEP_LABELS,
@@ -340,7 +341,7 @@ function RunCard() {
           <span className="tabular-nums">{total}%</span>
           <span className={cn('truncate', failed && 'text-destructive')}>{title}</span>
         </div>
-        <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{seconds(((running ? now : current.finishedAt) ?? Date.now()) - current.startedAt)}</span>
+        <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{runSeconds(current, now)}</span>
       </div>
       <Progress value={total} aria-label={t('Progress: {percent}%', { percent: total })} className="h-1.5" />
       {steps.length > 0 ? (

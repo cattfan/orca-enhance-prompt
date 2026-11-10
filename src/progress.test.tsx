@@ -9,7 +9,7 @@ import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { applyProgress, beginRun, enhanceNow, finishRun } from './panel/actions.ts'
 import { draft, lastRun, put, run, tick } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { seconds, stepShare, stepText } from './panel/view.ts'
+import { runSeconds, seconds, stepShare, stepText } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import { createProgress, planSteps, stepPercent, STEP_WEIGHTS, totalPercent, type ProgressSnapshot, type Step } from './progress.ts'
 import * as main from './worker.ts'
@@ -259,5 +259,25 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
   assert.equal(ended.steps[4].status, 'skipped')
   assert.match(stepShare(ended.steps[4], ended.finishedAt ?? now), /^\d+%$/)
   assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test("the run card never shows a negative time: its clock starts with the run, and the worker's later clock counts as zero", async () => {
+  const host = mockHost({ requests: { 'models.get': models, 'targets.list': { targets: [] }, 'models.detect': { found: [] } } })
+  const view = await mountPanel(host)
+  // The card's clock only moves while a run goes: here it still shows a moment long before this run.
+  set(tick, Date.now() - 60_000)
+  beginRun('r3')
+  const current = read(run)!
+  assert.ok(read(tick) >= current.startedAt, 'the clock was left behind the start of the run')
+  assert.equal(runSeconds(current, read(tick)), '0.0 s')
+  // The worker's clock starts a moment after the panel's.
+  applyProgress({ runId: 'r3', startedAt: read(tick) + 40, steps: [{ key: 'model', status: 'running' }] })
+  assert.equal(runSeconds(read(run)!, read(tick)), '0.0 s')
+  assert.equal(runSeconds(read(run)!, read(tick) + 2540), '2.5 s')
+  // After the end, the time is the run's own, whatever the clock says.
+  finishRun('r3', 'cancelled')
+  const ended = read(run)!
+  assert.equal(runSeconds(ended, (ended.finishedAt ?? 0) + 9000), runSeconds(ended, ended.finishedAt ?? 0))
   await view.unmount()
 })

@@ -286,7 +286,11 @@ function snapshotFor(name: string | null): Slot {
 
 /** Starts a fresh run; progress from an older run is ignored by its id. Exported for tests. */
 export function beginRun(runId: string, workspace?: { key: string | null; name: string | null }): string {
-  set(run, { runId, startedAt: Date.now(), steps: [], status: 'running', ...(workspace ? { workspace } : {}) })
+  const now = Date.now()
+  // The card's clock only moves while a run goes: start it with the run, or the time since the last
+  // run would show as a negative duration until the first tick.
+  set(tick, now)
+  set(run, { runId, startedAt: now, steps: [], status: 'running', ...(workspace ? { workspace } : {}) })
   startTicking()
   return runId
 }
