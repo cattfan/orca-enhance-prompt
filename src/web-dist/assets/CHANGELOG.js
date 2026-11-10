@@ -3,6 +3,12 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.5.1] - 2026-11-10
+
+### Fixed
+
+- New Claude models show up in the Claude Code (subscription) model list as soon as Claude Code knows them: Fable 5.2 was missing because Claude Code's own /model menu still ended at Fable 5.1. The newest model is listed first, and cached lists are refreshed.
+
 ## [2.5.0] - 2026-11-10
 
 ### Added
@@ -428,6 +434,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.5.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.1
 [2.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.0
 [2.4.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.5
 [2.4.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.4

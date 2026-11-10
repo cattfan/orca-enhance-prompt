@@ -2,6 +2,12 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.5.1] - 2026-11-10
+
+### Sửa lỗi
+
+- Model Claude mới hiện trong danh sách model của Claude Code (gói subscription) ngay khi Claude Code biết tới: Fable 5.2 bị thiếu vì chính menu /model của Claude Code vẫn dừng ở Fable 5.1. Model mới nhất đứng đầu danh sách, và danh sách đã lưu được làm mới.
+
 ## [2.5.0] - 2026-11-10
 
 ### Thêm mới
