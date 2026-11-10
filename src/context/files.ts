@@ -1,6 +1,6 @@
 // File listing (git or a bounded walk), path filters, tree summaries and snippets.
-import { readdir, readFile, stat } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { isAbsolute, join, relative, sep } from 'node:path'
 
 const WALK_SKIP = new Set([
   '.git', 'node_modules', '.orca', 'dist', 'build', 'out', 'target', '.next', '.nuxt', '.venv', 'venv',
@@ -110,6 +110,12 @@ export async function readText(root: string, path: string, maxBytes = 200_000): 
     const full = join(root, path)
     const info = await stat(full)
     if (!info.isFile() || info.size > maxBytes) {
+      return null
+    }
+    // A link is read as the file it leads to: one that leaves the workspace, or leads to a file
+    // whose own name says it holds secrets (README.md -> .env), is not read.
+    const actual = relative(await realpath(root), await realpath(full)).split(sep).join('/')
+    if (actual.startsWith('..') || isAbsolute(actual) || isSensitive(actual)) {
       return null
     }
     const text = await readFile(full, 'utf8')

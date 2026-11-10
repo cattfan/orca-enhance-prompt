@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { assert, test } from 'orca/testing'
-import { compilePatterns, isExcluded, isSensitive, snippet, treeSummary } from './files.ts'
+import { compilePatterns, isExcluded, isSensitive, readText, snippet, treeSummary } from './files.ts'
 import { fitBudget, type ContextItem } from './index.ts'
 import { readmeDigest } from './instructions.ts'
 import { extractKeywords, scoreFiles } from './relevance.ts'
@@ -103,4 +106,40 @@ test('git diff leaves out secret files, renames of them and excluded paths', asy
   }
   assert.deepEqual(parseNameStatus('M\0src/a.ts\0R100\0secrets.json\0data.json\0D\0id_rsa\0'), [['src/a.ts'], ['secrets.json', 'data.json'], ['id_rsa']])
   assert.deepEqual(statusLinePaths('R  secrets.json -> "data file.json"'), ['secrets.json', 'data file.json'])
+})
+
+test('a link is read as the file it leads to: never out of the workspace, never to a secret file', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'links-'))
+  try {
+    const root = join(base, 'repo')
+    const outside = join(base, 'elsewhere')
+    mkdirSync(join(root, 'docs'), { recursive: true })
+    mkdirSync(outside)
+    writeFileSync(join(root, 'docs', 'guide.md'), 'inside the workspace')
+    writeFileSync(join(root, '.env'), 'TOKEN=abc')
+    writeFileSync(join(outside, 'notes.md'), 'outside the workspace')
+    // Folder links (junctions on Windows, which anyone may make).
+    symlinkSync(join(root, 'docs'), join(root, 'handbook'), 'junction')
+    symlinkSync(outside, join(root, 'shared'), 'junction')
+    assert.equal(await readText(root, 'docs/guide.md'), 'inside the workspace')
+    assert.equal(await readText(root, 'handbook/guide.md'), 'inside the workspace')
+    assert.equal(await readText(root, 'shared/notes.md'), null)
+    // File links need a right Windows does not give by default: checked where they can be made.
+    let fileLinks = true
+    try {
+      symlinkSync(join(root, '.env'), join(root, 'README.md'), 'file')
+      symlinkSync(join(outside, 'notes.md'), join(root, 'AGENTS.md'), 'file')
+      symlinkSync(join(root, 'docs', 'guide.md'), join(root, 'CLAUDE.md'), 'file')
+    } catch {
+      fileLinks = false
+    }
+    if (fileLinks) {
+      assert.equal(await readText(root, 'README.md'), null)
+      assert.equal(await readText(root, 'AGENTS.md'), null)
+      assert.equal(await readText(root, 'CLAUDE.md'), 'inside the workspace')
+    }
+    console.log(`file links ${fileLinks ? 'checked' : 'not checked (this system refuses to make them)'}`)
+  } finally {
+    rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+  }
 })
