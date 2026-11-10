@@ -890,7 +890,13 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
         buildUserMessage(prompt, items),
         chainOptions(settings, undefined, { totalMs: HOOK_BUDGET_MS - (Date.now() - started) })
       )
-      const enhanced = cleanOutput(result.text)
+      // Orca types the rewrite into the agent's terminal: no control characters from a model, and
+      // never nothing in place of the prompt that was going out.
+      const enhanced = terminalSafe(cleanOutput(result.text)).trim()
+      if (!enhanced) {
+        orca.log('auto-enhance skipped: the model returned no prompt')
+        return
+      }
       const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
       void addHistory(orca, settings, {
         original: prompt,

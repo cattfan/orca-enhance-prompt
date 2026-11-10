@@ -78,3 +78,31 @@ test('the worker never stores a CLI as the hook model and skips disabled ones', 
   assert.ok(worker.logs.some((line) => /no enabled API model/.test(line)), worker.logs.join('\n'))
   await worker.deactivate()
 })
+
+test('the AI rewrite reaches the terminal without control characters; an empty rewrite leaves the prompt as it was', async () => {
+  const realFetch = globalThis.fetch
+  let answer = ''
+  globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: answer } }] }), { status: 200 })) as typeof fetch
+  try {
+    const profile = { id: 'fast', name: 'fast', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }
+    const host = mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.fast': 'k' }, settings: { autoEnhanceMode: 'ai', autoEnhanceContext: false } })
+    const worker = await mountWorker(main, { host })
+    const event = { agent: 'claude', terminalId: 't1', prompt: 'add a login page', inputKind: 'launch' as const }
+
+    // An escape sequence that would end a paste, a carriage return (Enter) and a bell, from the model.
+    answer = 'Add a login page.\u001b[201~\r\nThen run the tests.\u0007\u009b31m'
+    const rewritten = await worker.hooks.fire('agent.prompt.before', event)
+    assert.deepEqual(rewritten, { kind: 'continue', event: { ...event, prompt: 'Add a login page.[201~\nThen run the tests.31m' } })
+
+    // A rewrite that is nothing once its wrapping is removed: the prompt goes out as the person wrote it.
+    answer = '```\n\n```'
+    assert.deepEqual(await worker.hooks.fire('agent.prompt.before', event), { kind: 'continue', event })
+    assert.ok(worker.logs.some((line) => /returned no prompt/.test(line)), worker.logs.join('\n'))
+    // ...and no history entry is kept for it.
+    const history = (host.data().storage.history ?? []) as { enhanced: string }[]
+    assert.deepEqual(history.map((entry) => entry.enhanced), ['Add a login page.[201~\nThen run the tests.31m'])
+    await worker.deactivate()
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})
