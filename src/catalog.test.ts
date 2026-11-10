@@ -128,7 +128,7 @@ test('Claude Code list: cached per program version, fetched again after Claude C
     writeFileSync(script, `import { appendFileSync } from 'node:fs'\nappendFileSync(${JSON.stringify(runs)}, 'x')\nprocess.stdout.write("--model <m>  an alias such as 'sonnet'")\n`)
     const claude = join(dir, process.platform === 'win32' ? 'claude.cmd' : 'claude')
     writeFileSync(claude, process.platform === 'win32' ? `@"${process.execPath}" "${script}" %*\r\n` : `#!/bin/sh\n"${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 })
-    const host = mockHost({ settings: { allowOnlineModelLists: false }, storage: { 'catalog:v2:claude-code': { models: [{ id: 'old', label: 'old' }], source: 'old', fetchedAt: Date.now() } } })
+    const host = mockHost({ settings: { allowOnlineModelLists: false }, storage: { 'catalog:v3:claude-code': { models: [{ id: 'old', label: 'old' }], source: 'old', fetchedAt: Date.now() } } })
     const worker = await mountWorker(main, { host })
     const ask = () => worker.request('models.catalog', { preset: 'claude-code', command: claude })
     const first = await ask()
@@ -140,10 +140,23 @@ test('Claude Code list: cached per program version, fetched again after Claude C
     appendFileSync(claude, process.platform === 'win32' ? 'rem updated\r\n' : '# updated\n')
     await ask()
     assert.equal(readFileSync(runs, 'utf8').length, 2, 'the new version was not read')
-    const keys = Object.keys(host.data().storage).filter((key) => key.startsWith('catalog:v2:claude-code'))
+    const keys = Object.keys(host.data().storage).filter((key) => key.startsWith('catalog:v3:claude-code'))
     assert.equal(keys.length, 1, keys.join(', '))
     await worker.deactivate()
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
+})
+
+// Claude Code knows a new model (provider id table) before its /model menu table lists it.
+test('a model newer than the menu table (Fable 5.2) is listed first; older or restricted ids are not', async () => {
+  const { newerThanMenu, parseProviderIds } = await import('./catalog.ts')
+  const text = 'x.us.anthropic.claude-fable-5-2..anthropic.claude-fable-5-2..anthropic.claude-fable-5-1..anthropic.claude-mythos-5..anthropic.claude-opus-4-5-20251101-v1..anthropic.claude-sonnet-4-5-v1..anthropic.claude-opus-5-5'
+  const ids = parseProviderIds(text).map((entry) => entry.id)
+  assert.deepEqual(ids.sort(), ['claude-fable-5-1', 'claude-fable-5-2', 'claude-opus-5-5'])
+  const menu = [
+    { id: 'claude-opus-5-5', name: 'Opus 5.5', main: true },
+    { id: 'claude-fable-5-1', name: 'Fable 5.1', main: true }
+  ]
+  assert.deepEqual(newerThanMenu(menu, parseProviderIds(text)), [{ id: 'claude-fable-5-2', name: 'Fable 5.2', description: 'Newest', main: true }])
 })

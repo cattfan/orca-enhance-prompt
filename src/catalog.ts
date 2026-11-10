@@ -101,6 +101,45 @@ export function parseClaudeModelTable(text: string): ClaudeModel[] {
 
 type ClaudeModel = { id: string; name: string; description?: string; main: boolean }
 
+/**
+ * Claude Code knows a new model before its /model menu table lists it: the provider id table
+ * (`anthropic.claude-fable-5-2`, `us.anthropic.claude-fable-5-2`…) gets it first. These ids, one
+ * family and version each (no dated or `-v1` ids, no restricted Mythos), named like the menu.
+ */
+const PROVIDER_ID = /anthropic\.(claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d))?)(?![a-z0-9@-]|-v\d)/g
+export function parseProviderIds(text: string): { id: string; family: string; version: number; name: string }[] {
+  const found = new Map<string, { id: string; family: string; version: number; name: string }>()
+  for (const match of text.matchAll(PROVIDER_ID)) {
+    const [, id, family, major, minor] = match
+    if (Number(major) > 20) continue
+    const version = Number(major) + (minor ? Number(minor) / 10 : 0)
+    found.set(id, { id, family, version, name: `${family[0].toUpperCase()}${family.slice(1)} ${major}${minor ? `.${minor}` : ''}` })
+  }
+  return [...found.values()]
+}
+
+/** The menu table's version of a model id (claude-fable-5-1 is 5.1), for comparing with provider ids. */
+const menuVersion = (id: string) => {
+  const match = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d))?$/.exec(id)
+  return match ? { family: match[1], version: Number(match[2]) + (match[3] ? Number(match[3]) / 10 : 0) } : null
+}
+
+/**
+ * Models newer than every model of their family in the menu table: Claude Code accepts them already
+ * (the `fable` alias points at Fable 5.2 while the menu still ends at 5.1), so they come first.
+ */
+export function newerThanMenu(menu: readonly ClaudeModel[], provider: ReturnType<typeof parseProviderIds>): ClaudeModel[] {
+  const best = new Map<string, number>()
+  for (const model of menu) {
+    const parsed = menuVersion(model.id)
+    if (parsed) best.set(parsed.family, Math.max(best.get(parsed.family) ?? 0, parsed.version))
+  }
+  return provider
+    .filter((entry) => best.has(entry.family) && entry.version > (best.get(entry.family) ?? 0))
+    .sort((a, b) => b.version - a.version)
+    .map((entry) => ({ id: entry.id, name: entry.name, description: 'Newest', main: true }))
+}
+
 /** Keeps the richest entry per id: a description beats none, "main" beats "overflow". */
 function mergeModel(entries: Map<string, ClaudeModel>, entry: ClaudeModel): void {
   const previous = entries.get(entry.id)
@@ -113,6 +152,7 @@ function mergeModel(entries: Map<string, ClaudeModel>, entry: ClaudeModel): void
 }
 
 const TABLE_MARKER = Buffer.from('short_name:"', 'latin1')
+const PROVIDER_MARKER = Buffer.from('anthropic.claude-', 'latin1')
 /** Bytes kept around each marker: enough for the id and name before it, the rest after. */
 const BEFORE = 160
 const AFTER = 320
@@ -146,6 +186,7 @@ async function scanModelTable(binary: string, fileSize: number): Promise<ClaudeM
     const overlap = BEFORE + AFTER
     const buffer = Buffer.alloc(size)
     const entries = new Map<string, ClaudeModel>()
+    const provider = new Map<string, ReturnType<typeof parseProviderIds>[number]>()
     for (let position = 0; position < fileSize; position += size - overlap) {
       const { bytesRead } = await handle.read(buffer, 0, size, position)
       if (bytesRead === 0) break
@@ -154,9 +195,13 @@ async function scanModelTable(binary: string, fileSize: number): Promise<ClaudeM
         const window = view.toString('latin1', Math.max(0, hit - BEFORE), Math.min(bytesRead, hit + AFTER))
         for (const entry of parseClaudeModelTable(window)) mergeModel(entries, entry)
       }
+      for (let hit = view.indexOf(PROVIDER_MARKER); hit !== -1; hit = view.indexOf(PROVIDER_MARKER, hit + PROVIDER_MARKER.length)) {
+        for (const entry of parseProviderIds(view.toString('latin1', hit, Math.min(bytesRead, hit + 48)))) provider.set(entry.id, entry)
+      }
       if (position + bytesRead >= fileSize) break
     }
-    return [...entries.values()].sort((a, b) => Number(b.main) - Number(a.main))
+    const menu = [...entries.values()].sort((a, b) => Number(b.main) - Number(a.main))
+    return [...newerThanMenu(menu, [...provider.values()]), ...menu]
   } finally {
     await handle.close()
   }

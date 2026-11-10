@@ -735,9 +735,9 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
     const baseUrl = (input.baseUrl ?? profile?.baseUrl ?? '').trim() || preset.baseUrl
     const command = (input.command ?? profile?.command ?? '').trim()
     // CLIs share one catalog per preset; APIs one per endpoint (keys differ per profile, lists rarely do).
-    const cliKey = `catalog:v2:${preset.id}`
+    const cliKey = `catalog:v3:${preset.id}`
     // Claude Code's list is read from its program: a new version (other size or date) is a new list.
-    let cacheKey = provider === 'cli' ? cliKey : `catalog:v2:${provider}:${baseUrl}`
+    let cacheKey = provider === 'cli' ? cliKey : `catalog:v3:${provider}:${baseUrl}`
     if (preset.id === 'claude-code') cacheKey = `${cliKey}:${await claudeProgramSignature(command)}`
     if (!input.refresh) {
       const cached = parseCatalog(await orca.storage.get(cacheKey))
