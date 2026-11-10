@@ -4,7 +4,7 @@
   "execution": "trusted-worker",
   "id": "enhance-prompt",
   "name": "Enhance Prompt",
-  "version": "2.4.5",
+  "version": "2.5.0",
   "description": "Turn rough ideas into project-aware prompts for your coding agents: 5 context levels (rules, stack, git, relevant code), multiple models with fallback, history, and send straight to an agent terminal.",
   "author": {
     "name": "cattfan",
@@ -68,6 +68,14 @@
     "hooks": [
       {
         "event": "agent.prompt.before",
+        "onError": "pass"
+      },
+      {
+        "event": "agent.tool.after",
+        "onError": "pass"
+      },
+      {
+        "event": "editor.save.before",
         "onError": "pass"
       }
     ],
@@ -297,6 +305,13 @@
         "maximum": 500
       },
       {
+        "key": "notifyWhenDone",
+        "title": "Notify when a long enhance finishes",
+        "description": "A desktop notification when a run takes more than 8 s. It names the model and the time, never your prompt.",
+        "type": "boolean",
+        "default": false
+      },
+      {
         "key": "autoEnhanceMode",
         "title": "Auto-enhance prompts Orca sends to agents",
         "description": "Applies to launch, task and orchestration prompts (Orca never hooks prompts you type yourself). Rules appends the text below instantly. AI rewrites with the model but Orca waits at most 2 s, so use a fast model; on timeout the original prompt is sent.",
@@ -360,9 +375,62 @@
         "default": true
       },
       {
+        "key": "allowOtherAgents",
+        "title": "Privacy: read other agents' sessions",
+        "description": "Max level: the other agents running in the workspace and the last lines of their terminals, with keys and passwords masked. Needs Privacy: read terminal output too.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "otherAgentsMax",
+        "title": "Other agents' sessions: agents read",
+        "description": "How many other agents to read, busiest first (1 to 8). Used only while \"Privacy: read other agents' sessions\" is on and confirmed.",
+        "type": "integer",
+        "default": 4,
+        "minimum": 1,
+        "maximum": 8
+      },
+      {
+        "key": "otherAgentsLines",
+        "title": "Other agents' sessions: lines per agent",
+        "description": "The last lines of each agent's terminal (10 to 300). Used only while \"Privacy: read other agents' sessions\" is on and confirmed.",
+        "type": "integer",
+        "default": 80,
+        "minimum": 10,
+        "maximum": 300
+      },
+      {
+        "key": "allowAgentActivity",
+        "title": "Privacy: watch what agents do",
+        "description": "Deep and Max levels: each tool an agent runs in Orca (its name and target: a file path or a command, never its output) and how sessions end, kept in memory for 45 minutes and sent with your prompts. Turning it on also needs your confirmation in the panel.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "allowEditorSaves",
+        "title": "Privacy: notice files you save",
+        "description": "Deep and Max levels: the paths of files you save in Orca's editor (never their text), kept in memory for 45 minutes; they rank first in the code search.",
+        "type": "boolean",
+        "default": false
+      },
+      {
         "key": "allowTerminalSend",
         "title": "Privacy: send to terminals",
         "description": "Type the prompt into the terminal you pick when you click Send.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "allowAgentLaunch",
+        "title": "Privacy: start new agents",
+        "description": "A button that starts a new agent (Claude Code, Codex…) in the workspace with the enhanced prompt. It runs with your permissions, like opening it yourself. Turning it on also needs your confirmation in the panel.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "allowOpenFiles",
+        "title": "Privacy: open files in Orca",
+        "description": "Clicking a file in the context list opens it in an editor tab.",
         "type": "boolean",
         "default": true
       },
@@ -391,6 +459,9 @@
     "events": [
       {
         "on": "workspace.changed"
+      },
+      {
+        "on": "agent.status.changed"
       }
     ]
   },
@@ -415,6 +486,15 @@
     },
     {
       "kind": "terminal:read"
+    },
+    {
+      "kind": "agent:launch"
+    },
+    {
+      "kind": "workspace:write"
+    },
+    {
+      "kind": "notifications:show"
     }
   ],
   "cover": {
