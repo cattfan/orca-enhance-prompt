@@ -243,3 +243,93 @@ test('the panel learns a terminal\'s workspace from Orca\'s agent events, and as
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
+
+// ---- several workspaces with one name and branch: the panel knows the project by its name only,
+// until the person picks its folder or an agent event names its workspace.
+
+const sameName = [
+  { id: 'ws-1', path: 'C:/work/app-one' },
+  { id: 'ws-2', path: 'C:/work/app-two' }
+]
+
+for (const how of ['the person picks the folder', 'an agent event names the workspace'] as const) {
+  test(`a project known by its name only keeps its draft and its answer when ${how} while the prompt is being written`, async () => {
+    let release: (text: string) => void = () => undefined
+    const sent: { terminalId: string; text: string }[] = []
+    const host = mockHost({
+      requests: {
+        'models.get': { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+        'models.detect': { found: [] },
+        'models.catalog': { models: [], source: '', fetchedAt: 1 },
+        'rules.get': { rules: [], structures: [] },
+        'targets.list': (input) => {
+          const resolved = input?.known?.['term-x']
+          return { targets: [{ terminalId: 'term-x', label: 'Claude · waiting', agent: 'claude' }], workspace: 'main', workspaceId: resolved ?? null, ...(resolved ? {} : { choices: sameName }) }
+        },
+        'prompt.enhance': () => new Promise((resolve) => (release = (text) => resolve({ enhanced: text, model: 'm', profileName: 'gpt', ms: 5, attempts: [], context: [], notes: [] }))),
+        'prompt.send': (input) => {
+          sent.push({ terminalId: input.terminalId, text: input.text })
+          return { accepted: true }
+        }
+      }
+    })
+    const view = await mountPanel(host)
+    try {
+      assert.equal(read(workspaceKey), 'name:main')
+      put(draft, 'fix the login page')
+      const running = enhanceNow()
+      await wait()
+      if (how === 'the person picks the folder') void pickWorkspace('ws-2')
+      else void view.emit('agent.status.changed', { workspaceId: 'ws-2', paneKey: 'p', terminalId: 'term-x', state: 'working', receivedAt: Date.now() })
+      await until(() => read(workspaceKey) === 'ws-2')
+      // It is the same project, now known by Orca's id: nothing the person wrote goes away.
+      assert.equal(read(draft), 'fix the login page', 'the draft left the composer')
+      assert.equal(read(run)?.status, 'running')
+      release('Enhanced for main')
+      await running
+      assert.equal(read(result), 'Enhanced for main', 'the answer did not come back to its own project')
+      assert.equal(read(notice), null)
+      await pressSend()
+      assert.deepEqual(sent, [{ terminalId: 'term-x', text: 'Enhanced for main' }])
+      assert.deepEqual(view.errors, [])
+    } finally {
+      release('')
+      await view.unmount()
+    }
+  })
+}
+
+test('two projects of one name: what was written in the one Orca cannot tell does not follow into the other', async () => {
+  // The first "main" cannot be told apart (terminal term-x); the second "main" is known (ws-9, term-y).
+  let focused: 'first' | 'second' = 'first'
+  const host = mockHost({
+    requests: {
+      'models.get': { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+      'models.detect': { found: [] },
+      'models.catalog': { models: [], source: '', fetchedAt: 1 },
+      'rules.get': { rules: [], structures: [] },
+      'targets.list': () =>
+        focused === 'first'
+          ? { targets: [{ terminalId: 'term-x', label: 'Claude · waiting', agent: 'claude' }], workspace: 'main', workspaceId: null, choices: sameName }
+          : { targets: [{ terminalId: 'term-y', label: 'Codex · waiting', agent: 'codex' }], workspace: 'main', workspaceId: 'ws-9' }
+    }
+  })
+  const view = await mountPanel(host)
+  const focus = async (which: 'first' | 'second') => {
+    focused = which
+    await view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [] } })
+    await view.settled()
+  }
+  assert.equal(read(workspaceKey), 'name:main')
+  put(draft, 'written in the first main')
+  await focus('second')
+  assert.equal(read(workspaceKey), 'ws-9')
+  assert.equal(read(draft), '', "the other project shows the first one's draft")
+  assert.equal(read(target), 'term-y')
+  // Back in the first one, it is there again.
+  await focus('first')
+  assert.equal(read(workspaceKey), 'name:main')
+  assert.equal(read(draft), 'written in the first main')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})

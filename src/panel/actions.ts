@@ -55,7 +55,7 @@ function park(key: string, slot: Slot): void {
  * the new project's own draft and result (or an empty composer) come in. A prompt is never shown, and
  * so never sent, in a project other than its own.
  */
-function switchWorkspace(key: string, name: string | null): void {
+function switchWorkspace(key: string, name: string | null, sameTerminals = false): void {
   const old = read(workspaceKey)
   if (old === key) {
     set(workspaceName, name)
@@ -66,6 +66,18 @@ function switchWorkspace(key: string, name: string | null): void {
     put(workspaceKey, key)
     set(workspaceName, name)
     if (runOrigin && runOrigin.key === null) runOrigin.key = key
+    return
+  }
+  // Orca could not tell which workspace this was (several share its name and branch), so the panel
+  // knew the project by its name; now Orca knows. It is still the project the composer belongs to
+  // when it has the terminals that were shown (a terminal is in one workspace only): what the
+  // person wrote stays where it is, and a run in flight answers here. Parking it under the name
+  // would lose it, since this project is never known by its name again.
+  const running = runOrigin !== null && runOrigin.key === old
+  if (sameTerminals && name !== null && old === `name:${name}` && !key.startsWith('name:') && (running || !isEmpty(snapshot()))) {
+    put(workspaceKey, key)
+    set(workspaceName, name)
+    if (runOrigin && running) runOrigin.key = key
     return
   }
   park(old, snapshot())
@@ -196,7 +208,8 @@ export async function refreshTargets(): Promise<void> {
     if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
     // Before the terminals: the composer must follow the project first, so that a target of the new
     // project is never shown next to a prompt of the old one.
-    switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null)
+    const shown = new Set(read(targets).map((item) => item.terminalId))
+    switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null, list.some((item) => shown.has(item.terminalId)))
     set(targets, list)
     const current = read(target)
     // The error usually sits in a terminal that is not the agent's (build, tests, dev server).
