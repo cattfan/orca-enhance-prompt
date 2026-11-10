@@ -3,6 +3,35 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.5.4] - 2026-11-10
+
+### Fixed
+
+- Newer Claude models on the Anthropic API no longer refuse the request because of its temperature: the plugin sends no temperature to any model. Opus 4.7 and later and Fable 5 reject a request that sets one. The Temperature field is gone from the model form; saved models keep working.
+- An answer that stops at the model's token limit is no longer shown as if it were whole. The panel names the model and its limit and says to raise **Max tokens** in the Models tab, and fallback moves on to the next model. New models start at 8,000 max tokens instead of 2,000 (a model you saved earlier keeps its own limit), and requests to OpenAI's own API use `max_completion_tokens`, which its current models require.
+- With a CLI model (Claude Code, Codex, Gemini CLI), the enhanced prompt no longer repeats what the rewriter knows about the temporary folder it runs in, such as "the directory is not a git repository".
+- With several projects of one name on the same branch, the draft and its answer are no longer lost when Orca learns which project you are in while the prompt is being written.
+- Auto-enhance (AI): control characters in the model's answer are removed before Orca types it, and an empty answer never replaces your prompt.
+- Unticking an attached text file in the context list leaves its text out (the file stays listed by its path); it used to be sent all the same. Two attached files of one name are listed apart, and removing a file takes it out of the list.
+- **Delete everything** also deletes the files you attached.
+- The run card no longer shows a negative time for a moment when a run starts.
+- The confirmation dialog shows the bullets of its list, and the screen-reader labels of the close button, the spinner and the notifications follow the panel's language.
+
+### Changed
+
+- A long attached text file goes to the model as its beginning and its end, 20,000 characters in all, with a line saying how much was left out, instead of its first 200,000 bytes. The context list marks it as trimmed; the agent still gets the file's path and can open all of it.
+- An attached file that is no longer there (attachments are kept for a day) is named, and the panel says to attach it again.
+
+### Security
+
+- Project files are not read through a link that leads out of the workspace or to a secret file (`.env`, keys).
+- A run reads attached files only from the plugin's own attachments folder, so a request cannot have another file of this machine read.
+
+### Notes
+
+- **Fix this error** and attaching an image by its path have had no button since the web panel replaced the old one (2.4.0). Their code is now removed; paste, drop and the paperclip attach images as before.
+- The old panel's code, its preview tools and the translations nothing showed any more are gone, and the tests now run the state and actions the panel really uses. The panel's files are about 55 KB smaller.
+
 ## [2.5.3] - 2026-11-10
 
 ### Fixed
@@ -450,6 +479,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.5.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.4
 [2.5.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.3
 [2.5.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.2
 [2.5.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.1
