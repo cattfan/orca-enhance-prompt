@@ -2,6 +2,16 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.5.2] - 2026-11-10
+
+### Thay đổi
+
+- Prompt đã cải thiện theo hướng dẫn của Anthropic cho Claude Fable 5.2. Với việc nhiều bước, agent được dặn làm xong mọi phần, vượt qua lệnh lỗi và hết giờ thay vì dừng lại; chỉ sửa phần việc cần và liệt kê vấn đề lân cận ở cuối; nói trước việc sắp làm và kết thúc bằng bản tóm tắt tự đứng được. Việc nhỏ không có những phần này. Chỗ cần xin phép nêu đúng hành động, việc bạn đã cho phép được ghi là đã cho phép, và agent không còn bị dặn cách suy nghĩ, lập kế hoạch hay chia việc cho agent con.
+
+### Sửa lỗi
+
+- Khi model Claude từ chối một yêu cầu, panel nói rõ model nào và vì sao, thay vì "câu trả lời rỗng"; chế độ dự phòng chuyển sang model kế tiếp.
+
 ## [2.5.1] - 2026-11-10
 
 ### Sửa lỗi

@@ -3,6 +3,16 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.5.2] - 2026-11-10
+
+### Changed
+
+- Enhanced prompts follow Anthropic's guide for Claude Fable 5.2. For a task with several steps, the agent is asked to finish every part, working through failing commands and timeouts instead of stopping; to change only what the task needs and list nearby problems at the end; and to say what it is about to do, then close with a summary that stands on its own. A small change gets none of this. Approvals name the actions they cover, an action you already approved is written as approved, and the agent is no longer told how to think, plan or delegate.
+
+### Fixed
+
+- When a Claude model declines a request, the panel says which model and why, instead of "empty answer"; fallback moves on to the next model.
+
 ## [2.5.1] - 2026-11-10
 
 ### Fixed
@@ -434,6 +444,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.5.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.2
 [2.5.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.1
 [2.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.0
 [2.4.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.5
