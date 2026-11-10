@@ -3,7 +3,7 @@
 import path from 'node:path'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { orcaBridge } from './orca-bridge'
+import { orcaBridge } from './orca-bridge.ts'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
