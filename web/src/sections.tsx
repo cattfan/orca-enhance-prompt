@@ -64,7 +64,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { DISCLOSURES, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { DISCLOSURES, hookChoice, hookModels, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -695,8 +695,7 @@ export function SettingsSection() {
   const data = read(dataSummary)
   const prefs = read(defaults)
   const view = read(models)
-  const hookModels = (view?.profiles ?? []).filter((profile) => profile.enabled && profile.provider !== 'cli')
-  const hookValue = hookModels.some((profile) => profile.id === view?.hookProfileId) ? (view?.hookProfileId ?? 'chain') : 'chain'
+  const hookOptions = hookModels()
   return (
     <div className="flex flex-col gap-4">
       <Group title={t('Auto-enhance')} hint={t('Launch, task and orchestration prompts. Prompts you type yourself are never changed. The text for Rules is in Settings → Plugins → Enhance Prompt.')}>
@@ -713,7 +712,7 @@ export function SettingsSection() {
           />
           <p className="text-muted-foreground text-xs">{t(MODE_HINTS[prefs.autoEnhanceMode] ?? MODE_HINTS.off)}</p>
         </Row>
-        {view && prefs.autoEnhanceMode === 'ai' && hookModels.length === 0 ? (
+        {view && prefs.autoEnhanceMode === 'ai' && hookOptions.length === 0 ? (
           <Row
             title={t('Auto-enhance (AI) has no model to use')}
             description={t('It needs an enabled API model: subscription CLIs take too long for its 2 s limit. Add one in Models, or use Rules.')}
@@ -724,12 +723,12 @@ export function SettingsSection() {
             }
           />
         ) : null}
-        {view && hookModels.length > 1 && !view.fromEnv && prefs.autoEnhanceMode === 'ai' ? (
+        {view && hookOptions.length > 1 && !view.fromEnv && prefs.autoEnhanceMode === 'ai' ? (
           <Row title={t('Auto-enhance hook model (needs to answer in under 2 s)')}>
             <Pick
               label={t('Auto-enhance hook model (needs to answer in under 2 s)')}
-              value={hookValue}
-              options={[{ value: 'chain', label: t('Same as the chain') }, ...hookModels.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel}` }))]}
+              value={hookChoice()}
+              options={[{ value: 'chain', label: t('Same as the chain') }, ...hookOptions.map((profile) => ({ value: profile.id, label: `${profile.name} · ${profile.effectiveModel}` }))]}
               onChange={(value) => void setRoles({ hookProfileId: value === 'chain' ? null : value })}
             />
           </Row>

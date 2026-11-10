@@ -4,8 +4,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, assert, mockHost, mount, mountWorker, test } from 'orca/testing'
-import * as panel from './panel.tsx'
+import { read, set } from 'orca'
+import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { applyProgress, beginRun, enhanceNow, finishRun } from './panel/actions.ts'
+import { draft, lastRun, put, run, tick } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
+import { seconds, stepShare, stepText } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import { createProgress, planSteps, stepPercent, STEP_WEIGHTS, totalPercent, type ProgressSnapshot, type Step } from './progress.ts'
 import * as main from './worker.ts'
@@ -156,11 +160,11 @@ test('the panel shows live steps, ignores old runs, and ends with the result or 
       }
     }
   })
-  const view = await mount(panel, { host })
+  const view = await mountPanel(host)
 
   // While a run is going: the worker's snapshots drive the card.
-  panel.beginRun('r1')
-  panel.applyProgress({
+  beginRun('r1')
+  applyProgress({
     runId: 'r1',
     startedAt: Date.now(),
     steps: [
@@ -168,32 +172,31 @@ test('the panel shows live steps, ignores old runs, and ends with the result or 
       { key: 'model', status: 'running', detail: 'OpenAI · gpt-4.1-mini' }
     ]
   })
-  await view.settled()
-  assert.ok(view.find({ text: /Writing the prompt · OpenAI · gpt-4.1-mini/ }))
+  const live = read(run)!
+  assert.equal(stepText(live.steps[1]), 'Writing the prompt · OpenAI · gpt-4.1-mini')
   // Workspace done (weight 0.5), model just started (weight 5): 100 × 0.5 / 5.5 ≈ 9%.
-  assert.equal(view.find({ type: 'Progress', label: 'Progress: 9%' })!.props.value, 9)
-  assert.ok(view.find({ text: '9%' }))
-  assert.ok(view.find({ text: '100%' }))
-  panel.applyProgress({ runId: 'old', startedAt: 0, steps: [{ key: 'git', status: 'running' }] })
-  await view.settled()
-  assert.equal(view.find({ text: /Reading git changes/ }), null)
+  assert.equal(totalPercent(live.steps, read(tick)), 9)
+  assert.equal(stepShare(live.steps[0], read(tick)), '100%')
+  // A snapshot of an older run is ignored.
+  applyProgress({ runId: 'old', startedAt: 0, steps: [{ key: 'git', status: 'running' }] })
+  assert.deepEqual(read(run)!.steps.map((step) => step.key), ['workspace', 'model'])
 
-  // A real run replaces it and ends with the result.
-  await view.type({ label: 'Your prompt' }, 'fix it')
-  await view.press({ role: 'button', text: 'Enhance' })
-  assert.equal(view.find({ type: 'Progress', label: /^Progress/ }), null)
-  assert.ok(view.find({ type: 'Badge', text: 'Done · 1.5 s' }))
+  // A real run replaces it and ends with the result (the card goes; the result says "Done · 1.5 s").
+  put(draft, 'fix it')
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'done')
+  assert.equal(seconds(read(lastRun)!.ms), '1.5 s')
   const sent = host.callsOf('plugin.request').at(-1) as { input: { runId: string } }
   assert.ok(sent.input.runId)
 
-  // A failure keeps the card, with the error and Try again.
+  // A failure keeps the card, with the error, for Try again.
   fail = true
-  await view.press({ role: 'button', text: 'Enhance' })
-  assert.ok(view.find({ text: 'Enhance failed' }))
-  assert.ok(view.find({ text: /All models failed/ }))
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'error')
+  assert.match(read(run)?.error ?? '', /All models failed/)
   fail = false
-  await view.press({ role: 'button', text: 'Try again' })
-  assert.equal(view.find({ text: 'Enhance failed' }), null)
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'done')
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
@@ -207,10 +210,10 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
       'rules.get': { rules: [], structures: [] }
     }
   })
-  const view = await mount(panel, { host })
-  panel.beginRun('r2')
+  const view = await mountPanel(host)
+  beginRun('r2')
   const started = Date.now()
-  panel.applyProgress({
+  applyProgress({
     runId: 'r2',
     startedAt: started,
     steps: [
@@ -221,16 +224,14 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
       { key: 'model', status: 'pending' }
     ]
   })
-  await view.settled()
+  let steps = read(run)!.steps
   // (100 × 0.5 + 100 × 1 + 50 × 1 + 0 × 5) / (0.5 + 1 + 1 + 5) = 26.7 → 27%
-  assert.ok(view.find({ type: 'Progress', label: 'Progress: 27%' }))
-  assert.ok(view.find({ text: '27%' }))
-  assert.ok(view.find({ text: '–' }))
-  assert.ok(view.find({ type: 'Progress', label: 'Finding relevant code: 50%' }))
-  assert.ok(view.find({ text: '0%' }))
+  assert.equal(totalPercent(steps, started), 27)
+  assert.deepEqual(steps.map((step) => stepShare(step, started)), ['100%', '100%', '–', '50%', '0%'])
 
-  // The model call runs for a while: its share is an estimate, marked ≈, and the note explains it.
-  panel.applyProgress({
+  // The model call runs for a while: its share is an estimate, marked ≈.
+  const now = Date.now()
+  applyProgress({
     runId: 'r2',
     startedAt: started,
     steps: [
@@ -238,26 +239,25 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
       { key: 'project', status: 'done' },
       { key: 'git', status: 'skipped' },
       { key: 'search', status: 'done', detail: '3' },
-      { key: 'model', status: 'running', detail: 'OpenAI · gpt', startedAt: Date.now() - 8000 }
+      { key: 'model', status: 'running', detail: 'OpenAI · gpt', startedAt: now - 8000 }
     ]
   })
-  await view.settled()
-  const model = view.find({ text: /^≈\d+%$/ })
-  assert.ok(model, JSON.stringify(view.summary()))
-  const estimate = Number(String(model.text).slice(1, -1))
+  steps = read(run)!.steps
+  const model = stepShare(steps[4], now)
+  assert.match(model, /^≈\d+%$/)
+  const estimate = Number(model.slice(1, -1))
   assert.ok(estimate > 50 && estimate < 95, String(estimate))
-  // No explanation line under the steps: the ≈ next to the share is enough.
-  assert.equal(view.find({ text: /estimated/ }), null)
 
   // Cancel: the bar stays where it was, never 100%, and the card ends.
-  const before = Number(String(view.find({ type: 'Progress', label: /^Progress: / })!.props.value))
-  panel.finishRunForTest('r2', 'cancelled')
-  await view.settled()
-  const after = view.find({ type: 'Progress', label: /^Progress: / })!
-  assert.ok(Number(after.props.value) >= before - 1 && Number(after.props.value) < 100, `${before} → ${after.props.value}`)
+  set(tick, now)
+  const before = totalPercent(steps, now)
+  finishRun('r2', 'cancelled')
+  const ended = read(run)!
+  assert.equal(ended.status, 'cancelled')
+  assert.ok(ended.endPercent !== undefined && ended.endPercent >= before - 1 && ended.endPercent < 100, `${before} → ${ended.endPercent}`)
   // The stopped model step still shows what it had reached, so the total stays the mean of what is shown.
-  assert.ok(view.find({ text: /^\d+%$/ }))
-  assert.ok(view.find({ text: 'Cancelled' }))
+  assert.equal(ended.steps[4].status, 'skipped')
+  assert.match(stepShare(ended.steps[4], ended.finishedAt ?? now), /^\d+%$/)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

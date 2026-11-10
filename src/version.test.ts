@@ -1,8 +1,6 @@
 // The version the panel shows is the one Orca installs.
 import { readFileSync } from 'node:fs'
-import { assert, mockHost, mount, test } from 'orca/testing'
-import * as panel from './panel.tsx'
-import { PRESETS } from './presets.ts'
+import { assert, test } from 'orca/testing'
 import { VERSION } from './version.ts'
 
 test('src/version.ts matches orca-plugin.json', () => {
@@ -10,17 +8,10 @@ test('src/version.ts matches orca-plugin.json', () => {
   assert.equal(VERSION, manifest.version)
 })
 
-test('the panel header shows the version', async () => {
-  const host = mockHost({
-    requests: {
-      'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
-      'targets.list': { targets: [] },
-      'models.detect': { found: [] },
-      'rules.get': { rules: [], structures: [] }
-    }
-  })
-  const view = await mount(panel, { host })
-  assert.ok(view.find({ text: `v${VERSION}` }), JSON.stringify(view.summary()))
-  assert.deepEqual(view.errors, [])
-  await view.unmount()
+test('the built panel shows this version', () => {
+  // The header prints VERSION, and Orca runs the committed build (src/web-dist), not web/src: after
+  // a version change the panel has to be built again.
+  const built = readFileSync(new URL('./web-dist/assets/app.js', import.meta.url), 'utf8')
+  const quoted = new RegExp(`[\`'"]${VERSION.replace(/\./g, '\\.')}[\`'"]`)
+  assert.match(built, quoted, `src/web-dist was built from another version: run npm run web:build`)
 })

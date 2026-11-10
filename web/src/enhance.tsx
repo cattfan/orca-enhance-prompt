@@ -27,13 +27,11 @@ import {
   effectiveEnter,
   effectiveLevel,
   effectiveStyle,
-  enabledProfiles,
   excluded,
   files,
   images,
   lastRun,
   level,
-  models,
   optionsOpen,
   outputChoice,
   pressEnter,
@@ -73,6 +71,7 @@ import {
   itemWhy,
   levelOptions,
   modelMenu,
+  modelWarning,
   optionsSummary,
   outputOptions,
   pickModel,
@@ -557,19 +556,16 @@ function WorkspacePicker() {
 
 export function EnhanceSection({ refresh }: { refresh: () => void }) {
   const output = read(result)
-  const view = read(models)
-  const profiles = read(enabledProfiles)
-  const noModel = view !== null && profiles.length === 0
-  const allKeyless = profiles.length > 0 && profiles.every((profile) => profile.keySource === 'none')
+  const warning = modelWarning()
   return (
     <div className="flex flex-col gap-3">
       <WorkspacePicker />
       <Composer refresh={refresh} />
       <RunCard />
       {output ? <ResultCard output={output} /> : null}
-      {noModel || allKeyless ? (
+      {warning ? (
         <Alert variant="warning">
-          <AlertTitle>{noModel ? t('No model yet') : t('No API key yet')}</AlertTitle>
+          <AlertTitle>{warning === 'no-model' ? t('No model yet') : t('No API key yet')}</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-2">
             <span>{t('Add one in the Models tab.')}</span>
             <Button size="sm" variant="outline" onClick={() => set(tab, 'models')}>

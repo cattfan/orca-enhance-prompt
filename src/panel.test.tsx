@@ -1,6 +1,12 @@
-// `orca plugin test .` runs this in Node with the same runtime and checks Orca uses.
-import { assert, mockHost, mount, test } from 'orca/testing'
-import * as panel from './panel.tsx'
+// `orca plugin test .` runs this in Node with the same runtime and checks Orca uses. The panel's
+// state and actions run here without anything drawn (src/panel/testing.ts): what the web panel's
+// buttons call is called directly, and what it shows is read from the state.
+import { read } from 'orca'
+import { assert, mockHost, test } from 'orca/testing'
+import { applyPreset, enhanceNow, openForm, patchForm, saveForm, send, toggleItem } from './panel/actions.ts'
+import { contextShown, draft, enabledProfiles, form, lastRun, notice, put, result } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
+import { modelWarning, optionsSummary } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import type { ModelsView, ProfileInput } from './protocol.ts'
 
@@ -54,25 +60,30 @@ test('enhances with context, then sends to the chosen agent', async () => {
       }
     }
   })
-  const view = await mount(panel, { host })
-  await view.type({ label: 'Your prompt' }, 'add tests')
-  await view.press({ role: 'button', text: 'Enhance' })
-  assert.equal(view.valueOf(view.find({ label: 'Enhanced prompt' })!), 'Better: add tests')
+  const view = await mountPanel(host)
+  assert.equal(modelWarning(), null)
+  put(draft, 'add tests')
+  await enhanceNow()
+  assert.equal(read(result), 'Better: add tests')
   assert.equal(enhanceInputs[0].level, 'standard')
-  assert.ok(view.find({ text: /Fell back after: Down \(503: overloaded\)/ }))
+  // The model that failed first stays with the result (the card says "Fell back after: …").
+  assert.deepEqual(
+    read(lastRun)?.attempts.filter((attempt) => !attempt.ok).map((attempt) => `${attempt.name} (${attempt.error})`),
+    ['Down (503: overloaded)']
+  )
+  assert.deepEqual(read(contextShown).map((item) => item.id), ['rules:AGENTS.md', 'tree'])
 
-  // Exclude the tree, enhance again: the worker is told.
-  await view.toggle({ label: /^Context ·/ })
-  await view.toggle({ label: 'Repository tree' })
-
+  // Untick the tree, enhance again: the worker is told, and the item stays listed (unticked).
+  toggleItem('tree', false)
   // The options button names the current choice.
-  assert.equal(view.find({ role: 'button', text: 'Options' })!.props.tooltip, 'Options: Balanced · Standard')
-  await view.press({ role: 'button', text: 'Enhance' })
+  assert.equal(optionsSummary(), 'Balanced · Standard')
+  await enhanceNow()
   assert.deepEqual(enhanceInputs[1].exclude, ['tree'])
+  assert.deepEqual(read(contextShown).map((item) => item.id), ['rules:AGENTS.md', 'tree'])
 
-  await view.press({ role: 'button', text: 'Send' })
+  await send(read(result))
   assert.deepEqual(sent, [{ terminalId: 't1', text: 'Better: add tests', enter: false }])
-  assert.ok(view.find({ text: /Sent to Claude/ }))
+  assert.deepEqual(read(notice), { tone: 'success', text: 'Sent to Claude · waiting.' })
   assert.deepEqual(view.errors, [])
   assert.deepEqual(view.refusals, [])
   await view.unmount()
@@ -90,16 +101,27 @@ test('warns when no model is configured, and adds one from the Models tab', asyn
       }
     }
   })
-  const view = await mount(panel, { host })
-  assert.ok(view.find({ label: 'No model yet' }) ?? view.find({ text: /No model yet/ }))
-  await view.press({ role: 'button', label: 'Models' })
-  await view.press({ role: 'button', text: 'Add model' })
-  await view.select({ label: 'Preset' }, 'groq')
-  await view.type({ label: 'API key' }, 'gsk-1')
-  await view.press({ role: 'button', text: 'Save' })
+  const view = await mountPanel(host)
+  assert.equal(modelWarning(), 'no-model')
+  // Add model: pick the Groq preset, type its key, Save.
+  openForm()
+  applyPreset('groq')
+  patchForm({ apiKey: 'gsk-1' })
+  await saveForm()
   assert.equal(saved[0].preset, 'groq')
   assert.equal(saved[0].baseUrl, 'https://api.groq.com/openai/v1')
   assert.equal(saved[0].apiKey, 'gsk-1')
+  // The form closes, the model is there and the warning is gone.
+  assert.equal(read(form), null)
+  assert.deepEqual(read(enabledProfiles).map((profile) => profile.id), ['new'])
+  assert.equal(modelWarning(), null)
   assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('an enabled model without a key warns about the key, not about a missing model', async () => {
+  const host = mockHost({ requests: { 'models.get': modelsView([{ ...gpt, keySource: 'none' }]), 'targets.list': { targets: [] } } })
+  const view = await mountPanel(host)
+  assert.equal(modelWarning(), 'no-key')
   await view.unmount()
 })

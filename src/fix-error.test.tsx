@@ -1,6 +1,9 @@
 // "Fix this error": the error is picked out of a terminal's output and becomes a bug-fix prompt.
-import { afterEach, assert, mockHost, mount, mountWorker, test } from 'orca/testing'
-import * as panel from './panel.tsx'
+import { read } from 'orca'
+import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { fixError } from './panel/actions.ts'
+import { errorTerminal, result, target } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import { ERROR_MAX_CHARS, ERROR_MAX_LINES, extractError } from './terminal-error.ts'
 import * as main from './worker.ts'
@@ -92,7 +95,7 @@ test('"Fix this error" obeys the terminal-output Privacy switch, and refuses an 
   await empty.deactivate()
 })
 
-test('the panel: the bug button opens Fix this error, which sends a bug-fix request for that terminal', async () => {
+test('the panel: Fix this error sends a bug-fix request about the terminal that is not the agent', async () => {
   const sent: Record<string, unknown>[] = []
   const profile: ProfileView = { ...gpt, provider: 'openai', command: '', args: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini', keySource: 'secret', envName: '' }
   const host = mockHost({
@@ -112,17 +115,17 @@ test('the panel: the bug button opens Fix this error, which sends a bug-fix requ
       }
     }
   })
-  const view = await mount(panel, { host })
-  await view.press({ role: 'button', text: 'Fix error' })
-  // The error terminal defaults to one that is not the agent.
-  assert.equal(view.valueOf(view.find({ label: 'Error in' })!), 'tests')
-  await view.press({ role: 'button', text: 'Fix this error' })
+  const view = await mountPanel(host)
+  // The error terminal defaults to one that is not the agent; the prompt still goes to the agent.
+  assert.equal(read(errorTerminal), 'tests')
+  assert.equal(read(target), 'agent')
+  await fixError()
   assert.equal(sent.length, 1)
   assert.equal(sent[0].errorTerminalId, 'tests')
   assert.equal(sent[0].style, 'bugfix')
   assert.equal(sent[0].terminalId, 'agent')
   assert.match(String(sent[0].prompt), /Fix the error shown in the output of Tests/)
-  assert.equal(view.valueOf(view.find({ label: 'Enhanced prompt' })!), 'Fix the failing session test')
+  assert.equal(read(result), 'Fix the failing session test')
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

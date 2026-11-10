@@ -7,7 +7,7 @@ import { t } from '../i18n.ts'
 import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+import { type Catalog, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
 
 export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', vi: 'VI', zh: '中文' }
 export const OUTPUT_LANGUAGE_LABELS: Record<string, string> = {
@@ -46,6 +46,26 @@ export const KEY_LABEL: Record<ProfileView['keySource'], string> = {
 }
 
 export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
+
+/** Why Enhance cannot answer yet, for the warning under the composer: no enabled model, or none with a key. */
+export function modelWarning(): 'no-model' | 'no-key' | null {
+  // Not loaded yet is not "none".
+  if (read(models) === null) return null
+  const profiles = read(enabledProfiles)
+  if (profiles.length === 0) return 'no-model'
+  return profiles.every((profile) => profile.keySource === 'none') ? 'no-key' : null
+}
+
+/** The models the auto-enhance hook can use: it has 2 s, so enabled API models only (a subscription CLI starts too slowly). */
+export function hookModels(): ProfileView[] {
+  return (read(models)?.profiles ?? []).filter((profile) => profile.enabled && profile.provider !== 'cli')
+}
+
+/** The hook's model as its menu shows it: the saved one while it can still answer in time, else "Same as the chain". */
+export function hookChoice(): string {
+  const saved = read(models)?.hookProfileId
+  return saved && hookModels().some((profile) => profile.id === saved) ? saved : 'chain'
+}
 
 export const MODEL_SEP = '|'
 export const PROFILE_DEFAULT = '__profile_default__'

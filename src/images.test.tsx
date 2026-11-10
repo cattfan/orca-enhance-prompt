@@ -4,10 +4,13 @@ import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterEach, assert, mockHost, mount, mountWorker, test } from 'orca/testing'
+import { read, set } from 'orca'
+import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { cliArgs } from './cli.ts'
 import { cleanImagePath, imageSupport, inspectImage, loadImages, MAX_IMAGE_BYTES, sniffImage, withImagePaths } from './images.ts'
-import * as panel from './panel.tsx'
+import { addImage, enhanceNow, removeImage } from './panel/actions.ts'
+import { draft, imageDraft, images, notice, put } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import * as main from './worker.ts'
 
@@ -129,20 +132,21 @@ test('the panel attaches an image by path, shows it, refuses a bad one, and send
       }
     }
   })
-  const view = await mount(panel, { host })
-  await view.press({ role: 'button', text: 'Images' })
-  await view.type({ label: 'Image file path' }, 'C:\\shots\\notes.txt')
-  await view.press({ role: 'button', text: 'Attach' })
-  assert.ok(view.find({ text: /notes\.txt is not a PNG/ }))
-  await view.type({ label: 'Image file path' }, 'C:\\shots\\login bug.png', { replace: true })
-  await view.press({ role: 'button', text: 'Attach' })
-  assert.ok(view.find({ text: 'login bug.png · 1.5 MB' }), JSON.stringify(view.summary()))
-  assert.ok(view.find({ role: 'button', text: 'Images · 1' }))
-  await view.type({ label: 'Your prompt' }, 'the button is cut off')
-  await view.press({ role: 'button', text: 'Enhance' })
+  const view = await mountPanel(host)
+  // A file that is not an image is refused with the worker's reason, and nothing is attached.
+  set(imageDraft, 'C:\\shots\\notes.txt')
+  await addImage()
+  assert.match(read(notice)?.text ?? '', /notes\.txt is not a PNG/)
+  assert.deepEqual(read(images), [])
+  set(imageDraft, 'C:\\shots\\login bug.png')
+  await addImage()
+  assert.deepEqual(read(images), [{ path: 'C:\\shots\\login bug.png', name: 'login bug.png', bytes: 1_572_864, type: 'image/png' }])
+  assert.equal(read(imageDraft), '')
+  put(draft, 'the button is cut off')
+  await enhanceNow()
   assert.deepEqual(sent[0].images, ['C:\\shots\\login bug.png'])
-  await view.press({ role: 'button', label: 'Remove login bug.png' })
-  assert.equal(view.find({ text: 'login bug.png · 1.5 MB' }), null)
+  removeImage('C:\\shots\\login bug.png')
+  assert.deepEqual(read(images), [])
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

@@ -1,7 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs'
-import { assert, mockHost, mount, test } from 'orca/testing'
-import { dictionaries, resolveLanguage, translate } from './i18n.ts'
-import * as panel from './panel.tsx'
+import { read } from 'orca'
+import { assert, mockHost, test } from 'orca/testing'
+import { currentLanguage, dictionaries, resolveLanguage, t, translate } from './i18n.ts'
+import { changeUiLanguage, enhanceNow, previewContext } from './panel/actions.ts'
+import { contextNotes, contextShown, draft, put, run, say } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
+import { itemWhy } from './panel/view.ts'
 import { english, MESSAGES, msg, raw } from './messages.ts'
 import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
 import { STYLE_LABELS } from './prompts.ts'
@@ -49,7 +53,7 @@ test('placeholders survive translation; auto follows the Orca locale', () => {
   assert.ok(PRESETS.length > 10)
 })
 
-test('the panel renders in Vietnamese from the uiLanguage setting', async () => {
+test('the panel speaks Vietnamese from the uiLanguage setting, and the language menu switches it at once', async () => {
   const host = mockHost({
     settings: { uiLanguage: 'vi' },
     requests: {
@@ -57,14 +61,13 @@ test('the panel renders in Vietnamese from the uiLanguage setting', async () => 
       'targets.list': { targets: [] }
     }
   })
-  const view = await mount(panel, { host })
-  assert.ok(view.find({ label: 'Prompt của bạn' }))
-  assert.ok(view.find({ text: /Chưa có model/ }) ?? view.find({ label: 'Chưa có model' }))
-  // The language menu is in the Privacy section (gear icon).
-  await view.press({ role: 'button', label: 'Quyền riêng tư' })
-  await view.select({ label: 'Ngôn ngữ giao diện' }, 'zh')
-  await view.press({ role: 'button', label: 'Enhance Prompt' })
-  assert.ok(view.find({ label: '你的提示词' }))
+  const view = await mountPanel(host)
+  assert.equal(currentLanguage(), 'vi')
+  assert.equal(t('Your prompt'), 'Prompt của bạn')
+  assert.equal(t('No model yet'), 'Chưa có model')
+  // The language menu in the header.
+  await changeUiLanguage('zh')
+  assert.equal(t('Your prompt'), '你的提示词')
   assert.equal(host.data().settings.uiLanguage, 'zh')
   assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -97,16 +100,19 @@ test('worker notes, context labels and errors arrive as codes and show in the pa
     }
   })
   // A note saved by an older version (plain English) still shows.
-  const view = await mount(panel, { host, persisted: { plugin: { contextNotes: ['An old saved note'], contextShown: [{ id: 'workspace', kind: 'workspace', label: 'Workspace', chars: 4 }] } } })
-  await view.toggle({ label: /^Ngữ cảnh ·/ })
-  assert.ok(view.find({ text: 'An old saved note' }))
-  await view.type({ label: 'Prompt của bạn' }, 'sửa lỗi')
-  await view.press({ role: 'button', text: 'Xem trước' })
-  assert.ok(view.find({ label: 'Cây thư mục (3 file)' }) ?? view.find({ text: /Cây thư mục/ }), JSON.stringify(view.summary()))
-  assert.ok(view.find({ text: /AI chọn/ }))
-  assert.ok(view.find({ text: /Bỏ qua bước AI chọn file: Chưa có API key/ }) ?? view.find({ text: /Chưa có API key/ }), JSON.stringify(view.summary()))
-  await view.press({ role: 'button', text: 'Cải thiện' })
-  assert.ok(view.find({ text: /Tất cả model đều lỗi\. A: Yêu cầu đã bị huỷ hoặc hết thời gian chờ\./ }), JSON.stringify(view.summary()))
+  const view = await mountPanel(host, { persisted: { plugin: { contextNotes: ['An old saved note'], contextShown: [{ id: 'workspace', kind: 'workspace', label: 'Workspace', chars: 4 }] } } })
+  assert.deepEqual(read(contextNotes).map(say), ['An old saved note'])
+  // Opening the options gathers the context: its titles, reasons and notes read in Vietnamese.
+  put(draft, 'sửa lỗi')
+  await previewContext()
+  const [tree, file] = read(contextShown)
+  assert.equal(tree.title ? say(tree.title) : tree.label, 'Cây thư mục (3 file)')
+  assert.match(itemWhy(file), /AI chọn/)
+  assert.match(read(contextNotes).map(say).join('\n'), /^Bỏ qua AI chọn file: Chưa có API key\./)
+  // A failed run: the worker's error is shown in Vietnamese on the run card.
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'error')
+  assert.match(read(run)?.error ?? '', /Tất cả model đều lỗi\. A: Yêu cầu đã bị huỷ hoặc hết thời gian chờ\./)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
@@ -120,20 +126,9 @@ test('the brand "Enhance Prompt" is the same in every language', async () => {
       if (en.includes(BRAND)) assert.ok(local.includes(BRAND), `${lang}: "${local}"`)
     }
   }
-  // The panel's header shows it, untranslated, in English, Vietnamese and Chinese.
-  for (const uiLanguage of ['en', 'vi', 'zh']) {
-    const host = mockHost({
-      settings: { uiLanguage },
-      requests: {
-        'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
-        'targets.list': { targets: [] },
-        'models.detect': { found: [] },
-        'rules.get': { rules: [], structures: [] }
-      }
-    })
-    const view = await mount(panel, { host })
-    assert.ok(view.find({ type: 'Text', text: BRAND }), `${uiLanguage}: ${JSON.stringify(view.summary())}`)
-    assert.ok(view.find({ role: 'button', label: BRAND }))
-    await view.unmount()
-  }
+  // The panel's header shows it as it is: the name is the constant, never a string passed to t().
+  for (const dict of Object.values(dictionaries)) assert.ok(!(BRAND in dict), 'the brand has a translation entry')
+  const header = readFileSync(new URL('../web/src/main.tsx', import.meta.url), 'utf8')
+  assert.match(header, /<h1[^>]*>\{BRAND\}<\/h1>/)
+  assert.ok(!/\bt\(\s*BRAND\b/.test(header) && !header.includes(`t('${BRAND}')`), 'the brand goes through t()')
 })

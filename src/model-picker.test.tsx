@@ -1,6 +1,9 @@
 // The composer's model menu: every model of every enabled profile, like the menu in ChatGPT or Claude.
-import { assert, mockHost, mount, mountWorker, test } from 'orca/testing'
-import * as panel from './panel.tsx'
+import { assert, mockHost, mountWorker, test } from 'orca/testing'
+import { enhanceNow } from './panel/actions.ts'
+import { draft, put } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
+import { currentModelValue, modelMenu, pickModel } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import * as main from './worker.ts'
 
@@ -49,32 +52,44 @@ test('lists each model of each profile and sends the one you pick', async () => 
       }
     }
   })
-  const view = await mount(panel, { host })
-  const menu = view.find({ label: 'Model', type: 'Select' })!
-  const labels = (menu.props.options as { label: string }[]).map((option) => option.label)
-  assert.deepEqual(labels, [
-    'Auto (fallback)',
-    'Claude Code · Opus 5.5',
-    'Claude Code · haiku (latest) · default',
-    'Claude Code · sonnet (latest)',
-    'Claude Code · opus (latest)',
-    'Codex · CLI default',
-    'Codex · GPT-6.1-Sol'
-  ])
+  const view = await mountPanel(host)
+  assert.deepEqual(
+    modelMenu().map((option) => option.label),
+    [
+      'Auto (fallback)',
+      'Claude Code · Opus 5.5',
+      'Claude Code · haiku (latest) · default',
+      'Claude Code · sonnet (latest)',
+      'Claude Code · opus (latest)',
+      'Codex · CLI default',
+      'Codex · GPT-6.1-Sol'
+    ]
+  )
+  // Nothing picked yet: Auto, and no profile or model is named in the request.
+  assert.equal(currentModelValue(), 'auto')
 
-  await view.select(menu, 'claude|claude-opus-5-5')
-  await view.type({ label: 'Your prompt' }, 'fix it')
-  await view.press({ role: 'button', text: 'Enhance' })
+  pickModel('claude|claude-opus-5-5')
+  assert.equal(currentModelValue(), 'claude|claude-opus-5-5')
+  put(draft, 'fix it')
+  await enhanceNow()
   assert.equal(sent.at(-1)?.model, 'claude-opus-5-5')
 
-  await view.select(menu, 'claude|opus')
-  await view.press({ role: 'button', text: 'Enhance' })
+  pickModel('claude|opus')
+  await enhanceNow()
   assert.equal(sent.at(-1)?.profileId, 'claude')
   assert.equal(sent.at(-1)?.model, 'opus')
 
   // The profile's own model is sent as no override, so editing the profile later still applies.
-  await view.select({ label: 'Model', type: 'Select' }, 'claude|haiku')
-  await view.press({ role: 'button', text: 'Enhance' })
+  pickModel('claude|haiku')
+  assert.equal(currentModelValue(), 'claude|haiku')
+  await enhanceNow()
+  assert.equal(sent.at(-1)?.profileId, 'claude')
+  assert.equal(sent.at(-1)?.model, undefined)
+
+  // Back to Auto: the chain decides, no profile is forced.
+  pickModel('auto')
+  await enhanceNow()
+  assert.equal(sent.at(-1)?.profileId, null)
   assert.equal(sent.at(-1)?.model, undefined)
   assert.deepEqual(view.errors, [])
   await view.unmount()

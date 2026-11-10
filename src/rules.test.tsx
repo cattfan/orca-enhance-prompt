@@ -1,6 +1,10 @@
 // Your own rules and prompt structures: stored once, used by every run and by auto-enhance.
-import { afterEach, assert, mockHost, mount, mountWorker, test, type MockRequests } from 'orca/testing'
-import * as panel from './panel.tsx'
+import { read, set } from 'orca'
+import { afterEach, assert, mockHost, mountWorker, test, type MockRequests } from 'orca/testing'
+import { addRule, addStructure, saveRules } from './panel/actions.ts'
+import { ruleDraft, ruleScope, structureDraft } from './panel/state.ts'
+import { mountPanel } from './panel/testing.ts'
+import { rulesConfig, structureOptions } from './panel/view.ts'
 import { PRESETS } from './presets.ts'
 import { buildSystemPrompt } from './prompts.ts'
 import { parseRulesConfig, rulesFor, structureById, type RulesConfig } from './rules.ts'
@@ -87,31 +91,28 @@ const requests: MockRequests = {
 
 test('the Rules tab adds rules (for all or this workspace) and structures; the composer offers them', async () => {
   const host = mockHost({ requests })
-  const view = await mount(panel, { host })
-  await view.press({ role: 'button', label: 'Rules' })
-  await view.type({ label: 'New rule' }, 'Always run pnpm test.')
-  await view.press({ role: 'button', text: 'Add rule' })
-  await view.type({ label: 'New rule' }, 'Use the design tokens.')
-  await view.select({ label: 'Applies to' }, 'workspace')
-  await view.press({ role: 'button', text: 'Add rule' })
-  await view.type({ label: 'Structure name' }, 'Mine')
-  await view.type({ label: 'Headings, one per line' }, '1. Mục tiêu\n- Tiêu chí hoàn thành\n')
-  await view.press({ role: 'button', text: 'Add structure' })
+  const view = await mountPanel(host)
+  // Three quick edits in a row: each is shown at once and all of them land.
+  set(ruleDraft, 'Always run pnpm test.')
+  addRule()
+  set(ruleDraft, 'Use the design tokens.')
+  set(ruleScope, 'workspace')
+  addRule()
+  set(structureDraft, { name: 'Mine', sections: '1. Mục tiêu\n- Tiêu chí hoàn thành\n' })
+  addStructure()
+  assert.equal(read(ruleDraft), '')
   await new Promise((resolve) => setTimeout(resolve, 100))
   const saved = savedConfig
   assert.deepEqual(saved.rules.map((rule) => [rule.text, rule.scope]), [['Always run pnpm test.', ''], ['Use the design tokens.', 'web-app']])
   assert.deepEqual(saved.structures[0].sections, ['Mục tiêu', 'Tiêu chí hoàn thành'])
   // Turning a rule off keeps it.
-  await view.toggle({ label: 'Always run pnpm test.' })
+  saveRules((current) => ({ ...current, rules: current.rules.map((rule) => (rule.text === 'Always run pnpm test.' ? { ...rule, enabled: false } : rule)) }))
+  assert.equal(rulesConfig().rules[0].enabled, false)
   await new Promise((resolve) => setTimeout(resolve, 100))
   assert.equal(savedConfig.rules[0].enabled, false)
-  assert.equal(view.valueOf({ label: 'Always run pnpm test.' }), false)
-  // The composer's options list the structures.
-  await view.press({ role: 'button', label: 'Enhance Prompt' })
-  if (!view.find({ label: 'Structure' })) await view.press({ role: 'button', text: 'Options' })
-  const select = view.find({ label: 'Structure' })
-  assert.ok(select)
-  const values = (select.props.options as { value: string }[]).map((option) => option.value)
+  assert.equal(savedConfig.rules.length, 2)
+  // The composer's options list the structures: by style, the built-in ones, then yours.
+  const values = structureOptions().map((option) => option.value)
   assert.deepEqual(values.slice(0, 3), ['style', 'brief', 'steps'])
   assert.ok(values.includes(saved.structures[0].id))
   assert.deepEqual(view.errors, [])

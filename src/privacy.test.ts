@@ -204,8 +204,10 @@ test('history changes run one after another, so a slow writer is never overtaken
 })
 
 test('the gear section links to GitHub issues for feedback', async () => {
-  const { mount } = await import('orca/testing')
-  const panel = await import('./panel.tsx')
+  const { read } = await import('orca')
+  const { mountPanel } = await import('./panel/testing.ts')
+  const { openIssues } = await import('./panel/actions.ts')
+  const { notice } = await import('./panel/state.ts')
   const { PRESETS } = await import('./presets.ts')
   const host = mockHost({
     requests: {
@@ -216,11 +218,13 @@ test('the gear section links to GitHub issues for feedback', async () => {
       'data.summary': { history: 0, profiles: 0, keys: 0, catalogs: 0 }
     }
   })
-  const view = await mount(panel, { host, persisted: { plugin: { tab: 'privacy' } } })
-  assert.ok(view.find({ text: /Open an issue on GitHub: it is how the plugin gets fixed/ }))
-  await view.press({ role: 'button', text: 'Open an issue on GitHub' })
+  const view = await mountPanel(host, { persisted: { plugin: { tab: 'privacy' } } })
+  await openIssues()
   const opened = host.callsOf('shell.openExternal') as { url: string }[]
   assert.deepEqual(opened.map((call) => call.url), ['https://github.com/cattfan/orca-enhance-prompt/issues/new'])
+  // Orca opens a site only on a click (there is none here) and may be told no: the panel then
+  // shows the address to open by hand.
+  assert.deepEqual(read(notice), { tone: 'neutral', text: 'Open https://github.com/cattfan/orca-enhance-prompt/issues/new in your browser.' })
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
