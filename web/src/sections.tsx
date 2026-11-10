@@ -657,7 +657,8 @@ function ConsentDialog({ keyName, onClose }: { keyName: PrivacyKey | null; onClo
           <DialogTitle>{row ? t('Turn on "{name}"?', { name: t(row.label) }) : ''}</DialogTitle>
           <DialogDescription>{t('Read what this allows. Nothing is hidden: this is everything it does.')}</DialogDescription>
         </DialogHeader>
-        <ul className="ml-4 list-disc space-y-1.5 overflow-y-auto text-sm leading-relaxed">
+        {/* Padding, not a margin: the list scrolls, and a scrolling box cuts off bullets drawn outside it. */}
+        <ul className="list-disc space-y-1.5 overflow-y-auto pl-5 text-sm leading-relaxed">
           {points.map((point) => (
             <li key={point}>{t(point)}</li>
           ))}
