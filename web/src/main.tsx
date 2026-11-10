@@ -1,32 +1,18 @@
-// The web panel's entry: wires Orca's events to the shared state (as src/panel.tsx's setup does), then
+// The web panel's entry: starts the panel's state (src/panel/setup.ts wires Orca's events to it), then
 // draws the header and the current section.
 import { lazy, StrictMode, Suspense, useReducer } from 'react'
 import { createRoot } from 'react-dom/client'
-import { on, plugin, read, set, settings } from 'orca'
+import { read, set } from 'orca'
 import { BookOpenIcon, BotIcon, LanguagesIcon, ScrollTextIcon, SettingsIcon, SparklesIcon } from 'lucide-react'
 import './index.css'
 import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
-import { busy, draft, files, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
+import { busy, draft, files, history, optionsOpen, put, tab } from '../../src/panel/state.ts'
 import { previews } from './attach'
-import {
-  applyProgress,
-  cancel,
-  changeUiLanguage,
-  detectClis,
-  refreshConsents,
-  enhanceNow,
-  learnTerminals,
-  refreshDataSummary,
-  refreshDefaults,
-  refreshModels,
-  refreshRules,
-  refreshTargets,
-  stopTicking,
-  workspaceRemoved
-} from '../../src/panel/actions.ts'
+import { changeUiLanguage, enhanceNow, refreshDataSummary, refreshTargets } from '../../src/panel/actions.ts'
+import { closePanel, wirePanel } from '../../src/panel/setup.ts'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { IconAction, Notices } from './common'
 import { WhatsNew } from './whats-new'
@@ -125,39 +111,6 @@ function App() {
   )
 }
 
-function setup(): void {
-  restoreSaved()
-  // Closing or reloading the panel ends its run: the worker stops the model too.
-  window.addEventListener('pagehide', () => {
-    cancel()
-    stopTicking()
-  })
-  settings.onDidChange(() => void refreshDefaults())
-  on('workspace.changed', () => void refreshTargets())
-  on('workspace.removed', ({ workspaceId }) => workspaceRemoved(workspaceId))
-  on('agent.status.changed', ({ terminalId, workspaceId }) => {
-    if (terminalId && workspaceId) learnTerminals([terminalId], workspaceId)
-    void refreshTargets()
-  })
-  plugin.on('enhance.progress', applyProgress)
-  plugin.on('hook.enhanced', ({ agent, mode, model }) =>
-    set(notice, {
-      tone: 'neutral',
-      text: t('Auto-enhanced ({mode}) a prompt for {agent}.', {
-        mode: model ? `${mode}, ${model}` : mode,
-        agent: agent ?? t('an agent')
-      })
-    })
-  )
-  void refreshDefaults()
-  void refreshModels()
-  void refreshTargets()
-  void refreshRules()
-  void detectClis()
-  void refreshConsents()
-  if (read(tab) === 'privacy') void refreshDataSummary()
-}
-
 async function start(): Promise<void> {
   // In a plain browser (npm run dev) there is no Orca: a mock stands in, with sample data.
   if (import.meta.env.DEV && !('orca' in window)) {
@@ -167,7 +120,9 @@ async function start(): Promise<void> {
     if (section) set(tab, section)
   }
   await ready()
-  setup()
+  // Closing or reloading the panel ends its run: the worker stops the model too.
+  window.addEventListener('pagehide', closePanel)
+  wirePanel()
   if (import.meta.env.DEV) {
     // A browser hears no Orca events: reload the terminal list now and then instead.
     setInterval(() => void refreshTargets(), 8000)
