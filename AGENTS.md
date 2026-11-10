@@ -43,7 +43,7 @@ The test suite usually finishes in seconds, but some tests start real processes 
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
   scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
-  `orca-plugin.json` and `CHANGELOG.md` is changed or untracked.
+  `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked.
 
 ## End-to-end in the real Orca
 
@@ -74,13 +74,18 @@ of it; `node scripts/make-listing.mjs` redraws every listing, README and guide p
    Minor and patch are single digits 0-9 and carry over like an odometer: 1.8.9 -> 1.9.0,
    1.9.0 -> 2.0.0 (never 1.10.0), 13.9.9 -> 14.0.0.
 2. Add a section at the top of `CHANGELOG.md` (Added / Changed / Fixed / Security / Notes) and its link at the bottom.
-3. Run `node scripts/release.mjs X.Y.Z`. It refuses to start unless you are on `main`, nothing but
-   those files (and `src/version.ts`) is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
-   the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`). It then runs tsc, the tests,
-   `orca plugin check` and `orca plugin validate`, commits only those two files with the subject
+3. Translate that section into `docs/changelog/CHANGELOG.vi.md` and `CHANGELOG.zh-CN.md` (What's new
+   reads them), run `npm run web:build`, and commit the two translations with the rebuilt
+   `src/web-dist`. The three files of steps 1 and 2 stay uncommitted: the release commits them.
+4. Run `node scripts/release.mjs X.Y.Z`. It refuses to start unless you are on `main`, nothing but
+   `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
+   the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`). It then builds the panel again
+   and stops if that changes `src/web-dist` (the committed panel was older than the sources: commit
+   the rebuilt one and run it again), runs tsc, the tests, `orca plugin check` and
+   `orca plugin validate`, commits only those three files with the subject
    `vX.Y.Z: <first sentence of the first changelog bullet>` (never cut) and the section as body,
    tags, pushes `main` and the tag, and creates the GitHub release from the changelog section.
-4. Check the listing: <https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt>
+5. Check the listing: <https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt>
 
 ## Listing policy
 

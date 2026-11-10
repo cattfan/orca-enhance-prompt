@@ -50,13 +50,26 @@ export function versionProblem(latest, version) {
 /** Files a release commit may contain; anything else changed or untracked stops the release. */
 export const RELEASE_FILES = ['orca-plugin.json', 'CHANGELOG.md', 'src/version.ts']
 
-/** Paths in `git status --porcelain` output that are not release files. */
-export function unexpectedChanges(porcelain) {
+/** The paths in `git status --porcelain` output (for a rename, the new name). */
+function statusPaths(porcelain) {
   return porcelain
     .split('\n')
     .filter((line) => line.trim())
     .map((line) => line.slice(3).split(' -> ').pop().replace(/^"|"$/g, ''))
-    .filter((path) => !RELEASE_FILES.includes(path))
+}
+
+/** Paths in `git status --porcelain` output that are not release files. */
+export function unexpectedChanges(porcelain) {
+  return statusPaths(porcelain).filter((path) => !RELEASE_FILES.includes(path))
+}
+
+/**
+ * The files of the built panel that building it again just changed, from
+ * `git status --porcelain -- src/web-dist`. Any at all means the committed panel was built from
+ * older sources than the ones being released.
+ */
+export function staleBuild(porcelain) {
+  return statusPaths(porcelain)
 }
 
 /**

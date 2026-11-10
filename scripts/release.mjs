@@ -1,13 +1,14 @@
 // Usage: node scripts/release.mjs 1.2.0
-// Before anything is committed it checks: on main, nothing changed but orca-plugin.json and
-// CHANGELOG.md, the version follows the last tag (odometer rule), both files name it, and
-// tsc, tests, check and validate pass. Then it commits those two files only, tags vX.Y.Z, pushes,
-// and creates the GitHub release with the changelog section as notes.
+// Before anything is committed it checks: on main, nothing changed but the release files
+// (orca-plugin.json, CHANGELOG.md, src/version.ts), the version follows the last tag (odometer
+// rule), those files name it, the committed panel (src/web-dist) is what the sources build, and
+// tsc, tests, check and validate pass. Then it commits the release files only, tags vX.Y.Z,
+// pushes, and creates the GitHub release with the changelog section as notes.
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commitSubject, latestTag, RELEASE_FILES, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { commitSubject, latestTag, RELEASE_FILES, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 const fail = (message) => {
   console.error(`release: ${message}`)
@@ -15,9 +16,9 @@ const fail = (message) => {
 }
 const version = process.argv[2]
 const tag = `v${version}`
-// git and gh are real executables: no shell, so arguments with spaces stay intact. npx and orca can
-// be .cmd shims on Windows, which need a shell; their arguments here are fixed words.
-const SHIMS = new Set(['npx', 'orca'])
+// git and gh are real executables: no shell, so arguments with spaces stay intact. npm, npx and orca
+// can be .cmd shims on Windows, which need a shell; their arguments here are fixed words.
+const SHIMS = new Set(['npm', 'npx', 'orca'])
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32' && SHIMS.has(cmd) })
 const raw = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8' })
 const out = (cmd, args) => raw(cmd, args).trim()
@@ -54,6 +55,17 @@ for (const path of ['docs/changelog/CHANGELOG.vi.md', 'docs/changelog/CHANGELOG.
 }
 const built = readdirSync('src/web-dist/assets').map((name) => readFileSync(`src/web-dist/assets/${name}`, 'utf8')).join('\n')
 if (!built.includes(`[${version}]`)) fail(`src/web-dist does not include ${version}'s notes: run npm run web:build and commit it first`)
+// Orca runs the committed build of the panel, not web/ and src/: it has to be what they build now.
+// A change to a file the panel bundles (src/panel, the translations, the worker's messages…) made
+// after the last build would otherwise be released without reaching the panel. The build is
+// reproducible, so building again changes nothing when the committed one is up to date.
+try {
+  run('npm', ['run', 'web:build'])
+} catch {
+  fail('the panel did not build: run npm run web:install, then npm run web:build')
+}
+const rebuilt = staleBuild(raw('git', ['status', '--porcelain', '--', 'src/web-dist']))
+if (rebuilt.length > 0) fail(`src/web-dist was not up to date: building it again changed\n  ${rebuilt.join('\n  ')}\nCommit the rebuilt panel, then run the release again.`)
 
 run('npx', ['tsc', '-p', '.'])
 run('orca', ['plugin', 'test', '.'])

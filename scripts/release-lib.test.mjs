@@ -1,7 +1,7 @@
 // The release rules: odometer versions, only release files committed, whole-sentence subjects.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { commitSubject, latestTag, nextVersions, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { commitSubject, latestTag, nextVersions, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 test('versions count like an odometer and must follow the last tag', () => {
   assert.deepEqual(nextVersions('2.0.1'), { patch: '2.0.2', minor: '2.1.0', major: '3.0.0' })
@@ -22,6 +22,18 @@ test('versions count like an odometer and must follow the last tag', () => {
 test('only orca-plugin.json and CHANGELOG.md may be changed when releasing', () => {
   assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n M CHANGELOG.md\n M src/version.ts\n'), [])
   assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n?? src/zz-perf.test.ts\nR  a.ts -> b.ts\n'), ['src/zz-perf.test.ts', 'b.ts'])
+})
+
+test('a panel build that changes src/web-dist means the committed panel was stale', () => {
+  // Building again changed nothing: the committed panel is what the sources build.
+  assert.deepEqual(staleBuild(''), [])
+  assert.deepEqual(staleBuild('\n'), [])
+  // A shared file changed after the last build: these are the files the release must not ship as they were.
+  assert.deepEqual(staleBuild(' M src/web-dist/assets/app.js\n M src/web-dist/assets/index.css\n?? src/web-dist/assets/new-chunk.js\n'), [
+    'src/web-dist/assets/app.js',
+    'src/web-dist/assets/index.css',
+    'src/web-dist/assets/new-chunk.js'
+  ])
 })
 
 test('the commit subject is a whole first sentence, never cut', () => {
