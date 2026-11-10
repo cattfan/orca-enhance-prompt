@@ -2,6 +2,12 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.1] - 2026-11-10
+
+### Thay đổi
+
+- Ghi chú mời góp ý hiện lại sau 3 ngày thay vì 14. Bạn có thể tắt nó: bấm **Đừng hỏi lại** ngay trong ghi chú, hoặc tắt công tắc **Thỉnh thoảng mời góp ý** ở mục Góp ý trong phần bánh răng (cũng có trong Settings của Orca), và bật lại ở đó khi muốn.
+
 ## [2.6.0] - 2026-11-10
 
 ### Thêm mới
