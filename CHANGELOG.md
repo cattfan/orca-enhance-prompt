@@ -3,6 +3,12 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.6.1] - 2026-11-10
+
+### Changed
+
+- The note that asks for feedback comes back after 3 days instead of 14. You can turn it off: **Don't ask again** in the note, or the switch **Ask for feedback now and then** under Feedback in the gear section (also in Orca's Settings), where you can turn it back on.
+
 ## [2.6.0] - 2026-11-10
 
 ### Added
@@ -485,6 +491,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.1
 [2.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.0
 [2.5.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.4
 [2.5.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.3
