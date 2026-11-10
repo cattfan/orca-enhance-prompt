@@ -4,7 +4,7 @@ import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { cliArgs, runCli } from './cli.ts'
+import { cliArgs, NOT_THE_PROJECT, runCli } from './cli.ts'
 import * as main from './worker.ts'
 
 // A test that stubs fetch never leaks it into the next one.
@@ -47,6 +47,17 @@ const node = process.execPath
 test('runCli passes the prompt on stdin and reads stdout', async () => {
   const out = await runCli({ kind: 'custom-cli', command: node, model: '', customArgs: script }, 'SYSTEM', '<request>\nfix login\n</request>')
   assert.equal(out, 'Rewritten: fix login [with instructions]')
+})
+
+test('a CLI is told that the folder it runs in is not the project (its model knows that folder, not the project)', async () => {
+  // A stand-in that answers with everything it was given.
+  const echo = join(dir, 'echo.mjs').replace(/\\/g, '/')
+  writeFileSync(echo, `let input = ''\nprocess.stdin.on('data', (c) => (input += c))\nprocess.stdin.on('end', () => process.stdout.write(input))`)
+  const out = await runCli({ kind: 'custom-cli', command: node, model: '', customArgs: echo }, 'SYSTEM', '<request>\nfix login\n</request>')
+  // Inside the instructions, after the rewriter's own; the request follows as it was.
+  assert.equal(out, `<instructions>\nSYSTEM\n\n${NOT_THE_PROJECT}\n</instructions>\n\n<request>\nfix login\n</request>`)
+  assert.match(NOT_THE_PROJECT, /temporary folder that is not the user's project/)
+  assert.match(NOT_THE_PROJECT, /working directory.*git repository.*never mention it and never rely on it/)
 })
 
 test('runCli reports a sign-in failure and a missing binary', async () => {

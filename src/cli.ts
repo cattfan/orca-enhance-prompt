@@ -66,6 +66,16 @@ export function detectClis(): { kind: Exclude<CliKind, 'custom-cli'>; path: stri
 
 const INSTRUCTION = 'Follow the instructions in the input exactly and output only the final prompt.'
 
+/**
+ * An agent CLI tells its model about the folder it runs in: here an empty temporary one (`cwd` in
+ * runCli), "not a git repository", on this platform. None of that is the person's project, and a
+ * rewriter that takes it for the project writes it into the prompt ("the directory is not a git
+ * repository, so first confirm which files make up the app"). The instructions of every CLI end
+ * with this.
+ */
+export const NOT_THE_PROJECT =
+  "You are running in an empty temporary folder that is not the user's project. What you know about your own working directory, whether it is a git repository, your platform, your shell or your tools says nothing about that project: never mention it and never rely on it. All you know about the project is what the input below gives you."
+
 /** The arguments for each CLI; `outFile` is where Codex writes its last message. */
 export function cliArgs(kind: CliKind, model: string, outFile: string, customArgs: string, images: readonly string[] = []): string[] {
   const m = model && SAFE_TOKEN.test(model) ? model : ''
@@ -185,7 +195,7 @@ export async function runCli(
   const cwd = await mkdtemp(join(tmpdir(), 'enhance-prompt-'))
   const outFile = join(cwd, 'last-message.txt')
   const args = cliArgs(options.kind, options.model, outFile, options.customArgs, options.images ?? [])
-  const input = `<instructions>\n${system}\n</instructions>\n\n${user}`
+  const input = `<instructions>\n${system}\n\n${NOT_THE_PROJECT}\n</instructions>\n\n${user}`
   const isCmd = process.platform === 'win32' && /\.(cmd|bat)$/i.test(binary)
   const cancelled = () => new LlmError(msg('error.timeout'), 'timeout')
   try {

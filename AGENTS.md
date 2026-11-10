@@ -45,6 +45,9 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **Project files are read with `readText`** (`src/context/files.ts`): it refuses secret files by
   name, and a link that leads out of the workspace or to a secret file. A new read of a project
   file goes through it.
+- **A CLI model runs in an empty temporary folder** and knows that folder (its path, "not a git
+  repository", the platform): `runCli` ends the instructions with `NOT_THE_PROJECT` (`src/cli.ts`),
+  so none of it is taken for the person's project and written into a prompt.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
@@ -63,7 +66,8 @@ for; approve it yourself, then run `node scripts/e2e.mjs --approve <fingerprint>
 
 `node scripts/eval-prompts.mjs` runs a few fixed cases through a real model (Claude Code, `haiku`, your
 subscription) and checks the output mechanically (no preamble, right language, no invented paths,
-details kept, length, structure headings). Run it after changing `src/prompts.ts`.
+details kept, length, structure headings). Run it after changing `src/prompts.ts` or what a CLI is
+told in `src/cli.ts`.
 
 `npm run web:dev` serves the panel at http://localhost:5174 on sample data (`web/src/mock-orca.ts`),
 redrawn on every save, with no worker, model or network. The address sets what to look at:
