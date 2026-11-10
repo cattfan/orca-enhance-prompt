@@ -58,9 +58,7 @@ See [Auto-enhance](auto-enhance.md#settings).
 
 ## Feedback
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| Ask for feedback now and then | On | A short note under the enhanced prompt invites your ideas: first after your fifth enhanced prompt, then at most once in 3 days. Off: it never shows. The same switch is under **Feedback** in the panel's Settings section, and **Don't ask again** in the note turns it off |
+The switch **Ask for feedback now and then** is in the panel only, under **Feedback** in its Settings section (gear): a short note under the enhanced prompt invites your ideas, first after your fifth enhanced prompt, then at most once in 3 days. **Don't ask again** in the note turns it off too.
 
 ## Commands
 

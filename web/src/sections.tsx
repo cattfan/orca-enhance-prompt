@@ -21,6 +21,7 @@ import {
   dataSummary,
   defaults,
   detected,
+  feedbackOff,
   filteredHistory,
   form,
   history,
@@ -58,6 +59,7 @@ import {
   reuse,
   saveForm,
   saveRules,
+  setFeedbackNotes,
   setRoles,
   setSetting,
   switchModel,
@@ -822,7 +824,7 @@ export function SettingsSection() {
         <Row
           title={t('Ask for feedback now and then')}
           description={t('A short note under the enhanced prompt invites your ideas, at most once in {days} days. Off: it never shows.', { days: FEEDBACK_EVERY_DAYS })}
-          control={<Switch checked={prefs.feedbackNote} aria-label={t('Ask for feedback now and then')} onCheckedChange={(value) => void setSetting('feedbackNote', value)} />}
+          control={<Switch checked={!read(feedbackOff)} aria-label={t('Ask for feedback now and then')} onCheckedChange={setFeedbackNotes} />}
         />
       </Group>
     </div>

@@ -29,6 +29,7 @@ import {
   effectiveLevel,
   effectiveStyle,
   excluded,
+  feedbackShown,
   files,
   lastRun,
   level,
@@ -70,7 +71,6 @@ import {
 import {
   contextKind,
   currentModelValue,
-  feedbackVisible,
   itemWhy,
   levelOptions,
   modelMenu,
@@ -528,7 +528,7 @@ function NewAgent({ output }: { output: string }) {
  * ways out: send some, close the note for now, or never be asked again (the switch in the settings).
  */
 function FeedbackNote() {
-  if (!feedbackVisible()) return null
+  if (!read(feedbackShown)) return null
   return (
     <div className="bg-card flex items-start gap-2 rounded-xl border py-2 pr-1.5 pl-2.5">
       <LightbulbIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
@@ -538,7 +538,7 @@ function FeedbackNote() {
           <Button size="xs" variant="outline" onClick={() => void sendFeedback()}>
             {t('Send feedback')}
           </Button>
-          <Button size="xs" variant="ghost" className="text-muted-foreground" onClick={() => void stopFeedback()}>
+          <Button size="xs" variant="ghost" className="text-muted-foreground" onClick={stopFeedback}>
             {t("Don't ask again")}
           </Button>
         </div>

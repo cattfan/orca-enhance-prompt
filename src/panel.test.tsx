@@ -1,14 +1,13 @@
 // `orca plugin test .` runs this in Node with the same runtime and checks Orca uses. The panel's
 // state and actions run here without anything drawn (src/panel/testing.ts): what the web panel's
 // buttons call is called directly, and what it shows is read from the state.
-import { readFileSync } from 'node:fs'
 import { read, set } from 'orca'
 import { assert, mockHost, test } from 'orca/testing'
 import { attachmentItemId } from './image-limits.ts'
-import { applyPreset, closeFeedback, enhanceNow, openForm, patchForm, removeFile, saveForm, send, sendFeedback, setSetting, stopFeedback, toggleItem } from './panel/actions.ts'
-import { contextShown, defaults, draft, enabledProfiles, excluded, feedbackAsk, feedbackShown, files, form, lastRun, notice, put, result } from './panel/state.ts'
+import { applyPreset, closeFeedback, enhanceNow, openForm, patchForm, removeFile, saveForm, send, sendFeedback, setFeedbackNotes, stopFeedback, toggleItem } from './panel/actions.ts'
+import { contextShown, draft, enabledProfiles, excluded, feedbackAsk, feedbackOff, feedbackShown, files, form, lastRun, notice, put, result } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { FEEDBACK_EVERY_DAYS, FEEDBACK_FIRST_RUNS, feedbackDue, feedbackVisible, ISSUES_URL, modelWarning, optionsSummary } from './panel/view.ts'
+import { FEEDBACK_EVERY_DAYS, FEEDBACK_FIRST_RUNS, feedbackDue, ISSUES_URL, modelWarning, optionsSummary } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import type { ModelsView, ProfileInput } from './protocol.ts'
 
@@ -191,7 +190,7 @@ test('a note asks for ideas and feedback now and then: after the fifth enhanced 
   set(feedbackAsk, { runs: 5, shownAt: Date.now() - 3 * DAY - 1000 })
   await enhanceNow()
   assert.equal(read(feedbackShown), true)
-  assert.equal(feedbackVisible(), true)
+  assert.equal(read(feedbackShown), true)
   assert.ok(Date.now() - read(feedbackAsk).shownAt < 5000)
   // A run that fails takes it away too, and does not bring it back.
   fail = true
@@ -208,14 +207,16 @@ test('a note asks for ideas and feedback now and then: after the fifth enhanced 
   assert.equal(read(feedbackShown), false)
   assert.deepEqual(host.callsOf('shell.openExternal'), [{ url: ISSUES_URL }])
 
-  // "Don't ask again" in the note: the setting goes off, the note goes, and a notice says where the
-  // switch is, so it can be turned back on.
+  // "Don't ask again" in the note: the notes are off from then on, across panel runs, the note goes,
+  // and a notice says where the switch is, so it can be turned back on.
+  assert.equal(read(feedbackOff), false)
   set(feedbackShown, true)
-  await stopFeedback()
+  stopFeedback()
   assert.equal(read(feedbackShown), false)
-  assert.equal(host.data().settings.feedbackNote, false)
-  assert.equal(read(defaults).feedbackNote, false)
+  assert.equal(read(feedbackOff), true)
   assert.deepEqual(read(notice), { tone: 'neutral', text: 'No more feedback notes. To turn them back on, open the gear icon and look under Feedback.' })
+  await view.settled()
+  assert.equal(view.persisted.plugin.feedbackOff, true)
   // Off: prompts are not counted, and a note that is due does not come.
   set(feedbackAsk, { runs: 2, shownAt: 0 })
   for (let prompts = 0; prompts < 4; prompts++) await enhanceNow()
@@ -223,23 +224,19 @@ test('a note asks for ideas and feedback now and then: after the fifth enhanced 
   const longAgo = { runs: 5, shownAt: Date.now() - 30 * DAY }
   set(feedbackAsk, longAgo)
   await enhanceNow()
-  assert.equal(feedbackVisible(), false)
+  assert.equal(read(feedbackShown), false)
   assert.deepEqual(read(feedbackAsk), longAgo)
-  // Turned back on (the switch under Feedback, or Orca's Settings): it is due, so the next prompt brings it.
-  await setSetting('feedbackNote', true)
-  assert.equal(host.data().settings.feedbackNote, true)
+  // Turned back on with the switch under Feedback: it is due, so the next prompt brings it.
+  setFeedbackNotes(true)
+  assert.equal(read(feedbackOff), false)
   await enhanceNow()
-  assert.equal(feedbackVisible(), true)
-  // Turned off while the note is on screen: it goes at once.
-  await setSetting('feedbackNote', false)
-  assert.equal(feedbackVisible(), false)
-
-  // Orca's Settings page has the same switch: the manifest declares it, on by default, with the same interval.
-  const manifest = JSON.parse(readFileSync(new URL('../orca-plugin.json', import.meta.url), 'utf8')) as { contributes: { settings: { key: string; type: string; default: unknown; description: string }[] } }
-  const declared = manifest.contributes.settings.find((entry) => entry.key === 'feedbackNote')
-  assert.equal(declared?.type, 'boolean')
-  assert.equal(declared?.default, true)
-  assert.ok(declared?.description.includes(`once in ${FEEDBACK_EVERY_DAYS} days`), declared?.description)
+  assert.equal(read(feedbackShown), true)
+  // Turned off with that switch while the note is on screen: it goes at once.
+  setFeedbackNotes(false)
+  assert.equal(read(feedbackShown), false)
+  assert.equal(read(feedbackOff), true)
+  // None of this touches Orca's settings: the switch is the panel's own.
+  assert.deepEqual(host.callsOf('settings.set'), [])
 
   // The rule itself: a clock set back does not silence the note for good.
   const now = Date.now()

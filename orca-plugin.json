@@ -312,13 +312,6 @@
         "default": false
       },
       {
-        "key": "feedbackNote",
-        "title": "Ask for feedback now and then",
-        "description": "A short note under the enhanced prompt that invites your ideas, at most once in 3 days. Off: it never shows.",
-        "type": "boolean",
-        "default": true
-      },
-      {
         "key": "autoEnhanceMode",
         "title": "Auto-enhance prompts Orca sends to agents",
         "description": "Applies to launch, task and orchestration prompts (Orca never hooks prompts you type yourself). Rules appends the text below instantly. AI rewrites with the model but Orca waits at most 2 s, so use a fast model; on timeout the original prompt is sent.",

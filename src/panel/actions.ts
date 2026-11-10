@@ -12,7 +12,7 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { consents, feedbackAsk, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -144,7 +144,6 @@ export async function refreshDefaults(): Promise<void> {
     outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto',
     autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off',
     notifyWhenDone: all.notifyWhenDone === true,
-    feedbackNote: all.feedbackNote !== false,
     otherAgents: parseOtherAgentsLimits(all)
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
@@ -722,7 +721,7 @@ export async function openIssues(): Promise<void> {
  * for tests.
  */
 export function askForFeedback(now = Date.now()): void {
-  if (!read(defaults).feedbackNote) return
+  if (read(feedbackOff)) return
   const ask = read(feedbackAsk)
   const counted = ask.shownAt === 0 ? { ...ask, runs: ask.runs + 1 } : ask
   if (feedbackDue(counted, now)) {
@@ -744,13 +743,17 @@ export async function sendFeedback(): Promise<void> {
   await openIssues()
 }
 
+/** The switch under Feedback in the settings section: whether the note may come at all. */
+export function setFeedbackNotes(on: boolean): void {
+  set(feedbackOff, !on)
+  if (!on) set(feedbackShown, false)
+}
+
 /**
- * "Don't ask again" in the note: turns the setting off (the same switch as in the settings section)
- * and says where to turn it back on, so the choice is never a dead end.
+ * "Don't ask again" in the note: the same switch, turned off, and a word on where to turn it back
+ * on, so the choice is never a dead end.
  */
-export async function stopFeedback(): Promise<void> {
-  set(feedbackShown, false)
-  await setSetting('feedbackNote', false)
-  // setSetting says so itself when the setting could not be saved.
-  if (!read(defaults).feedbackNote) set(notice, { tone: 'neutral', text: t('No more feedback notes. To turn them back on, open the gear icon and look under Feedback.') })
+export function stopFeedback(): void {
+  setFeedbackNotes(false)
+  set(notice, { tone: 'neutral', text: t('No more feedback notes. To turn them back on, open the gear icon and look under Feedback.') })
 }

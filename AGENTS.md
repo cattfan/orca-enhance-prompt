@@ -50,6 +50,12 @@ The test suite usually finishes in seconds, but some tests start real processes 
   so none of it is taken for the person's project and written into a prompt.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
+- **The manifest asks for nothing new without a decision**: when an update's manifest has a new
+  capability, command, panel, hook, event, status bar item or setting, Orca asks every user to
+  approve again and installs nothing until they do ("Update needs review"), so they miss the
+  version's fixes too. A preference of the panel lives in the panel's state (a `persist: 'plugin'`
+  atom), not in `contributes.settings`. `src/manifest.test.ts` holds the approved lists; when one
+  must grow, say in the changelog that Orca will ask (as 2.5.0 did).
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
   scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
   `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked.
