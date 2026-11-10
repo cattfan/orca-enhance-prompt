@@ -1,13 +1,23 @@
 // Files pasted, dropped or picked in the web panel: received in chunks, kept on disk, used in the prompt.
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { after } from 'node:test'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
+import { ATTACHMENTS_DIR, loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
 import { ATTACHMENT_CHUNK_BYTES, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, REQUEST_INPUT_LIMIT } from './image-limits.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
 afterEach(() => {
   globalThis.fetch = realFetch
+})
+// The tests' own folder (see ATTACHMENTS_DIR) goes when they are done.
+after(() => rmSync(ATTACHMENTS_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
+
+test('tests keep their attachments apart from the real panel\'s', () => {
+  assert.notEqual(ATTACHMENTS_DIR, join(tmpdir(), 'enhance-prompt-attachments'))
+  assert.equal(dirname(ATTACHMENTS_DIR), tmpdir())
 })
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 
@@ -71,4 +81,31 @@ test('a piece larger than one request, or a file over the limit, is refused with
     putChunk({ id: 'att-too-big', name: 'big.log', index: 0, total: 300, data: 'AAAA', size: MAX_ATTACHMENT_BYTES + 1024 * 1024 }),
     /big\.log is 11\.0 MB; an attachment can be at most 10\.0 MB/
   )
+})
+
+test('"Delete everything" removes the attached files; one kept for more than a day goes when a new file arrives', async () => {
+  const worker = await mountWorker(main, { host: mockHost() })
+  const put = (id: string, name: string) => worker.request('attachments.put', { id, name, index: 0, total: 1, data: PNG.toString('base64') })
+  const old = await put('att-old-one', 'yesterday.png')
+  assert.ok('path' in old && existsSync(old.path))
+  // Two days old (a worker can run that long without starting again).
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600_000)
+  utimesSync(dirname(old.path), twoDaysAgo, twoDaysAgo)
+  const fresh = await put('att-new-one', 'today.png')
+  assert.ok('path' in fresh)
+  for (let i = 0; i < 100 && existsSync(old.path); i++) await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.ok(!existsSync(old.path), 'the old attachment is still there')
+  assert.ok(existsSync(fresh.path))
+
+  // Clearing history or model lists leaves attachments alone; Delete everything removes them.
+  await worker.request('data.clear', { what: 'history' })
+  await worker.request('data.clear', { what: 'catalogs' })
+  assert.ok(existsSync(fresh.path))
+  await worker.request('data.clear', { what: 'all' })
+  assert.ok(!existsSync(fresh.path), 'Delete everything left an attached file on disk')
+  assert.ok(!existsSync(ATTACHMENTS_DIR))
+  // The next attachment starts a new folder.
+  const again = await put('att-after-wipe', 'again.png')
+  assert.ok('path' in again && existsSync(again.path))
+  await worker.deactivate()
 })

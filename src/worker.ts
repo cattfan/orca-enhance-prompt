@@ -11,7 +11,7 @@ import { resolveLanguage, translate } from './i18n-dict.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
 import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
-import { cleanAttachments, loadFiles, putChunk } from './attachments.ts'
+import { cleanAttachments, clearAttachments, loadFiles, putChunk } from './attachments.ts'
 import { MAX_IMAGES } from './image-limits.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
@@ -602,6 +602,8 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
   // The web panel's pasted, dropped or picked files arrive in chunks (no path on disk in a frame).
   void cleanAttachments()
   orca.panels.handle('attachments.put', async (input) => {
+    // A new file: the ones kept for more than a day go now (this worker may have started days ago).
+    if (input.index === 0) void cleanAttachments()
     try {
       return await putChunk(input)
     } catch (error) {
@@ -841,6 +843,8 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       // Confirmations go too: a switch that needs one asks again; what Orca reported is forgotten.
       await orca.storage.delete(CONSENTS_KEY)
       forgetActivity()
+      // The copies of attached files (the panel forgets its list of them as well).
+      await clearAttachments().catch((error) => orca.log(`attachments: ${(error as Error).message}`))
     }
     return { ok: true as const }
   })

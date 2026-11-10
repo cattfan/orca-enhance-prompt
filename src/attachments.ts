@@ -11,8 +11,12 @@ import { megabytes, sniffImage, type ImageData } from './images.ts'
 import { LlmError } from './llm.ts'
 import { msg } from './messages.ts'
 
-/** Where attachments are kept; removed after a day. */
-export const ATTACHMENTS_DIR = join(tmpdir(), 'enhance-prompt-attachments')
+/**
+ * Where attachments are kept; removed after a day. Under the test runner (Node sets
+ * NODE_TEST_CONTEXT in a test's process) it is a folder of that test file's own, so a test never
+ * writes into, or deletes, the folder that holds what a person attached in the real panel.
+ */
+export const ATTACHMENTS_DIR = join(tmpdir(), `enhance-prompt-attachments${process.env.NODE_TEST_CONTEXT ? `-test-${process.pid}` : ''}`)
 /** An attachment can be at most MAX_ATTACHMENT_BYTES; text files at most TEXT_MAX of it go in the context. */
 export { MAX_ATTACHMENT_BYTES }
 export const TEXT_MAX = 200_000
@@ -56,13 +60,21 @@ export async function putChunk(input: { id: string; name: string; index: number;
   return { path, bytes: before + bytes.length }
 }
 
-/** Removes attachments older than a day (called when the worker starts). */
+/**
+ * Removes attachments older than a day. Called when the worker starts and whenever a new file
+ * arrives: a worker can run for days, and "removed after a day" must not wait for its next start.
+ */
 export async function cleanAttachments(now = Date.now()): Promise<void> {
   const entries = await readdir(ATTACHMENTS_DIR).catch(() => [] as string[])
   for (const entry of entries) {
     const info = await stat(join(ATTACHMENTS_DIR, entry)).catch(() => null)
     if (info && now - info.mtimeMs > DAY_MS) await rm(join(ATTACHMENTS_DIR, entry), { recursive: true, force: true }).catch(() => undefined)
   }
+}
+
+/** Removes every attachment now ("Delete everything"). */
+export async function clearAttachments(): Promise<void> {
+  await rm(ATTACHMENTS_DIR, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
 }
 
 export type LoadedFiles = {
