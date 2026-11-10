@@ -14,7 +14,6 @@ const claude: ProfileView = {
   provider: 'cli',
   baseUrl: '',
   model: 'haiku',
-  temperature: 0.3,
   maxTokens: 2000,
   enabled: true,
   command: '',
@@ -104,7 +103,7 @@ test('the worker runs the picked model on the picked profile only', async () => 
     return new Response(JSON.stringify({ choices: [{ message: { content: 'done' } }] }), { status: 200 })
   }) as typeof fetch
   try {
-    const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+    const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, command: '', args: '' }
     const host = mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.oa': 'k' }, results: { 'workspace.readContext': null } })
     const worker = await mountWorker(main, { host })
     const answer = await worker.request('prompt.enhance', { prompt: 'x y z', level: 'off', profileId: 'oa', model: 'gpt-4.1' })

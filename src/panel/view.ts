@@ -55,6 +55,9 @@ export const KEY_LABEL: Record<ProfileView['keySource'], string> = {
   subscription: 'subscription'
 }
 
+/** The Max tokens offered for a model; one saved with another value (an older version, a hand-edited profile) is offered too. */
+export const maxTokenChoices = (current: number): number[] => [...new Set([1000, 2000, 4000, 8000, 16000, current])].sort((a, b) => a - b)
+
 export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
 /**

@@ -14,7 +14,6 @@ export type ProfileInput = {
   provider: Provider
   baseUrl: string
   model: string
-  temperature: number
   maxTokens: number
   enabled: boolean
   /** CLI profiles: executable name or path. */

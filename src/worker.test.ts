@@ -62,7 +62,6 @@ function profile(id: string, preset: string, extra: Record<string, unknown> = {}
     provider: preset === 'anthropic' ? 'anthropic' : 'openai',
     baseUrl: urls[preset] ?? '',
     model: '',
-    temperature: 0.3,
     maxTokens: 2000,
     enabled: true,
     ...extra
@@ -201,11 +200,11 @@ test('skips a model without a key and uses a chosen profile first', async () => 
 test('model profiles: add with key, reorder, roles, delete', async () => {
   const host = mockHost({ results: hostFor(null) })
   const worker = await mountWorker(main, { host })
-  let view = await worker.request('models.save', { name: 'GPT', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1', temperature: 0.2, maxTokens: 4000, enabled: true, apiKey: ' sk-1 ' })
+  let view = await worker.request('models.save', { name: 'GPT', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1', maxTokens: 4000, enabled: true, apiKey: ' sk-1 ' })
   const gpt = view.profiles[0]
   assert.equal(gpt.keySource, 'secret')
   assert.equal(host.data().secrets[`apiKey.${gpt.id}`], 'sk-1')
-  view = await worker.request('models.save', { name: 'Local', preset: 'ollama', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen', temperature: 0.3, maxTokens: 2000, enabled: true })
+  view = await worker.request('models.save', { name: 'Local', preset: 'ollama', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'qwen', maxTokens: 2000, enabled: true })
   const local = view.profiles[1]
   assert.equal(local.keySource, 'not-needed')
   view = await worker.request('models.move', { id: local.id, direction: 'up' })

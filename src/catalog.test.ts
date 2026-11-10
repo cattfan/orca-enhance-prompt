@@ -32,7 +32,7 @@ test('API catalogs come from GET /models, newest first, and are cached', async (
   const host = mockHost({
     storage: {
       models: {
-        profiles: [{ id: 'groq', name: 'Groq', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'old', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }]
+        profiles: [{ id: 'groq', name: 'Groq', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'old', maxTokens: 2000, enabled: true, command: '', args: '' }]
       }
     },
     secrets: { 'apiKey.groq': 'g' }
@@ -80,8 +80,8 @@ test('opening the panel asks for the same list at once: one fetch serves them al
     storage: {
       models: {
         profiles: [
-          { id: 'a', name: 'A', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' },
-          { id: 'b', name: 'B', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+          { id: 'a', name: 'A', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', maxTokens: 2000, enabled: true, command: '', args: '' },
+          { id: 'b', name: 'B', preset: 'groq', provider: 'openai', baseUrl: 'https://api.groq.com/openai/v1', model: 'm1', maxTokens: 2000, enabled: true, command: '', args: '' }
         ]
       }
     },

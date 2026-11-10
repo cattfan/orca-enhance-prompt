@@ -5,7 +5,7 @@ import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type Ru
 import { ISSUES_URL } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { type Message } from '../messages.ts'
-import { isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
+import { DEFAULT_MAX_TOKENS, isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle } from '../prompts.ts'
 import { t, uiLanguageSetting } from '../i18n.ts'
 import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
@@ -479,7 +479,6 @@ export function openForm(profile?: ProfileView): void {
       provider: profile.provider,
       baseUrl: profile.baseUrl,
       model: profile.model,
-      temperature: profile.temperature,
       maxTokens: profile.maxTokens,
       enabled: profile.enabled,
       command: profile.command,
@@ -488,7 +487,7 @@ export function openForm(profile?: ProfileView): void {
     })
   } else {
     const preset = presetById('openai')
-    set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', apiKey: '' })
+    set(form, { name: preset.label, preset: preset.id, provider: preset.provider, baseUrl: preset.baseUrl, model: preset.model, maxTokens: DEFAULT_MAX_TOKENS, enabled: true, command: '', args: '', apiKey: '' })
   }
   const current = read(form)
   if (current) void loadCatalog('form', formCatalogInput(current))
@@ -515,8 +514,7 @@ export async function addDetected(presetId: string, path: string): Promise<void>
         provider: preset.provider,
         baseUrl: '',
         model: preset.model,
-        temperature: 0.3,
-        maxTokens: 2000,
+        maxTokens: DEFAULT_MAX_TOKENS,
         enabled: true,
         command: path,
         args: ''

@@ -31,7 +31,7 @@ after(() => {
   }
 })
 
-const config = { provider: 'openai' as const, baseUrl: 'https://api.example.com/v1', model: 'm', apiKey: 'k', temperature: 0.3, maxTokens: 100 }
+const config = { provider: 'openai' as const, baseUrl: 'https://api.example.com/v1', model: 'm', apiKey: 'k', maxTokens: 100 }
 
 test('a 200 answer that is an HTML page or empty is a clear, transient error', async () => {
   globalThis.fetch = (async () => new Response('<html><body><h1>Sign in to the Wi-Fi</h1></body></html>', { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } })) as typeof fetch
@@ -52,7 +52,7 @@ test('with fallback on transient errors only, an HTML answer moves on to the nex
     String(url).includes('groq')
       ? new Response(JSON.stringify({ choices: [{ message: { content: 'from groq' } }] }), { status: 200 })
       : new Response('<html>portal</html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch
-  const profile = (id: string, baseUrl: string) => ({ id, name: id, preset: 'openai', provider: 'openai', baseUrl, model: 'm', temperature: 0.3, maxTokens: 100, enabled: true })
+  const profile = (id: string, baseUrl: string) => ({ id, name: id, preset: 'openai', provider: 'openai', baseUrl, model: 'm', maxTokens: 100, enabled: true })
   const worker = await mountWorker(main, {
     host: mockHost({
       storage: { models: { profiles: [profile('portal', 'https://api.openai.com/v1'), profile('groq', 'https://api.groq.com/openai/v1')] } },
@@ -129,7 +129,7 @@ test('a refusal from a Claude model is a clear error naming the model and the ca
   const realFetch = globalThis.fetch
   globalThis.fetch = (async () => new Response(JSON.stringify({ content: [], stop_reason: 'refusal', stop_details: { category: 'cyber' } }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch
   try {
-    const config = { provider: 'anthropic' as const, baseUrl: 'https://api.anthropic.com', apiKey: 'k', model: 'claude-fable-5-2', temperature: 0.3, maxTokens: 100 }
+    const config = { provider: 'anthropic' as const, baseUrl: 'https://api.anthropic.com', apiKey: 'k', model: 'claude-fable-5-2', maxTokens: 100 }
     await assert.rejects(complete(config, 'system', 'user'), /claude-fable-5-2 declined this request \(cyber\)/)
   } finally {
     globalThis.fetch = realFetch

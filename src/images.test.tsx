@@ -66,7 +66,7 @@ test('which models see the pictures: Anthropic and the OpenAI, OpenRouter and Ge
   assert.match(withImagePaths('Fix it.', [image]), new RegExp(`Attached images \\(open them\\):\\n- ${png.replace(/[\\.()]/g, '\\$&')}$`))
 })
 
-const profile = (id: string, preset: string, provider = 'openai') => ({ id, name: id, preset, provider, baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true })
+const profile = (id: string, preset: string, provider = 'openai') => ({ id, name: id, preset, provider, baseUrl: '', model: '', maxTokens: 2000, enabled: true })
 
 test('the worker sends the picture to a model that reads images, and lists its path in the prompt', async () => {
   const bodies: { url: string; body: Record<string, unknown> }[] = []

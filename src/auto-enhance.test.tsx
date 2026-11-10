@@ -17,7 +17,6 @@ const api = (id: string, extra: Partial<ProfileView> = {}): ProfileView => ({
   model: '',
   effectiveBaseUrl: 'https://api.openai.com/v1',
   effectiveModel: 'gpt-4.1-mini',
-  temperature: 0.3,
   maxTokens: 2000,
   enabled: true,
   command: '',
@@ -66,7 +65,7 @@ test('the hook model menu lists only enabled API models; a stored CLI choice sho
 })
 
 test('the worker never stores a CLI as the hook model and skips disabled ones', async () => {
-  const stored = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: id, preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true, ...extra })
+  const stored = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: id, preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true, ...extra })
   const profiles = [stored('off', { enabled: false }), stored('claude', { preset: 'claude-code', provider: 'cli' })]
   const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles, hookProfileId: 'off' } }, secrets: { 'apiKey.off': 'k' }, settings: { autoEnhanceMode: 'ai' } }) })
   const roles = await worker.request('models.roles', { hookProfileId: 'claude', selectorProfileId: 'claude' })
@@ -84,7 +83,7 @@ test('the AI rewrite reaches the terminal without control characters; an empty r
   let answer = ''
   globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: answer } }] }), { status: 200 })) as typeof fetch
   try {
-    const profile = { id: 'fast', name: 'fast', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }
+    const profile = { id: 'fast', name: 'fast', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
     const host = mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.fast': 'k' }, settings: { autoEnhanceMode: 'ai', autoEnhanceContext: false } })
     const worker = await mountWorker(main, { host })
     const event = { agent: 'claude', terminalId: 't1', prompt: 'add a login page', inputKind: 'launch' as const }

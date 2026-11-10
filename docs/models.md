@@ -41,6 +41,8 @@ Click **Add model** and pick a preset:
 - Keys you paste are stored in Orca's encrypted secrets and never shown again. Leave the field empty and the environment variable in the table is used instead.
 - Endpoints must use `https`, except `http://localhost` for local servers.
 - If you have no saved models, the plugin uses any of those environment variables it finds, and the Models tab says so.
+- **Max tokens** is the most one answer may take: 8,000 for a model you add now. Current models think before they answer, and that thinking counts too. When an answer stops at the limit, the panel says so (and fallback moves on) instead of showing half a prompt; raise the limit for that model then.
+- The plugin sends no sampling settings such as temperature: current models refuse a request that sets them.
 
 ## Model lists stay current
 

@@ -48,7 +48,7 @@ test('extractError without an error line keeps the last lines; huge output stays
   assert.deepEqual(extractError(['', '   ']), { text: '', found: false })
 })
 
-const gpt = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }
+const gpt = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
 function hostWith(settings: Record<string, boolean | string> = {}) {
   return mockHost({
     settings,

@@ -30,6 +30,10 @@ Open the **Models** tab and add a model: click a CLI under **Use your subscripti
 - "was not found": Orca can't see the CLI on its `PATH`. Edit the model and set the full path in **Command** (for example `~/.local/bin/claude`).
 - A quota or rate-limit error comes from your plan. With [fallback](models.md#fallback), the next model answers.
 
+## "… reached its limit of … tokens before it finished"
+
+The answer stopped at the model's **Max tokens**. Models that think before they answer use part of that limit for thinking. Open the model in the **Models** tab (⋮ → **Edit**) and raise **Max tokens**; models added before 2.5.4 were created with 2,000, new ones get 8,000.
+
 ## The model list is empty or old
 
 - API presets need a key before they can list models: paste it in the form, or save it and reopen.

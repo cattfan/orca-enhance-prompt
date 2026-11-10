@@ -56,7 +56,7 @@ export type ModelProfile = {
   provider: Provider
   baseUrl: string
   model: string
-  temperature: number
+  /** The most tokens one answer may take. For a model that thinks first, its thinking counts too. */
   maxTokens: number
   enabled: boolean
   /** CLI profiles: executable name or full path ('' = the preset's default binary). */
@@ -89,6 +89,13 @@ export type ProfileView = ModelProfile & {
 
 export const MODELS_KEY = 'models'
 
+/**
+ * Max tokens of a new profile. An enhanced prompt is rarely over 2,000 tokens, but current models
+ * think before they answer and that thinking counts against the same limit: with too low a limit
+ * the answer is cut off, or never starts.
+ */
+export const DEFAULT_MAX_TOKENS = 8000
+
 const str = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback)
 const num = (value: unknown, fallback: number) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -110,8 +117,8 @@ export function normalizeProfile(value: unknown): ModelProfile | null {
     provider: preset.provider === 'cli' ? 'cli' : raw.provider === 'anthropic' ? 'anthropic' : 'openai',
     baseUrl: str(raw.baseUrl).trim().slice(0, 500),
     model: str(raw.model).trim().slice(0, 200),
-    temperature: Math.min(2, Math.max(0, num(raw.temperature, 0.3))),
-    maxTokens: Math.round(Math.min(32000, Math.max(128, num(raw.maxTokens, 2000)))),
+    // A profile saved before 2.5.4 also carries `temperature`: it is dropped here, and never sent.
+    maxTokens: Math.round(Math.min(32000, Math.max(128, num(raw.maxTokens, DEFAULT_MAX_TOKENS)))),
     enabled: raw.enabled !== false,
     command: str(raw.command).trim().slice(0, 500),
     args: str(raw.args).trim().slice(0, 500)

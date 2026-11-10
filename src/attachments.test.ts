@@ -43,7 +43,7 @@ test('a run uses attached files: images as images, short text in the context, ev
     bodies.push(JSON.parse(String(init?.body)))
     return new Response(JSON.stringify({ choices: [{ message: { content: 'Fix the missing module.' } }] }), { status: 200 })
   }) as typeof fetch
-  const profile = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }
+  const profile = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
   const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.gpt': 'k' } }) })
   const answer = await worker.request('prompt.enhance', { prompt: 'fix the build', level: 'off', files: [image.path, log.path] })
   const user = bodies[0].messages[1].content as { type: string; text?: string; image_url?: { url: string } }[]

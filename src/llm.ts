@@ -13,8 +13,20 @@ export type LlmConfig = {
   apiKey: string | null
   /** Environment variable named in the missing-key message. */
   envName?: string
-  temperature: number
   maxTokens: number
+}
+
+/**
+ * OpenAI's own API names the answer's token limit `max_completion_tokens`: `max_tokens` is
+ * deprecated there and its o-series models refuse it. Other OpenAI-compatible servers (Groq, Ollama,
+ * LM Studio, OpenRouter…) know `max_tokens`, and not all of them know the new name.
+ */
+export function tokenLimitField(baseUrl: string): 'max_completion_tokens' | 'max_tokens' {
+  try {
+    return new URL(baseUrl).hostname === 'api.openai.com' ? 'max_completion_tokens' : 'max_tokens'
+  } catch {
+    return 'max_tokens'
+  }
 }
 
 export class LlmError extends Error {
@@ -153,10 +165,11 @@ export async function complete(
               'x-api-key': config.apiKey ?? '',
               'anthropic-version': '2023-06-01'
             },
+            // No sampling parameters (temperature, top_p): current Claude models refuse a request
+            // that sets them, and the prompt says how to write.
             body: JSON.stringify({
               model: config.model,
               max_tokens: config.maxTokens,
-              temperature: config.temperature,
               system,
               messages: [
                 {
@@ -181,8 +194,7 @@ export async function complete(
             },
             body: JSON.stringify({
               model: config.model,
-              max_tokens: config.maxTokens,
-              temperature: config.temperature,
+              [tokenLimitField(config.baseUrl)]: config.maxTokens,
               messages: [
                 { role: 'system', content: system },
                 {
@@ -215,13 +227,19 @@ export async function complete(
     content?: { type: string; text?: string }[]
     stop_reason?: string
     stop_details?: { category?: string }
-    choices?: { message?: { content?: string | { type: string; text?: string }[] } }[]
+    choices?: { finish_reason?: string; message?: { content?: string | { type: string; text?: string }[] } }[]
   }
   // Newer Claude models (Fable 5.2) can decline a request: say so, with the category, instead of
   // "empty answer". Not transient, so "fall back on any error" moves on to the next model.
   if (config.provider === 'anthropic' && data.stop_reason === 'refusal') {
     const category = typeof data.stop_details?.category === 'string' ? data.stop_details.category.slice(0, 40) : 'refusal'
     throw new LlmError(msg('error.refused', { model: config.model, category }))
+  }
+  // The answer stopped at the token limit: a prompt cut off in the middle (or, from a model that
+  // thinks first, no prompt at all) is not handed on as if it were whole.
+  const cutOff = config.provider === 'anthropic' ? data.stop_reason === 'max_tokens' : data.choices?.[0]?.finish_reason === 'length'
+  if (cutOff) {
+    throw new LlmError(msg('error.cut_off', { model: config.model, max: config.maxTokens }))
   }
   let text = ''
   if (config.provider === 'anthropic') {

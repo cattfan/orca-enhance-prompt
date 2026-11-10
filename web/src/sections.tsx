@@ -64,7 +64,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, hookChoice, hookModels, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -249,24 +249,14 @@ function ProfileForm() {
           <Field label={t('API key')}>
             <Input className="h-8" type="password" placeholder={keyHint} value={current.apiKey} onChange={(event) => patchForm({ apiKey: event.target.value })} />
           </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label={t('Temperature')}>
-              <Pick
-                label={t('Temperature')}
-                value={String(current.temperature)}
-                options={['0', '0.2', '0.3', '0.5', '0.7', '1'].map((value) => ({ value, label: t('Temperature {value}', { value }) }))}
-                onChange={(value) => patchForm({ temperature: Number(value) })}
-              />
-            </Field>
-            <Field label={t('Max tokens')}>
-              <Pick
-                label={t('Max tokens')}
-                value={String(current.maxTokens)}
-                options={['1000', '2000', '4000', '8000', '16000'].map((value) => ({ value, label: t('{value} tokens', { value }) }))}
-                onChange={(value) => patchForm({ maxTokens: Number(value) })}
-              />
-            </Field>
-          </div>
+          <Field label={t('Max tokens')}>
+            <Pick
+              label={t('Max tokens')}
+              value={String(current.maxTokens)}
+              options={maxTokenChoices(current.maxTokens).map((value) => ({ value: String(value), label: t('{value} tokens', { value }) }))}
+              onChange={(value) => patchForm({ maxTokens: Number(value) })}
+            />
+          </Field>
         </>
       )}
       <div className="flex gap-1.5">

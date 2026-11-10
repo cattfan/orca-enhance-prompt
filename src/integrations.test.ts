@@ -19,7 +19,7 @@ writeFileSync(join(root, 'login.ts'), 'export function login() {}\n')
 after(() => rmSync(root, { recursive: true, force: true }))
 
 const WS = 'identity:wt2:local:test'
-const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }
+const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, command: '', args: '' }
 
 function host(settings: Record<string, boolean | string>, consents: Record<string, boolean> = {}) {
   return mockHost({

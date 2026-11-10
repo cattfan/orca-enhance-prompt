@@ -203,9 +203,7 @@ export const VI: Record<string, string> = {
   'CLI default': 'Mặc định của CLI',
   'Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an API (a few seconds per call), so it is skipped by auto-enhance.':
     'Chạy CLI đã đăng nhập trên máy này, nên dùng gói subscription thay cho API key. Chậm hơn API (vài giây mỗi lần) nên auto-enhance sẽ bỏ qua.',
-  Temperature: 'Temperature',
   'Max tokens': 'Số token tối đa',
-  'Temperature {value}': 'Temperature {value}',
   '{value} tokens': '{value} token',
   Save: 'Lưu',
   Test: 'Kiểm tra',
@@ -255,6 +253,8 @@ export const VI: Record<string, string> = {
   'Could not reach {url}: {detail}': 'Không kết nối được {url}: {detail}',
   '{status}: {detail}': '{status}: {detail}',
   'The model returned an empty answer.': 'Model trả về câu trả lời rỗng.',
+  '{model} reached its limit of {max} tokens before it finished. Raise Max tokens for this model in the Models tab.':
+    '{model} đã chạm giới hạn {max} token trước khi viết xong. Hãy tăng Số token tối đa của model này trong tab Model.',
   'Unsafe argument for a .cmd launcher.': 'Tham số không an toàn cho trình khởi chạy .cmd.',
   '{name} was not found. Install it and sign in, or set its full path in the model.': 'Không tìm thấy {name}. Hãy cài và đăng nhập, hoặc đặt đường dẫn đầy đủ trong model.',
   'Could not start {binary}: {detail}': 'Không khởi chạy được {binary}: {detail}',
@@ -577,9 +577,7 @@ export const ZH: Record<string, string> = {
   'CLI default': 'CLI 默认',
   'Runs the CLI already signed in on this machine, so it uses your subscription instead of an API key. Slower than an API (a few seconds per call), so it is skipped by auto-enhance.':
     '运行本机已登录的 CLI，使用你的订阅而非 API key。比 API 慢（每次几秒），因此自动优化会跳过它。',
-  Temperature: '温度',
   'Max tokens': '最大 token',
-  'Temperature {value}': '温度 {value}',
   '{value} tokens': '{value} token',
   Save: '保存',
   Test: '测试',
@@ -628,6 +626,8 @@ export const ZH: Record<string, string> = {
   'Could not reach {url}: {detail}': '无法连接 {url}：{detail}',
   '{status}: {detail}': '{status}：{detail}',
   'The model returned an empty answer.': '模型返回了空回答。',
+  '{model} reached its limit of {max} tokens before it finished. Raise Max tokens for this model in the Models tab.':
+    '{model} 还没写完就达到了 {max} 个 token 的上限。请在“模型”标签中调高该模型的最大 token。',
   'Unsafe argument for a .cmd launcher.': '.cmd 启动器的参数不安全。',
   '{name} was not found. Install it and sign in, or set its full path in the model.': '未找到 {name}。请安装并登录，或在模型中填写完整路径。',
   'Could not start {binary}: {detail}': '无法启动 {binary}：{detail}',

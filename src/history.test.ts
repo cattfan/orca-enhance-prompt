@@ -14,7 +14,7 @@ afterEach(() => {
 })
 
 const entry = (id: string, size = 10): HistoryEntry => ({ id, at: 1, original: 'o'.repeat(size), enhanced: 'e'.repeat(size), style: 'balanced', model: 'm', source: 'panel' })
-const gpt = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }
+const gpt = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
 
 test('history keeps at most the limit (500) and stays under its total size; one huge entry is trimmed', () => {
   const many = Array.from({ length: 600 }, (_, index) => entry(`e${index}`))

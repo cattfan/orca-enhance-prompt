@@ -69,6 +69,7 @@ export const MESSAGES = {
   'error.unreachable': 'Could not reach {url}: {detail}',
   'error.http': '{status}: {detail}',
   'error.empty_answer': 'The model returned an empty answer.',
+  'error.cut_off': '{model} reached its limit of {max} tokens before it finished. Raise Max tokens for this model in the Models tab.',
   'error.refused': '{model} declined this request ({category}). Use another model, or rephrase the request.',
   'error.unsafe_argument': 'Unsafe argument for a .cmd launcher.',
   'error.cli_missing': '{name} was not found. Install it and sign in, or set its full path in the model.',

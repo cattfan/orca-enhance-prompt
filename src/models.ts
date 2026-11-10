@@ -5,6 +5,7 @@ import { complete, isLocalUrl, isTransient, LlmError, messageOf } from './llm.ts
 import { english, msg, type Message } from './messages.ts'
 import { imageSupport, type ImageData } from './images.ts'
 import {
+  DEFAULT_MAX_TOKENS,
   MODELS_KEY,
   modelsToJson,
   parseModelsConfig,
@@ -29,8 +30,7 @@ function envProfiles(): ModelProfile[] {
         provider: preset.provider,
         baseUrl: preset.baseUrl,
         model: preset.model,
-        temperature: 0.3,
-        maxTokens: 2000,
+        maxTokens: DEFAULT_MAX_TOKENS,
         enabled: true,
         command: '',
         args: ''
@@ -207,7 +207,6 @@ export async function runChain(
           model,
           apiKey: key,
           envName: presetById(profile.preset).env,
-          temperature: profile.temperature,
           maxTokens: profile.maxTokens
         },
         system,

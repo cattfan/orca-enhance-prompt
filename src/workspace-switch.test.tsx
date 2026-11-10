@@ -13,7 +13,7 @@ const B: Space = { id: 'ws-b', name: 'app-b', agent: 'Claude B', terminal: 'term
 const C: Space = { id: 'ws-c', name: 'app-c', agent: 'Claude C', terminal: 'term-c' }
 
 const gpt: ProfileView = {
-  id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true,
+  id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true,
   command: '', args: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini', keySource: 'secret', envName: ''
 }
 

@@ -33,14 +33,14 @@ const settingsValues: Record<string, unknown> = {
   sendPressEnter: false
 }
 const profile = (id: string, name: string, preset: string, provider: string, model: string, keySource: string) => ({
-  id, name, preset, provider, baseUrl: '', model, temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '',
+  id, name, preset, provider, baseUrl: '', model, maxTokens: 8000, enabled: true, command: '', args: '',
   keySource, effectiveModel: model, effectiveBaseUrl: provider === 'cli' ? '' : 'https://api.openai.com/v1'
 })
 let models = {
   profiles: [profile('claude', 'Claude Code', 'claude-code', 'cli', 'sonnet', 'subscription'), profile('gpt', 'OpenAI', 'openai', 'openai', 'gpt-5-mini', 'secret')],
   presets: [
     { id: 'openai', label: 'OpenAI', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini' },
-    { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-sonnet-4-5' },
+    { id: 'anthropic', label: 'Anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', model: 'claude-haiku-4-5' },
     { id: 'claude-code', label: 'Claude Code (subscription)', provider: 'cli', baseUrl: '', model: '' }
   ],
   fromEnv: false,

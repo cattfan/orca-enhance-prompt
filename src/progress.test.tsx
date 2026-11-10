@@ -103,7 +103,7 @@ test('the worker reports the real steps of a Deep run, in order, to the asking p
   writeFileSync(join(root, 'login.ts'), 'export const login = 1\n')
   globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })) as typeof fetch
   const host = mockHost({
-    storage: { models: { profiles: [{ id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }] } },
+    storage: { models: { profiles: [{ id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, command: '', args: '' }] } },
     secrets: { 'apiKey.oa': 'k' },
     results: {
       'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [] },
@@ -132,7 +132,7 @@ test('the worker reports the real steps of a Deep run, in order, to the asking p
 test('a failing model marks the model step failed', async () => {
   globalThis.fetch = (async () => new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 })) as typeof fetch
   const host = mockHost({
-    storage: { models: { profiles: [{ id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '' }] } },
+    storage: { models: { profiles: [{ id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt', maxTokens: 2000, enabled: true, command: '', args: '' }] } },
     secrets: { 'apiKey.oa': 'k' },
     results: { 'workspace.readContext': null }
   })
@@ -144,7 +144,7 @@ test('a failing model marks the model step failed', async () => {
   await worker.deactivate()
 })
 
-const gpt: ProfileView = { id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: '', model: 'gpt-4.1-mini', temperature: 0.3, maxTokens: 2000, enabled: true, command: '', args: '', keySource: 'secret', envName: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini' }
+const gpt: ProfileView = { id: 'gpt', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: '', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, command: '', args: '', keySource: 'secret', envName: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini' }
 const models = { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS }
 
 test('the panel shows live steps, ignores old runs, and ends with the result or Try again', async () => {

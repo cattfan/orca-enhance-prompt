@@ -46,7 +46,7 @@ test('the system prompt: a structure replaces the style shape, rules are listed 
 
 function workerHost(workspace: string) {
   return mockHost({
-    storage: { models: { profiles: [{ id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', temperature: 0.3, maxTokens: 2000, enabled: true }] }, rules: stored },
+    storage: { models: { profiles: [{ id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }] }, rules: stored },
     secrets: { 'apiKey.gpt': 'k' },
     settings: { autoEnhanceMode: 'ai' },
     results: { 'workspace.readContext': { branch: 'main', displayName: workspace, terminals: [] }, 'agents.list': { agents: [] } }
