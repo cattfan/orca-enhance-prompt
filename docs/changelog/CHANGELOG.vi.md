@@ -2,6 +2,12 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.5.3] - 2026-11-10
+
+### Sửa lỗi
+
+- Gõ ở giữa ô prompt hoặc ô prompt đã cải thiện không còn làm con trỏ nhảy về cuối đoạn văn.
+
 ## [2.5.2] - 2026-11-10
 
 ### Thay đổi
