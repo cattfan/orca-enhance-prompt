@@ -119,7 +119,6 @@ export function contextKind(kind: string): string {
     git: () => t('git'),
     file: () => t('file'),
     terminal: () => t('terminal'),
-    error: () => t('error'),
     agents: () => t('agents'),
     session: () => t('agent session'),
     activity: () => t('activity'),
@@ -135,7 +134,6 @@ export function itemWhy(item: ContextItemView): string {
 }
 
 export const STEP_LABELS: Record<Step['key'], string> = {
-  error: 'Reading the error',
   workspace: 'Reading workspace',
   project: 'Reading project rules and stack',
   git: 'Reading git changes',

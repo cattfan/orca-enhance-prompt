@@ -1,56 +1,36 @@
-// Attached images: checked by path, sent to models that can see them, always listed for the agent.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+// Attached images: recognised by their bytes, sent to models that can see them, always listed for the agent.
+import { rmSync } from 'node:fs'
 import { after } from 'node:test'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { read, set } from 'orca'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { ATTACHMENTS_DIR, putChunk } from './attachments.ts'
 import { cliArgs } from './cli.ts'
-import { cleanImagePath, imageSupport, inspectImage, loadImages, MAX_IMAGE_BYTES, sniffImage, withImagePaths } from './images.ts'
-import { addImage, enhanceNow, removeImage } from './panel/actions.ts'
-import { draft, imageDraft, images, notice, put } from './panel/state.ts'
-import { mountPanel } from './panel/testing.ts'
-import { PRESETS, type ProfileView } from './presets.ts'
+import { imageSupport, sniffImage, withImagePaths } from './images.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
 afterEach(() => {
   globalThis.fetch = realFetch
 })
-const dir = mkdtempSync(join(tmpdir(), 'images-'))
-after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
+// The tests' own attachments folder goes when they are done.
+after(() => rmSync(ATTACHMENTS_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
 
 // A real 1x1 PNG.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
-const png = join(dir, 'login bug.png')
-writeFileSync(png, PNG)
-const text = join(dir, 'notes.png')
-writeFileSync(text, 'not an image')
-const big = join(dir, 'huge.png')
-writeFileSync(big, Buffer.concat([PNG, Buffer.alloc(MAX_IMAGE_BYTES)]))
 
-test('images are recognised by their bytes, and paths are taken as people paste them', () => {
+/** Attaches the picture as the panel does (attachments.put) and answers with the path of its copy. */
+async function attach(id: string, name = 'login bug.png'): Promise<string> {
+  const done = await putChunk({ id, name, index: 0, total: 1, data: PNG.toString('base64') })
+  assert.ok('path' in done)
+  return done.path
+}
+
+test('images are recognised by their bytes, not by their name', () => {
   assert.equal(sniffImage(PNG), 'image/png')
   assert.equal(sniffImage(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg')
   assert.equal(sniffImage(Buffer.from('GIF89a')), 'image/gif')
   assert.equal(sniffImage(Buffer.from('RIFF\0\0\0\0WEBPVP8 ')), 'image/webp')
   assert.equal(sniffImage(Buffer.from('%PDF-1.7')), null)
-  assert.equal(cleanImagePath(`  "${png}"  `), png)
-  assert.equal(cleanImagePath(pathToFileURL(png).href), png)
-})
-
-test('a missing, relative, too large, wrong-type file or too many images is refused with a clear reason', async () => {
-  assert.equal((await inspectImage(`"${png}"`)).type, 'image/png')
-  assert.equal((await inspectImage(png)).name, 'login bug.png')
-  await assert.rejects(inspectImage('shot.png'), /full path of an image file/)
-  await assert.rejects(inspectImage(join(dir, 'nope.png')), /No image file at/)
-  await assert.rejects(inspectImage(text), /notes\.png is not a PNG, JPEG, GIF or WebP image/)
-  // Just over the limit: the size has enough digits to show it is over (not "5.0 MB of 5.0 MB").
-  await assert.rejects(inspectImage(big), /huge\.png is 5,242,948 bytes; an image can be at most 5\.0 MB/)
-  await assert.rejects(loadImages([png, png, png, png, png]), /At most 4 images per prompt/)
-  const [loaded] = await loadImages([png])
-  assert.equal(loaded.base64, PNG.toString('base64'))
+  assert.equal(sniffImage(Buffer.from('not an image')), null)
 })
 
 test('which models see the pictures: Anthropic and the OpenAI, OpenRouter and Gemini presets by data, Codex by file, others paths only', () => {
@@ -61,14 +41,16 @@ test('which models see the pictures: Anthropic and the OpenAI, OpenRouter and Ge
   assert.equal(imageSupport({ provider: 'cli', preset: 'claude-code' }), 'none')
   assert.deepEqual(cliArgs('codex', '', '/tmp/o', '', ['/a.png', '/b.png']).slice(-5), ['-i', '/a.png', '-i', '/b.png', '-'])
   // The enhanced prompt names every image the rewriter left out.
-  const image = { path: png, name: 'login bug.png', bytes: 70, type: 'image/png' as const }
-  assert.equal(withImagePaths(`Fix it, see ${png}.`, [image]), `Fix it, see ${png}.`)
-  assert.match(withImagePaths('Fix it.', [image]), new RegExp(`Attached images \\(open them\\):\\n- ${png.replace(/[\\.()]/g, '\\$&')}$`))
+  const path = '/tmp/attachments/att-1/login bug.png'
+  const image = { path, name: 'login bug.png', bytes: 70, type: 'image/png' as const }
+  assert.equal(withImagePaths(`Fix it, see ${path}.`, [image]), `Fix it, see ${path}.`)
+  assert.equal(withImagePaths('Fix it.', [image]), `Fix it.\n\nAttached images (open them):\n- ${path}`)
 })
 
 const profile = (id: string, preset: string, provider = 'openai') => ({ id, name: id, preset, provider, baseUrl: '', model: '', maxTokens: 2000, enabled: true })
 
 test('the worker sends the picture to a model that reads images, and lists its path in the prompt', async () => {
+  const png = await attach('att-image-data')
   const bodies: { url: string; body: Record<string, unknown> }[] = []
   globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
     bodies.push({ url: String(url), body: JSON.parse(String(init?.body)) })
@@ -78,7 +60,7 @@ test('the worker sends the picture to a model that reads images, and lists its p
 
   for (const [preset, provider] of [['anthropic', 'anthropic'], ['openai', 'openai']] as const) {
     const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles: [profile('m', preset, provider)] } }, secrets: { 'apiKey.m': 'k' } }) })
-    const answer = await worker.request('prompt.enhance', { prompt: 'the button is cut off', level: 'off', images: [png] })
+    const answer = await worker.request('prompt.enhance', { prompt: 'the button is cut off', level: 'off', files: [png] })
     assert.ok(answer.enhanced.includes(png), answer.enhanced)
     assert.ok(!answer.notes.some((note) => note.code === 'note.images_paths_only'))
     await worker.deactivate()
@@ -88,65 +70,25 @@ test('the worker sends the picture to a model that reads images, and lists its p
   assert.equal(anthropic[0].content[0].source?.media_type, 'image/png')
   assert.equal(anthropic[0].content[0].source?.data, PNG.toString('base64'))
   assert.match(anthropic[0].content[1].text ?? '', /<attached_images>\n1\. .*login bug\.png/)
+  // An image is listed once, as an image: not again among the other attached files.
+  assert.ok(!(anthropic[0].content[1].text ?? '').includes('<attached_files>'))
   const openai = bodies[1].body.messages as { content: { type: string; image_url?: { url: string } }[] }[]
   assert.equal(openai[1].content[1].image_url?.url, `data:image/png;base64,${PNG.toString('base64')}`)
 })
 
-test('a model that cannot read images gets the paths only, with a note; a bad image stops the run before any model call', async () => {
+test('a model that cannot read images gets the paths only, with a note, and the prompt still lists them', async () => {
+  const png = await attach('att-image-paths')
   const bodies: Record<string, unknown>[] = []
   globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
     bodies.push(JSON.parse(String(init?.body)))
     return new Response(JSON.stringify({ choices: [{ message: { content: 'Fix the login button.' } }] }), { status: 200 })
   }) as typeof fetch
   const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles: [profile('g', 'groq')] } }, secrets: { 'apiKey.g': 'k' } }) })
-  const answer = await worker.request('prompt.enhance', { prompt: 'the button is cut off', level: 'off', images: [png] })
+  const answer = await worker.request('prompt.enhance', { prompt: 'the button is cut off', level: 'off', files: [png] })
   const messages = bodies[0].messages as { content: unknown }[]
   assert.equal(typeof messages[1].content, 'string')
   assert.match(String(messages[1].content), /<attached_images>/)
   assert.ok(answer.notes.some((note) => note.code === 'note.images_paths_only'))
-  assert.match(answer.enhanced, /Attached images \(open them\):/)
-  await assert.rejects(worker.request('prompt.enhance', { prompt: 'x', level: 'off', images: [text] }), /not a PNG, JPEG, GIF or WebP/)
-  assert.equal(bodies.length, 1)
-  await assert.rejects(worker.request('images.inspect', { path: big }), /at most 5\.0 MB/)
-  assert.equal((await worker.request('images.inspect', { path: `"${png}"` })).name, 'login bug.png')
+  assert.equal(answer.enhanced, `Fix the login button.\n\nAttached images (open them):\n- ${png}`)
   await worker.deactivate()
-})
-
-test('the panel attaches an image by path, shows it, refuses a bad one, and sends its path with Enhance', async () => {
-  const sent: Record<string, unknown>[] = []
-  const gpt: ProfileView = { ...profile('gpt', 'openai'), provider: 'openai', command: '', args: '', effectiveBaseUrl: 'https://api.openai.com/v1', effectiveModel: 'gpt-4.1-mini', keySource: 'secret', envName: '' }
-  const host = mockHost({
-    requests: {
-      'models.get': { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
-      'targets.list': { targets: [] },
-      'models.detect': { found: [] },
-      'models.catalog': { models: [], source: '', fetchedAt: 1 },
-      'rules.get': { rules: [], structures: [] },
-      'images.inspect': ({ path }) => {
-        if (path.endsWith('.txt')) throw Object.assign(new Error('notes.txt is not a PNG, JPEG, GIF or WebP image.'), { code: 'invalid_params' })
-        return { path, name: 'login bug.png', bytes: 1_572_864, type: 'image/png' }
-      },
-      'prompt.enhance': (input) => {
-        sent.push(input as Record<string, unknown>)
-        return { enhanced: 'ok', model: 'm', profileName: 'gpt', ms: 5, attempts: [], context: [], notes: [] }
-      }
-    }
-  })
-  const view = await mountPanel(host)
-  // A file that is not an image is refused with the worker's reason, and nothing is attached.
-  set(imageDraft, 'C:\\shots\\notes.txt')
-  await addImage()
-  assert.match(read(notice)?.text ?? '', /notes\.txt is not a PNG/)
-  assert.deepEqual(read(images), [])
-  set(imageDraft, 'C:\\shots\\login bug.png')
-  await addImage()
-  assert.deepEqual(read(images), [{ path: 'C:\\shots\\login bug.png', name: 'login bug.png', bytes: 1_572_864, type: 'image/png' }])
-  assert.equal(read(imageDraft), '')
-  put(draft, 'the button is cut off')
-  await enhanceNow()
-  assert.deepEqual(sent[0].images, ['C:\\shots\\login bug.png'])
-  removeImage('C:\\shots\\login bug.png')
-  assert.deepEqual(read(images), [])
-  assert.deepEqual(view.errors, [])
-  await view.unmount()
 })

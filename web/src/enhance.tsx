@@ -29,7 +29,6 @@ import {
   effectiveStyle,
   excluded,
   files,
-  images,
   lastRun,
   level,
   optionsOpen,
@@ -60,7 +59,6 @@ import {
   previewContext,
   refreshTargets,
   removeFile,
-  removeImage,
   send,
   setSetting,
   toggleItem
@@ -101,9 +99,8 @@ import { Field, IconAction, megabytes, Pick } from './common'
 /** Attached files: a thumbnail for images, an icon for the rest, each with its size and a remove button. */
 function Attachments() {
   const list = read(files)
-  const byPath = read(images)
   const pending = uploadingNames()
-  if (list.length === 0 && byPath.length === 0 && pending.length === 0) return null
+  if (list.length === 0 && pending.length === 0) return null
   return (
     <div className="flex flex-wrap gap-1.5">
       {list.map((file) => (
@@ -123,19 +120,6 @@ function Attachments() {
             type="button"
             aria-label={t('Remove {name}', { name: file.name })}
             onClick={() => removeFile(file.path)}
-            className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded p-0.5"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </div>
-      ))}
-      {byPath.map((image) => (
-        <div key={image.path} className="bg-muted/60 relative flex max-w-44 items-center gap-1.5 rounded-md border py-1 pr-6 pl-2" title={image.path}>
-          <span className="truncate text-xs">{image.name}</span>
-          <button
-            type="button"
-            aria-label={t('Remove {name}', { name: image.name })}
-            onClick={() => removeImage(image.path)}
             className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded p-0.5"
           >
             <XIcon className="size-3" />

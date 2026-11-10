@@ -49,15 +49,11 @@ declare module 'orca' {
         exclude?: string[]
         /** Set by the panel to receive `enhance.progress` for this run. */
         runId?: string
-        /** "Fix this error": the terminal whose latest error the prompt is about. */
-        errorTerminalId?: string
         /** A prompt structure (Rules tab) whose sections replace the style's shape. */
         structureId?: string
-        /** Paths of image files on this machine to attach (at most 4, 5 MB each; PNG, JPEG, GIF, WebP). */
-        images?: string[]
         /** Orca's id of the workspace the panel is in (several can share a name and branch). */
         workspaceId?: string
-        /** Attached files of any kind, by path (the web panel uploads them with attachments.put). */
+        /** Attached files of any kind, by the paths attachments.put answered (the worker reads no other path). */
         files?: string[]
       }
       output: {
@@ -94,8 +90,6 @@ declare module 'orca' {
     'agent.launch': { input: { agent: string; prompt: string; workspaceId?: string }; output: { terminalId: string } }
     /** Opens a file of the focused workspace (a path relative to it) in Orca's editor. */
     'editor.open': { input: { path: string; workspaceId?: string }; output: { opened: true } }
-    /** Checks an image file to attach: an absolute path to a PNG, JPEG, GIF or WebP of at most 5 MB. */
-    'images.inspect': { input: { path: string }; output: { path: string; name: string; bytes: number; type: string } }
     /** Agent terminals of the focused workspace, agents first. */
     'targets.list': {
       /** `known`: the workspace id of terminals the panel has seen (Orca's agent events, or the person's pick). */

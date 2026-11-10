@@ -10,9 +10,8 @@ import { isStyle } from '../prompts.ts'
 import { t, uiLanguageSetting } from '../i18n.ts'
 import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
-import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -32,13 +31,12 @@ function snapshot(): Slot {
     contextShown: read(contextShown),
     contextNotes: read(contextNotes),
     excluded: read(excluded),
-    images: read(images),
     files: read(files),
     at: Date.now()
   }
 }
 
-const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0 && (slot.images ?? []).length === 0 && (slot.files ?? []).length === 0
+const isEmpty = (slot: Slot) => !slot.draft.trim() && !slot.result.trim() && slot.contextShown.length === 0 && (slot.files ?? []).length === 0
 
 /** Keeps a project's composer, newest first, at most MAX_PARKED projects. */
 function park(key: string, slot: Slot): void {
@@ -88,9 +86,8 @@ function switchWorkspace(key: string, name: string | null, sameTerminals = false
   put(contextShown, incoming?.contextShown ?? [])
   put(contextNotes, incoming?.contextNotes ?? [])
   set(excluded, incoming?.excluded ?? [])
-  put(images, incoming?.images ?? [])
   put(files, incoming?.files ?? [])
-  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], images: [], files: [] })
+  if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], files: [] })
   put(workspaceKey, key)
   set(workspaceName, name)
   set(notice, null)
@@ -212,11 +209,6 @@ export async function refreshTargets(): Promise<void> {
     switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null, list.some((item) => shown.has(item.terminalId)))
     set(targets, list)
     const current = read(target)
-    // The error usually sits in a terminal that is not the agent's (build, tests, dev server).
-    const errorFrom = read(errorTerminal)
-    if (!errorFrom || !list.some((item) => item.terminalId === errorFrom)) {
-      set(errorTerminal, list.find((item) => !item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
-    }
     if (!current || !list.some((item) => item.terminalId === current)) {
       set(target, list.find((item) => item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
     }
@@ -234,8 +226,8 @@ export function showContext(items: ContextItemView[], notes: (Message | string)[
 
 // ---------------------------------------------------------------- actions
 
-export async function enhanceNow(fix?: { terminalId: string; prompt: string }): Promise<void> {
-  const prompt = read(draft).trim() || fix?.prompt || ''
+export async function enhanceNow(): Promise<void> {
+  const prompt = read(draft).trim()
   if (!prompt || read(busy)) return
   const controller = new AbortController()
   inFlight = controller
@@ -251,11 +243,8 @@ export async function enhanceNow(fix?: { terminalId: string; prompt: string }): 
       {
         prompt,
         runId,
-        // Fixing an error is a bug-fix brief whatever the composer's style.
-        style: fix ? 'bugfix' : read(effectiveStyle),
-        ...(fix ? { errorTerminalId: fix.terminalId } : {}),
+        style: read(effectiveStyle),
         ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
-        ...(read(images).length > 0 ? { images: read(images).map((image) => image.path) } : {}),
         ...(read(files).length > 0 ? { files: read(files).map((file) => file.path) } : {}),
         ...knownWorkspaceId(),
         level: read(effectiveLevel),
@@ -352,38 +341,8 @@ export function finishRun(runId: string, status: Run['status'], error?: string):
   stopTicking()
 }
 
-/** Attaches an image by its path: the worker checks it (absolute path, PNG/JPEG/GIF/WebP, 5 MB). */
-export async function addImage(): Promise<void> {
-  const path = read(imageDraft).trim()
-  if (!path) return
-  if (read(images).length >= MAX_IMAGES) {
-    set(notice, { tone: 'warning', text: t('At most {max} images per prompt.', { max: MAX_IMAGES }) })
-    return
-  }
-  try {
-    const image = await plugin.request('images.inspect', { path })
-    if (!read(images).some((entry) => entry.path === image.path)) put(images, [...read(images), image])
-    set(imageDraft, '')
-    set(notice, null)
-  } catch (error) {
-    set(notice, { tone: 'danger', text: message(error) })
-  }
-}
-
 export function removeFile(path: string): void {
   put(files, read(files).filter((file) => file.path !== path))
-}
-
-export function removeImage(path: string): void {
-  put(images, read(images).filter((image) => image.path !== path))
-}
-
-/** "Fix this error": a bug-fix prompt about the latest error in the chosen terminal, for the target agent. */
-export async function fixError(): Promise<void> {
-  const terminalId = read(errorTerminal)
-  if (!terminalId) return
-  const name = read(targets).find((item) => item.terminalId === terminalId)?.label ?? terminalId
-  await enhanceNow({ terminalId, prompt: t('Fix the error shown in the output of {name}: find the root cause, fix it, and verify the fix.', { name }) })
 }
 
 export async function previewContext(): Promise<void> {

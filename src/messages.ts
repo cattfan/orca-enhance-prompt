@@ -26,7 +26,6 @@ export const MESSAGES = {
   'label.tree': 'Repository tree ({count} files)',
   'label.status': 'Git status ({count} changed)',
   'label.terminal': 'Recent output: {name}',
-  'label.error': 'Error output: {name}',
   'label.agents': 'Other agents in this workspace',
   'label.session': 'Other agent session: {name}',
   'label.activity': 'Recent agent activity',
@@ -37,14 +36,8 @@ export const MESSAGES = {
 
   // Errors and results.
   'error.no_prompt': 'Write a prompt first.',
-  'error.terminal_read_off': 'Reading terminal output is off in Privacy.',
-  'error.no_error_output': 'That terminal has no output to fix.',
-  'error.image_path': 'Give the full path of an image file on this machine: {path}',
-  'error.image_missing': 'No image file at {path}.',
-  'error.image_too_large': '{name} is {size}; an image can be at most {max}.',
-  'error.image_type': '{name} is not a PNG, JPEG, GIF or WebP image.',
-  'error.image_count': 'At most {max} images per prompt.',
   'error.attachment_bad': 'That attachment could not be received; try attaching it again.',
+  'error.attachment_missing': 'The attached file {name} is no longer there (attachments are kept for a day). Attach it again.',
   'error.file_too_large': '{name} is {size}; an attachment can be at most {max}.',
   'note.images_paths_only': 'This model cannot see images: it got their paths only, and the prompt lists them for the agent.',
   'error.cancelled': 'Cancelled.',

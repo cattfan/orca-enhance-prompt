@@ -70,9 +70,9 @@ function stopIfCancelled(signal?: AbortSignal): void {
 
 export type GatherResult = { items: ContextItem[]; notes: Message[]; root: string | null }
 
-/** A context item made outside the gather (the error output of "Fix this error"). */
-export function contextItem(id: string, kind: string, label: Message, content: string): ContextItem {
-  return item(id, kind, label, content)
+/** A context item made outside the gather (the text of an attached file); `why` says why it is as it is (trimmed). */
+export function contextItem(id: string, kind: string, label: Message, content: string, why?: Message): ContextItem {
+  return item(id, kind, label, content, why)
 }
 
 /** `label` is a Message for the panel; the model reads its English text. A file's label is its path. */
@@ -435,7 +435,7 @@ async function otherAgentItems(orca: OrcaWorkerApi, options: GatherOptions, step
 /** Keeps items in priority order until the budget; trims the one that crosses it. */
 export function fitBudget(items: ContextItem[], budget: number): ContextItem[] {
   // Other agents come after everything else, so they never push out what a run used before them.
-  const priority: Record<string, number> = { error: 0, workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6, activity: 7, saved: 7, agents: 8, session: 9 }
+  const priority: Record<string, number> = { workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6, activity: 7, saved: 7, agents: 8, session: 9 }
   const sorted = [...items].sort((a, b) => (priority[a.kind] ?? 9) - (priority[b.kind] ?? 9))
   const out: ContextItem[] = []
   let used = 0

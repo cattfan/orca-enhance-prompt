@@ -8,11 +8,9 @@ import { copyToClipboard } from './clipboard.ts'
 import { forgetActivity, recordSave, recordStatus, recordTool } from './context/activity.ts'
 import { isSensitive } from './context/files.ts'
 import { resolveLanguage, translate } from './i18n-dict.ts'
-import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
-import { extractError } from './terminal-error.ts'
-import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
+import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
+import { imagesBlock, imageSupport, withImagePaths } from './images.ts'
 import { cleanAttachments, clearAttachments, loadFiles, putChunk } from './attachments.ts'
-import { MAX_IMAGES } from './image-limits.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
@@ -204,22 +202,6 @@ function withAttachedPaths(prompt: string, paths: readonly string[]): string {
   return missing.length === 0 ? prompt : `${prompt.trimEnd()}\n\nAttached files (open them):\n${missing.map((path) => `- ${path}`).join('\n')}`
 }
 
-/** The latest error in a terminal's output, as a context item. */
-async function readErrorOutput(orca: OrcaWorkerApi, terminalId: string, step: StepReporter, signal?: AbortSignal): Promise<ContextItem> {
-  step('error', 'running')
-  const read = await orca.host.call('terminal.read', { terminalId, maxLines: 400 }, signal ? { signal } : undefined).catch(() => null)
-  const { text, found } = extractError(read?.lines ?? [])
-  if (!text) {
-    step('error', 'failed')
-    throw hostError(msg('error.no_error_output'), 'invalid_params')
-  }
-  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
-  const name = focused?.terminals.find((terminal) => terminal.id === terminalId)?.title ?? terminalId
-  step('error', 'done', String(text.split('\n').length))
-  const note = found ? '' : '(no error line found: the last lines of the output)\n'
-  return contextItem('error', 'error', msg('label.error', { name }), note + text)
-}
-
 /**
  * The Privacy switches a context gather obeys, the same for a run and for Preview: git, the target
  * terminal, and the other agents' sessions (which are terminal output too, so they need both).
@@ -262,17 +244,14 @@ export async function enhance(
     model?: string
     language?: string
     exclude?: string[]
-    errorTerminalId?: string
     structureId?: string
-    /** Paths of image files on this machine to attach (see src/images.ts). */
-    images?: string[]
-    /** Attached files of any kind (the web panel's paste, drop and picker), by path. */
+    /** Attached files of any kind (the panel's paste, drop and picker), by the path attachments.put answered. */
     files?: string[]
     /** Orca's id of the workspace the panel is in (several can share a name and branch). */
     workspaceId?: string
   },
   signal?: AbortSignal,
-  progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean, readsOtherAgents: boolean) => StepReporter,
+  progress?: (level: ContextLevel, allowProjectFiles: boolean, readsOtherAgents: boolean) => StepReporter,
   budgetMs?: number
 ) {
   const deadline = budgetMs === undefined ? undefined : Date.now() + budgetMs
@@ -285,12 +264,8 @@ export async function enhance(
   const style: Style = isStyle(input.style) ? input.style : settings.defaultStyle
   const requested: ContextLevel = isContextLevel(input.level) ? input.level : settings.contextLevel
   const level = allowedLevel(requested, settings)
-  const errorTerminalId = typeof input.errorTerminalId === 'string' && input.errorTerminalId ? input.errorTerminalId.slice(0, 200) : null
-  // "Fix this error" reads a terminal: the same Privacy switch as terminal output in the context.
-  if (errorTerminalId && !settings.privacy.allowTerminalRead) throw hostError(msg('error.terminal_read_off'), 'not_permitted')
   const privacy = gatherPrivacy(settings)
-  const step = progress?.(level, settings.privacy.allowProjectFiles, Boolean(errorTerminalId), privacy.allowOtherAgents) ?? (() => undefined)
-  const errorItem = errorTerminalId ? await readErrorOutput(orca, errorTerminalId, step, signal) : null
+  const step = progress?.(level, settings.privacy.allowProjectFiles, privacy.allowOtherAgents) ?? (() => undefined)
 
   const gathered = await gatherContext(orca, {
     level,
@@ -308,8 +283,6 @@ export async function enhance(
     workspaceId: typeof input.workspaceId === 'string' ? input.workspaceId : null
   })
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
-  // The error comes first and is never trimmed away by the context budget.
-  if (errorItem) gathered.items = [errorItem, ...fitBudget(gathered.items, Math.max(0, 45_000 - errorItem.chars))]
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
   const own = await ownRules(orca)
@@ -321,17 +294,13 @@ export async function enhance(
     rules: own.rules,
     structure: structureById(own.config, input.structureId)
   })
-  // Attached images: checked before any model is called; the user message lists them by path.
-  const images = await loadImages((input.images ?? []).filter((path) => typeof path === 'string' && path.trim())).catch((error: unknown) => {
-    if (error instanceof LlmError) throw hostError(error.text, error.code)
-    throw error
-  })
-  // Other attached files: images among them join the images, short text goes in the context.
+  // Attached files, read before any model is called: images are shown to models that read images,
+  // text goes in the context, and the user message lists every file by its path.
   const files = await loadFiles((input.files ?? []).filter((path) => typeof path === 'string' && path.trim())).catch((error: unknown) => {
     if (error instanceof LlmError) throw hostError(error.text, error.code)
     throw error
   })
-  for (const image of files.images) if (images.length < MAX_IMAGES && !images.some((entry) => entry.path === image.path)) images.push(image)
+  const images = files.images
   const attachedTexts = files.texts.map((file) => contextItem(`attach:${file.name}`, 'file', raw(file.name), file.content))
   if (attachedTexts.length > 0) gathered.items = [...attachedTexts, ...gathered.items]
   const otherFiles = files.paths.filter((path) => !images.some((image) => image.path === path))
@@ -521,8 +490,8 @@ export async function enhanceRequest(
   const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
   // Progress goes only to the panel that asked, and only when it asked for it.
   const progress = runId
-    ? (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean, readsOtherAgents: boolean) =>
-        createProgress(runId, planSteps(level, allowProjectFiles, readsError, readsOtherAgents), (snapshot) => {
+    ? (level: ContextLevel, allowProjectFiles: boolean, readsOtherAgents: boolean) =>
+        createProgress(runId, planSteps(level, allowProjectFiles, readsOtherAgents), (snapshot) => {
           latestProgress.delete(runId)
           latestProgress.set(runId, snapshot)
           for (const old of [...latestProgress.keys()].slice(0, Math.max(0, latestProgress.size - MAX_TRACKED_RUNS))) latestProgress.delete(old)
@@ -606,16 +575,6 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     if (input.index === 0) void cleanAttachments()
     try {
       return await putChunk(input)
-    } catch (error) {
-      if (error instanceof LlmError) throw hostError(error.text, error.code)
-      throw error
-    }
-  })
-
-  // An image the person attaches: checked here (path, type, size) before it is listed in the composer.
-  orca.panels.handle('images.inspect', async ({ path }) => {
-    try {
-      return await inspectImage(path)
     } catch (error) {
       if (error instanceof LlmError) throw hostError(error.text, error.code)
       throw error

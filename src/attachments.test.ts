@@ -1,7 +1,7 @@
 // Files pasted, dropped or picked in the web panel: received in chunks, kept on disk, used in the prompt.
-import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { after } from 'node:test'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { ATTACHMENTS_DIR, loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
@@ -107,5 +107,39 @@ test('"Delete everything" removes the attached files; one kept for more than a d
   // The next attachment starts a new folder.
   const again = await put('att-after-wipe', 'again.png')
   assert.ok('path' in again && existsSync(again.path))
+  await worker.deactivate()
+})
+
+test('a run reads only files the panel attached: any other path is refused before a model is called', async () => {
+  let calls = 0
+  globalThis.fetch = (async () => {
+    calls++
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+  }) as typeof fetch
+  const profile = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
+  const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.gpt': 'k' } }) })
+  const enhance = (files: string[]) => worker.request('prompt.enhance', { prompt: 'fix it', level: 'off', files })
+
+  // A file of this machine that was never attached: its text must not reach a model.
+  const outside = mkdtempSync(join(tmpdir(), 'not-attached-'))
+  try {
+    writeFileSync(join(outside, 'notes.txt'), 'private notes')
+    await assert.rejects(enhance([join(outside, 'notes.txt')]), /could not be received/)
+    // ...also when the path starts in the attachments folder and climbs out of it.
+    await assert.rejects(enhance([join(ATTACHMENTS_DIR, '..', basename(outside), 'notes.txt')]), /could not be received/)
+    await assert.rejects(enhance([ATTACHMENTS_DIR]), /could not be received/)
+  } finally {
+    rmSync(outside, { recursive: true, force: true })
+  }
+  // An attachment that has been cleaned away since (they are kept for a day): said by its name.
+  await assert.rejects(enhance([join(ATTACHMENTS_DIR, 'att-long-gone', 'yesterday.log')]), /The attached file yesterday\.log is no longer there/)
+  assert.equal(calls, 0, 'a model was called')
+
+  // What was attached is read.
+  const log = await putChunk({ id: 'att-read-me', name: 'build.log', index: 0, total: 1, data: Buffer.from('ERROR in build').toString('base64') })
+  assert.ok('path' in log)
+  const answer = await enhance([log.path])
+  assert.equal(calls, 1)
+  assert.ok(answer.context.some((item) => item.id === 'attach:build.log'))
   await worker.deactivate()
 })

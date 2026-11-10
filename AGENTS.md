@@ -28,9 +28,10 @@ The test suite usually finishes in seconds, but some tests start real processes 
   names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
 - **Flat colours only**: no gradients in the logo (`assets/icon.png`, cut from `assets/art/logo-source.jpg` by `scripts/cut-icon.ps1`; vector in
   `assets/icon.svg`), or the pictures (`scripts/make-listing.mjs`: listing, README and guide).
-- **Attached images** are read only because the person picked them (by path; Orca panels have no file
-  picker): `src/images.ts` checks the path, type (by bytes) and size, and every enhanced prompt lists
-  their paths for the agent.
+- **Attached files** are read only because the person attached them: the panel uploads them
+  (`attachments.put`) and a run reads its `files` only from the attachments folder (`loadFiles` in
+  `src/attachments.ts` refuses any other path). An image is recognised by its bytes (`sniffImage`),
+  and every enhanced prompt lists the images' paths for the agent.
 - **Every new read checks its Privacy switch** (`settings.privacy.*` in the worker: project files,
   git, terminal output, environment keys, online model lists, history). The Preview, the run and
   the auto-enhance hook must all go through the same check. Add a test in `src/privacy.test.ts`.

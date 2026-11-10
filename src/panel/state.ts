@@ -39,8 +39,6 @@ export const modelChoice = atom('modelChoice', '', { persist: 'plugin' })
 export const outputChoice = atom('outputChoice', 'default', { persist: 'plugin' })
 export const excluded = atom<string[]>('excluded', [])
 export const target = atom<string | null>('target', null)
-/** "Fix this error": the terminal whose error it is about. */
-export const errorTerminal = atom<string | null>('errorTerminal', null)
 export const pressEnter = atom<boolean | null>('pressEnter', null)
 export const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
 /**
@@ -114,14 +112,9 @@ export const lastRun = atom<LastRun>(null)
 export const contextShown = atom<ContextItemView[]>([])
 /** Notes are Messages; an older version saved plain strings. */
 export const contextNotes = atom<(Message | string)[]>([])
-/** Images attached to the draft by their path (checked by the worker): their path, name, size and type. */
-export type AttachedImage = { path: string; name: string; bytes: number; type: string }
-export const images = atom<AttachedImage[]>([])
-/** The path of an image to attach, as typed (addImage reads it). */
-export const imageDraft = atom('')
 /**
- * Files attached in the web panel (pasted, dropped or picked): the worker keeps them on disk and
- * answers with their path. Images among them are read like images attached by path.
+ * Files attached in the panel (pasted, dropped or picked): the worker keeps a copy on disk and
+ * answers with its path. Images among them are shown to models that read images.
  */
 export type AttachedFile = { path: string; name: string; bytes: number; type: string }
 export const files = atom<AttachedFile[]>([])
@@ -141,7 +134,6 @@ export type Slot = {
   contextShown: ContextItemView[]
   contextNotes: (Message | string)[]
   excluded: string[]
-  images?: AttachedImage[]
   files?: AttachedFile[]
   at: number
 }
@@ -161,7 +153,6 @@ export const KEPT: [Atom<never>, Atom<never>, unknown][] = [
   [lastRun, atom<LastRun>('lastRun', null, { persist: 'plugin' }), null],
   [contextShown, atom<ContextItemView[]>('contextShown', [], { persist: 'plugin' }), []],
   [contextNotes, atom<(Message | string)[]>('contextNotes', [], { persist: 'plugin' }), []],
-  [images, atom<AttachedImage[]>('images', [], { persist: 'plugin' }), []],
   [files, atom<AttachedFile[]>('files', [], { persist: 'plugin' }), []],
   [workspaceKey, atom<string | null>('workspaceKey', null, { persist: 'plugin' }), null],
   [parked, atom<Record<string, Slot>>('parked', {}, { persist: 'plugin' }), {}]

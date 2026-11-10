@@ -1,11 +1,11 @@
-// Files attached to a prompt in the web panel: pasted, dropped or picked there, they have no path on
+// Files attached to a prompt in the panel: pasted, dropped or picked there, they have no path on
 // disk, so the panel sends their bytes in chunks and they are kept in a folder of their own under the
-// system's temporary folder. Images then work like images attached by path (src/images.ts); other
-// files go in the context when they are short text, and every attachment is listed by its path so the
-// agent can open it.
+// system's temporary folder. A run reads only files of that folder: images are shown to models that
+// read images (src/images.ts), text goes in the context, and every attachment is listed by its path
+// so the agent can open it.
 import { appendFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { MAX_ATTACHMENT_BYTES, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, MAX_IMAGES, sizeOver } from './image-limits.ts'
 import { megabytes, sniffImage, type ImageData } from './images.ts'
 import { LlmError } from './llm.ts'
@@ -86,12 +86,21 @@ export type LoadedFiles = {
   paths: string[]
 }
 
+/** Whether a path is a file inside the attachments folder. */
+function isAttachment(path: string): boolean {
+  const inside = relative(ATTACHMENTS_DIR, resolve(path))
+  return inside !== '' && !inside.startsWith('..') && !isAbsolute(inside)
+}
+
 /** Reads attached files: images as images, short text as text, anything else by path only. */
 export async function loadFiles(paths: readonly string[]): Promise<LoadedFiles> {
   const out: LoadedFiles = { images: [], texts: [], paths: [] }
   for (const path of paths) {
+    // Only what the panel uploaded (attachments.put): a request cannot have another file of this
+    // machine read and sent to a model.
+    if (!isAttachment(path)) throw new LlmError(msg('error.attachment_bad'), 'invalid_params')
     const info = await stat(path).catch(() => null)
-    if (!info || !info.isFile()) throw new LlmError(msg('error.image_missing', { path }), 'invalid_params')
+    if (!info || !info.isFile()) throw new LlmError(msg('error.attachment_missing', { name: basename(path) }), 'invalid_params')
     if (info.size > MAX_ATTACHMENT_BYTES) {
       throw new LlmError(msg('error.file_too_large', { name: basename(path), size: sizeOver(info.size, MAX_ATTACHMENT_BYTES), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
     }
