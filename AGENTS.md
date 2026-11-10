@@ -20,10 +20,10 @@ The test suite usually finishes in seconds, but some tests start real processes 
 ## Rules that must keep holding
 
 - **Every UI string goes through `t('...')`** from `src/i18n.ts`, with its Vietnamese and Chinese
-  entries in the same change. `src/i18n.test.tsx` fails on a missing key: it reads every `t('…')`
-  in `src/panel/` and `web/src/`, and the tables of texts passed to `t()` by variable (a new table
-  is added to its list). Worker messages the panel shows are translated there too, so keep their
-  wording in step.
+  entries in the same change. `src/i18n.test.tsx` fails on a missing key, and on an entry nothing
+  shows any more: it reads every `t('…')` in `src/panel/` and `web/src/`, and the tables of texts
+  passed to `t()` by variable (a new table is added to its list). Worker messages the panel shows
+  are translated there too, so keep their wording in step.
 - **The name "Enhance Prompt" is a brand**: use `BRAND` from `src/brand.ts`, never `t()`; text that
   names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
 - **Flat colours only**: no gradients in the logo (`assets/icon.png`, cut from `assets/art/logo-source.jpg` by `scripts/cut-icon.ps1`; vector in

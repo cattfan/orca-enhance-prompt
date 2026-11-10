@@ -59,6 +59,14 @@ test('every UI string has a Vietnamese and a Chinese translation', () => {
   assert.deepEqual([...keys].filter((key) => key.includes('${')), [])
 })
 
+test('the dictionaries hold only texts the plugin still shows', () => {
+  const keys = uiStrings()
+  for (const [lang, dict] of Object.entries(dictionaries)) {
+    const unused = Object.keys(dict).filter((key) => !keys.has(key))
+    assert.deepEqual(unused, [], `${lang} translates texts nothing shows any more: delete these entries`)
+  }
+})
+
 test('placeholders survive translation; auto follows the Orca locale', () => {
   assert.equal(translate('vi', 'Sent to {label}.', { label: 'Claude' }), 'Đã gửi tới Claude.')
   assert.equal(translate('zh', 'Saved {name}.', { name: 'GPT' }), '已保存 GPT。')
