@@ -7,11 +7,11 @@ import { type Message } from '../messages.ts'
 import { isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle } from '../prompts.ts'
 import { t, uiLanguageSetting } from '../i18n.ts'
-import { PRIVACY_KEYS } from '../privacy.ts'
+import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { files, ruleDraft, ruleScope, structureDraft, type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -131,10 +131,12 @@ export async function refreshDefaults(): Promise<void> {
     fallbackEnabled: all.fallbackEnabled !== false,
     fallbackOn: all.fallbackOn === 'transient' ? 'transient' : 'any',
     outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto',
-    autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off'
+    autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off',
+    notifyWhenDone: all.notifyWhenDone === true,
+    otherAgents: parseOtherAgentsLimits(all)
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
-  set(privacy, Object.fromEntries(PRIVACY_KEYS.map((key) => [key, all[key] !== false])))
+  set(privacy, parsePrivacy(all))
   // Saving history is off: nothing typed or produced stays on disk after the panel closes.
   if (!mayKeep()) forgetSaved()
 }
@@ -605,6 +607,61 @@ export async function switchModel(profile: ProfileView, model: string): Promise<
   }
 }
 
+// ---- Orca integrations
+
+export async function refreshConsents(): Promise<void> {
+  const answer = await plugin.request('consents.get').catch(() => null)
+  if (answer) set(consents, answer.granted)
+}
+
+/** A switch that needs confirmation: the person read what it allows and pressed Turn on. */
+export async function confirmSwitch(key: string): Promise<void> {
+  try {
+    set(consents, (await plugin.request('consent.set', { key, granted: true })).granted)
+    await setSetting(key, true)
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+/** Turning a switch off also withdraws its confirmation: on again asks again. */
+export async function turnSwitchOff(key: string): Promise<void> {
+  await setSetting(key, false)
+  if (read(consents).includes(key)) {
+    const answer = await plugin.request('consent.set', { key, granted: false }).catch(() => null)
+    if (answer) set(consents, answer.granted)
+  }
+}
+
+/** What the worker may really do: the switch, and its confirmation when it needs one. */
+export function allowed(key: string): boolean {
+  const on = read(privacy)[key] === true
+  return NEEDS_CONSENT.has(key as never) ? on && read(consents).includes(key) : on
+}
+
+/** Starts a new agent of this kind in the focused workspace with the prompt. */
+export async function launchAgent(agent: string, prompt: string): Promise<void> {
+  if (!prompt.trim()) return
+  set(busy, 'send')
+  try {
+    await plugin.request('agent.launch', { agent, prompt, ...knownWorkspaceId() })
+    set(notice, { tone: 'success', text: t('Started a new {agent} agent with the prompt.', { agent }) })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
+  }
+}
+
+/** Opens a file of the project in Orca's editor. */
+export async function openFile(path: string): Promise<void> {
+  try {
+    await plugin.request('editor.open', { path, ...knownWorkspaceId() })
+  } catch (error) {
+    set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
 export async function refreshDataSummary(): Promise<void> {
   set(dataSummary, await plugin.request('data.summary').catch(() => null))
 }
@@ -615,6 +672,7 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
     if (what === 'history' || what === 'all') set(historyRaw, [])
     if (what === 'catalogs' || what === 'all') set(catalogs, {})
     if (what === 'all') {
+      set(consents, [])
       for (const [now, , empty] of KEPT) set(now, empty as never)
       set(rulesState, { rules: [], structures: [] })
       forgetSaved()

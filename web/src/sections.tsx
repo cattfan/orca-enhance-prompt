@@ -12,6 +12,7 @@ import {
   busy,
   catalogLoading,
   catalogs,
+  consents,
   CLI_DEFAULT,
   confirmClearHistory,
   confirmWipe,
@@ -42,6 +43,8 @@ import {
   addStructure,
   applyPreset,
   clearData,
+  confirmSwitch,
+  turnSwitchOff,
   clearHistory,
   copy,
   formCatalogInput,
@@ -61,7 +64,9 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { DISCLOSURES, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
 import { Badge } from '@/components/reui/badge'
 import { Button } from '@/components/ui/button'
@@ -614,7 +619,78 @@ const MODE_HINTS: Record<string, string> = {
   ai: 'A fast API model rewrites each prompt Orca sends to an agent (a new agent with a task, the task board, orchestration). Orca waits at most 2 s, then sends the original.'
 }
 
+/** Choices offered for the amounts (a value set in Orca's Settings is added when it is not one of them). */
+const AGENT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8]
+const LINE_CHOICES = [10, 20, 40, 80, 120, 200, 300]
+const withValue = (choices: number[], value: number) => [...new Set([...choices, value])].sort((a, b) => a - b)
+
+/** How many other agents and lines "Read other agents' sessions" reads; saved even while it is off. */
+function OtherAgentsAmounts({ active }: { active: boolean }) {
+  const { agents, lines } = read(defaults).otherAgents
+  return (
+    <span className="mt-2 flex flex-col gap-1.5">
+      <span className="grid grid-cols-2 gap-2">
+        <Field label={t('Agents read')}>
+          <Pick
+            label={t('Agents read')}
+            value={String(agents)}
+            options={withValue(AGENT_CHOICES, agents).map((value) => ({ value: String(value), label: t('{count} agents', { count: value }) }))}
+            onChange={(value) => void setSetting(OTHER_AGENTS_LIMITS.agents.key, Number(value))}
+          />
+        </Field>
+        <Field label={t('Lines per agent')}>
+          <Pick
+            label={t('Lines per agent')}
+            value={String(lines)}
+            options={withValue(LINE_CHOICES, lines).map((value) => ({ value: String(value), label: t('{count} lines', { count: value }) }))}
+            onChange={(value) => void setSetting(OTHER_AGENTS_LIMITS.lines.key, Number(value))}
+          />
+        </Field>
+      </span>
+      {active ? null : <span className="text-muted-foreground">{t('Used only while this switch is on and confirmed.')}</span>}
+    </span>
+  )
+}
+
+/** Before a switch that needs it turns on: everything it allows, in plain words, and Turn on / Cancel. */
+function ConsentDialog({ keyName, onClose }: { keyName: PrivacyKey | null; onClose: () => void }) {
+  const row = PRIVACY_ROWS.find((entry) => entry.key === keyName)
+  const points = keyName ? (DISCLOSURES[keyName] ?? []) : []
+  return (
+    <Dialog open={keyName !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
+      <DialogContent className="flex max-h-[85vh] max-w-[calc(100vw-24px)] flex-col gap-3 p-4">
+        <DialogHeader>
+          <DialogTitle>{row ? t('Turn on "{name}"?', { name: t(row.label) }) : ''}</DialogTitle>
+          <DialogDescription>{t('Read what this allows. Nothing is hidden: this is everything it does.')}</DialogDescription>
+        </DialogHeader>
+        <ul className="ml-4 list-disc space-y-1.5 overflow-y-auto text-sm leading-relaxed">
+          {points.map((point) => (
+            <li key={point}>{t(point)}</li>
+          ))}
+        </ul>
+        <p className="text-muted-foreground text-xs">{t('You can turn it off at any time here; turning it off also withdraws this confirmation.')}</p>
+        <div className="flex justify-end gap-1.5">
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            {t('Cancel')}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              if (keyName) void confirmSwitch(keyName)
+              onClose()
+            }}
+          >
+            {t('I understand, turn it on')}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function SettingsSection() {
+  // ?ask=<switch> opens its confirmation at once in the dev server (pictures of the dialog).
+  const [asking, setAsking] = useState<PrivacyKey | null>(import.meta.env.DEV ? (new URLSearchParams(location.search).get('ask') as PrivacyKey | null) : null)
   const flags = read(privacy)
   const data = read(dataSummary)
   const prefs = read(defaults)
@@ -660,24 +736,60 @@ export function SettingsSection() {
         ) : null}
       </Group>
       <Group title={t('What it may use')} hint={t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.')}>
-        {PRIVACY_ROWS.map((row) => (
-          <Row
-            key={row.key}
-            title={t(row.label)}
-            description={t(row.hint)}
-            control={
-              <Switch
-                checked={flags[row.key] !== false}
-                aria-label={t(row.label)}
-                onCheckedChange={(value) => {
-                  update(privacy, (map: Record<string, boolean>) => ({ ...map, [row.key]: value }))
-                  void setSetting(row.key, value)
-                }}
-              />
-            }
-          />
-        ))}
+        {PRIVACY_ROWS.map((row) => {
+          const needs = NEEDS_CONSENT.has(row.key)
+          const on = flags[row.key] === true
+          // On in Orca's Settings but never confirmed here: the worker keeps it off until confirmed.
+          const waiting = needs && on && !read(consents).includes(row.key)
+          return (
+            <Row
+              key={row.key}
+              title={
+                <span className="flex flex-wrap items-center gap-1.5">
+                  {t(row.label)}
+                  {needs ? <Badge variant="outline">{t('asks to confirm')}</Badge> : null}
+                </span>
+              }
+              description={
+                <>
+                  {t(row.hint)}
+                  {row.key === 'allowOtherAgents' ? <OtherAgentsAmounts active={on && !waiting && flags.allowTerminalRead !== false} /> : null}
+                  {waiting ? (
+                    <span className="text-warning-foreground mt-1 flex items-center gap-2">
+                      {t('Turned on in Settings, but not confirmed here yet: still off.')}
+                      <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => setAsking(row.key)}>
+                        {t('Read and confirm')}
+                      </Button>
+                    </span>
+                  ) : null}
+                </>
+              }
+              control={
+                <Switch
+                  checked={on && !waiting}
+                  aria-label={t(row.label)}
+                  onCheckedChange={(value) => {
+                    if (value && needs) {
+                      setAsking(row.key)
+                      return
+                    }
+                    update(privacy, (map: Record<string, boolean>) => ({ ...map, [row.key]: value }))
+                    void (value ? setSetting(row.key, true) : turnSwitchOff(row.key))
+                  }}
+                />
+              }
+            />
+          )
+        })}
       </Group>
+      <Group title={t('Notifications')}>
+        <Row
+          title={t('Notify when a long enhance finishes')}
+          description={t('A desktop notification when a run takes more than 8 s. It names the model and the time, never your prompt.')}
+          control={<Switch checked={prefs.notifyWhenDone} aria-label={t('Notify when a long enhance finishes')} onCheckedChange={(value) => void setSetting('notifyWhenDone', value)} />}
+        />
+      </Group>
+      <ConsentDialog keyName={asking} onClose={() => setAsking(null)} />
       <Group title={t('Stored on this machine')} hint={t('Nothing is sent anywhere except your prompt and the context you allow, to the model you run. No tracking or analytics.')}>
         {data ? (
           [

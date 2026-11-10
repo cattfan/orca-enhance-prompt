@@ -3,6 +3,22 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.5.0] - 2026-11-10
+
+### Added
+
+- More of what Orca knows, each behind its own switch in Settings, all off until you turn them on: **Read other agents' sessions** (Max level: the other agents in the workspace and the last lines of their terminals, with keys and passwords masked; you pick how many agents, 1 to 8, and lines, 10 to 300), **Watch what agents do** (Deep and Max: the tools agents run and their targets, never the output, kept in memory for 45 minutes), **Notice files you save** (the paths of files saved in Orca's editor rank first in the code search), **Start new agents** (a button that starts Claude Code, Codex or Gemini with the enhanced prompt), **Open files in Orca** (from the context list) and a notification when a long run finishes.
+- The switches that send more of your work to the model or start programs show everything they allow and ask you to confirm before they turn on. Turned on in Orca's Settings alone, they stay off until confirmed in the panel.
+
+### Fixed
+
+- Pasting, dropping or attaching an image or a file failed with "message too large": the panel sent it in pieces of 768 KB, and Orca accepts at most 64 KiB per request. Pieces are now 44 KiB, so every image up to 5 MB and file up to 10 MB attaches; a file over the limit is refused at once with its size and the limit.
+
+### Changed
+
+- No scrollbars in the panel (it still scrolls).
+- Orca asks to approve the plugin again: this version adds access to start agents, open files in Orca, show notifications, and two hooks that observe agent tools and editor saves (they never change or block anything).
+
 ## [2.4.5] - 2026-11-09
 
 ### Changed
@@ -412,6 +428,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.0
 [2.4.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.5
 [2.4.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.4
 [2.4.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.4.3

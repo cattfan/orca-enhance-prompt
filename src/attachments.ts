@@ -6,15 +6,15 @@
 import { appendFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { MAX_IMAGES } from './image-limits.ts'
+import { MAX_ATTACHMENT_BYTES, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, MAX_IMAGES, sizeOver } from './image-limits.ts'
 import { megabytes, sniffImage, type ImageData } from './images.ts'
 import { LlmError } from './llm.ts'
 import { msg } from './messages.ts'
 
 /** Where attachments are kept; removed after a day. */
 export const ATTACHMENTS_DIR = join(tmpdir(), 'enhance-prompt-attachments')
-/** An attachment can be at most this large; text files at most TEXT_MAX of it go in the context. */
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+/** An attachment can be at most MAX_ATTACHMENT_BYTES; text files at most TEXT_MAX of it go in the context. */
+export { MAX_ATTACHMENT_BYTES }
 export const TEXT_MAX = 200_000
 const DAY_MS = 24 * 3600_000
 
@@ -28,8 +28,14 @@ export function safeName(name: string): string {
  * Adds one chunk (base64) of an attachment. Chunks come in order; the last one answers with the file's
  * path. Refuses an id that is not ours or a file past MAX_ATTACHMENT_BYTES.
  */
-export async function putChunk(input: { id: string; name: string; index: number; total: number; data: string }): Promise<{ path: string; bytes: number } | { received: number }> {
+export async function putChunk(input: { id: string; name: string; index: number; total: number; data: string; size?: number }): Promise<{ path: string; bytes: number } | { received: number }> {
   if (!/^[a-z0-9-]{6,40}$/.test(input.id)) throw new LlmError(msg('error.attachment_bad'), 'invalid_params')
+  // One piece must fit in a panel request (64 KiB): the panel cuts files at ATTACHMENT_CHUNK_BYTES.
+  if (typeof input.data !== 'string' || input.data.length > MAX_CHUNK_BASE64) throw new LlmError(msg('error.attachment_bad'), 'invalid_params')
+  // The whole size, when the panel says it on the first piece: refused before anything is written.
+  if (input.index === 0 && typeof input.size === 'number' && input.size > MAX_ATTACHMENT_BYTES) {
+    throw new LlmError(msg('error.file_too_large', { name: safeName(input.name), size: sizeOver(input.size, MAX_ATTACHMENT_BYTES), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
+  }
   if (!Number.isInteger(input.index) || !Number.isInteger(input.total) || input.index < 0 || input.index >= input.total) {
     throw new LlmError(msg('error.attachment_bad'), 'invalid_params')
   }
@@ -43,7 +49,7 @@ export async function putChunk(input: { id: string; name: string; index: number;
   const before = await stat(path).then((info) => info.size).catch(() => 0)
   if (before + bytes.length > MAX_ATTACHMENT_BYTES) {
     await rm(dir, { recursive: true, force: true })
-    throw new LlmError(msg('error.file_too_large', { name: safeName(input.name), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
+    throw new LlmError(msg('error.file_too_large', { name: safeName(input.name), size: sizeOver(before + bytes.length, MAX_ATTACHMENT_BYTES), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
   }
   await appendFile(path, bytes)
   if (input.index < input.total - 1) return { received: before + bytes.length }
@@ -75,12 +81,12 @@ export async function loadFiles(paths: readonly string[]): Promise<LoadedFiles> 
     const info = await stat(path).catch(() => null)
     if (!info || !info.isFile()) throw new LlmError(msg('error.image_missing', { path }), 'invalid_params')
     if (info.size > MAX_ATTACHMENT_BYTES) {
-      throw new LlmError(msg('error.file_too_large', { name: basename(path), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
+      throw new LlmError(msg('error.file_too_large', { name: basename(path), size: sizeOver(info.size, MAX_ATTACHMENT_BYTES), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
     }
     const bytes = await readFile(path)
     out.paths.push(path)
     const type = sniffImage(bytes.subarray(0, 16))
-    if (type && info.size <= 5 * 1024 * 1024 && out.images.length < MAX_IMAGES) {
+    if (type && info.size <= MAX_IMAGE_BYTES && out.images.length < MAX_IMAGES) {
       out.images.push({ path, name: basename(path), bytes: info.size, type, base64: bytes.toString('base64') })
       continue
     }

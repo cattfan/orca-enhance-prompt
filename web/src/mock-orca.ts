@@ -117,6 +117,8 @@ async function enhance(input: Record<string, unknown>, signal?: AbortSignal) {
 }
 
 let attachmentCount = 0
+/** Switches confirmed in the panel (the worker keeps them in storage). */
+const granted = new Set<string>()
 const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSignal) => unknown> = {
   'models.get': () => models,
   'models.catalog': (input) => ({
@@ -153,6 +155,14 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
   'history.clear': () => store.set('history', []),
   'data.summary': () => ({ history: 2, profiles: 2, keys: 1, catalogs: 2 }),
   'data.clear': () => null,
+  'consents.get': () => ({ granted: [...granted], needed: ['allowOtherAgents', 'allowAgentActivity', 'allowAgentLaunch'] }),
+  'consent.set': (input) => {
+    if (input.granted) granted.add(String(input.key))
+    else granted.delete(String(input.key))
+    return { granted: [...granted] }
+  },
+  'agent.launch': () => ({ terminalId: 'mock-new' }),
+  'editor.open': () => ({ opened: true }),
   'attachments.put': (input) => {
     attachmentCount += 1
     if (Number(input.index) < Number(input.total) - 1) return { received: 1 }
@@ -215,6 +225,12 @@ export async function installMockOrca(): Promise<void> {
     // Damaged copy: the defaults above.
   }
   if (query.get('lang')) settingsValues.uiLanguage = query.get('lang')
+  // ?set=key:value,key:value sets settings; ?consent=key,key confirms switches (pictures of the panel).
+  for (const pair of (query.get('set') ?? '').split(',').filter(Boolean)) {
+    const [key, value] = pair.split(':')
+    settingsValues[key] = value === 'true' ? true : value === 'false' ? false : Number.isFinite(Number(value)) ? Number(value) : value
+  }
+  for (const key of (query.get('consent') ?? '').split(',').filter(Boolean)) granted.add(key)
   if (query.get('theme') === 'dark') root.classList.add('dark')
   // ?width=360: a sidebar's width (headless browsers cannot make a window that narrow).
   if (query.get('width')) document.body.style.cssText = `max-width:${Number(query.get('width'))}px;border-right:1px dashed #8884`

@@ -43,7 +43,8 @@ test('a missing, relative, too large, wrong-type file or too many images is refu
   await assert.rejects(inspectImage('shot.png'), /full path of an image file/)
   await assert.rejects(inspectImage(join(dir, 'nope.png')), /No image file at/)
   await assert.rejects(inspectImage(text), /notes\.png is not a PNG, JPEG, GIF or WebP image/)
-  await assert.rejects(inspectImage(big), /huge\.png is 5\.0 MB; an image can be at most 5\.0 MB/)
+  // Just over the limit: the size has enough digits to show it is over (not "5.0 MB of 5.0 MB").
+  await assert.rejects(inspectImage(big), /huge\.png is 5,242,948 bytes; an image can be at most 5\.0 MB/)
   await assert.rejects(loadImages([png, png, png, png, png]), /At most 4 images per prompt/)
   const [loaded] = await loadImages([png])
   assert.equal(loaded.base64, PNG.toString('base64'))

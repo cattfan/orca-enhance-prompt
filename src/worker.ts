@@ -5,6 +5,9 @@ import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
 import { apiCatalog, claudeCatalog, claudeProgramSignature, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
 import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
+import { forgetActivity, recordSave, recordStatus, recordTool } from './context/activity.ts'
+import { isSensitive } from './context/files.ts'
+import { resolveLanguage, translate } from './i18n-dict.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, fitBudget, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
 import { extractError } from './terminal-error.ts'
 import { imagesBlock, imageSupport, inspectImage, loadImages, withImagePaths } from './images.ts'
@@ -24,9 +27,9 @@ import {
   type ChainOptions
 } from './models.ts'
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelProfile, type ModelsConfig } from './presets.ts'
-import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, type Style } from './prompts.ts'
+import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, terminalSafe, type Style } from './prompts.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ModelsView } from './protocol.ts'
-import { parsePrivacy, type Privacy } from './privacy.ts'
+import { CONSENTS_KEY, NEEDS_CONSENT, parseConsents, parseOtherAgentsLimits, parsePrivacy, type OtherAgentsLimits, type Privacy, type PrivacyKey } from './privacy.ts'
 import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
 import { BRAND, BRAND_SHORT } from './brand.ts'
@@ -66,6 +69,12 @@ export type Settings = {
   autoEnhanceAppend: string
   autoEnhanceMinLength: number
   autoEnhanceContext: boolean
+  /** A desktop notification when a long run finishes. */
+  notifyWhenDone: boolean
+  /** Read other agents' sessions: how many agents and lines (within OTHER_AGENTS_LIMITS). */
+  otherAgentsLimits: OtherAgentsLimits
+  uiLanguage: string
+  /** The switches as the worker may use them (confirmed where they need it). */
   privacy: Privacy
 }
 
@@ -75,7 +84,7 @@ const num = (value: JsonValue | undefined, fallback: number) =>
 const bool = (value: JsonValue | undefined, fallback: boolean) => (typeof value === 'boolean' ? value : fallback)
 
 export async function readSettings(orca: OrcaWorkerApi): Promise<Settings> {
-  const all = await orca.settings.get()
+  const [all, consents] = await Promise.all([orca.settings.get(), orca.storage.get(CONSENTS_KEY).catch(() => null)])
   const mode = str(all.autoEnhanceMode, 'off')
   const style = str(all.defaultStyle, 'balanced')
   const level = str(all.contextLevel, 'standard')
@@ -102,7 +111,10 @@ export async function readSettings(orca: OrcaWorkerApi): Promise<Settings> {
     autoEnhanceAppend: str(all.autoEnhanceAppend),
     autoEnhanceMinLength: num(all.autoEnhanceMinLength, 8),
     autoEnhanceContext: bool(all.autoEnhanceContext, true),
-    privacy: parsePrivacy(all)
+    notifyWhenDone: bool(all.notifyWhenDone, false),
+    otherAgentsLimits: parseOtherAgentsLimits(all),
+    uiLanguage: str(all.uiLanguage, 'auto'),
+    privacy: parsePrivacy(all, parseConsents(consents))
   }
 }
 
@@ -208,6 +220,30 @@ async function readErrorOutput(orca: OrcaWorkerApi, terminalId: string, step: St
   return contextItem('error', 'error', msg('label.error', { name }), note + text)
 }
 
+/**
+ * The Privacy switches a context gather obeys, the same for a run and for Preview: git, the target
+ * terminal, and the other agents' sessions (which are terminal output too, so they need both).
+ */
+export function gatherPrivacy(settings: Settings): {
+  allowGit: boolean
+  allowTerminal: boolean
+  allowOtherAgents: boolean
+  otherAgentsLimits?: OtherAgentsLimits
+  allowAgentActivity: boolean
+  allowEditorSaves: boolean
+} {
+  const otherAgents = settings.privacy.allowTerminalRead && settings.privacy.allowOtherAgents
+  return {
+    allowGit: settings.privacy.allowGit,
+    allowTerminal: settings.privacy.allowTerminalRead,
+    allowOtherAgents: otherAgents,
+    // The amounts matter only while the switch is on (and confirmed).
+    ...(otherAgents ? { otherAgentsLimits: settings.otherAgentsLimits } : {}),
+    allowAgentActivity: settings.privacy.allowAgentActivity,
+    allowEditorSaves: settings.privacy.allowEditorSaves
+  }
+}
+
 /** Privacy: without project files, nothing beyond workspace and agent names. */
 export function allowedLevel(requested: ContextLevel, settings: Settings): ContextLevel {
   return !settings.privacy.allowProjectFiles && atLeast(requested, 'standard') ? 'basic' : requested
@@ -236,7 +272,7 @@ export async function enhance(
     workspaceId?: string
   },
   signal?: AbortSignal,
-  progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) => StepReporter,
+  progress?: (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean, readsOtherAgents: boolean) => StepReporter,
   budgetMs?: number
 ) {
   const deadline = budgetMs === undefined ? undefined : Date.now() + budgetMs
@@ -252,7 +288,8 @@ export async function enhance(
   const errorTerminalId = typeof input.errorTerminalId === 'string' && input.errorTerminalId ? input.errorTerminalId.slice(0, 200) : null
   // "Fix this error" reads a terminal: the same Privacy switch as terminal output in the context.
   if (errorTerminalId && !settings.privacy.allowTerminalRead) throw hostError(msg('error.terminal_read_off'), 'not_permitted')
-  const step = progress?.(level, settings.privacy.allowProjectFiles, Boolean(errorTerminalId)) ?? (() => undefined)
+  const privacy = gatherPrivacy(settings)
+  const step = progress?.(level, settings.privacy.allowProjectFiles, Boolean(errorTerminalId), privacy.allowOtherAgents) ?? (() => undefined)
   const errorItem = errorTerminalId ? await readErrorOutput(orca, errorTerminalId, step, signal) : null
 
   const gathered = await gatherContext(orca, {
@@ -265,8 +302,7 @@ export async function enhance(
     excludePatterns: settings.excludePatterns,
     // The picker gets its own share, so the rewrite itself always has time left.
     pickFiles: (tree, task) => pickFilesWithModel(orca, config, settings, tree, task, signal, Math.min(RUN_LIMITS.pickerMs, (left() ?? Infinity) / 2)),
-    allowGit: settings.privacy.allowGit,
-    allowTerminal: settings.privacy.allowTerminalRead,
+    ...privacy,
     onStep: step,
     signal,
     workspaceId: typeof input.workspaceId === 'string' ? input.workspaceId : null
@@ -485,8 +521,8 @@ export async function enhanceRequest(
   const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
   // Progress goes only to the panel that asked, and only when it asked for it.
   const progress = runId
-    ? (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean) =>
-        createProgress(runId, planSteps(level, allowProjectFiles, readsError), (snapshot) => {
+    ? (level: ContextLevel, allowProjectFiles: boolean, readsError: boolean, readsOtherAgents: boolean) =>
+        createProgress(runId, planSteps(level, allowProjectFiles, readsError, readsOtherAgents), (snapshot) => {
           latestProgress.delete(runId)
           latestProgress.set(runId, snapshot)
           for (const old of [...latestProgress.keys()].slice(0, Math.max(0, latestProgress.size - MAX_TRACKED_RUNS))) latestProgress.delete(old)
@@ -497,6 +533,7 @@ export async function enhanceRequest(
   // The panel gave up while the model was answering: it shows an error, so keep no trace either.
   if (signal.aborted) throw hostError(msg('error.cancelled'), 'cancelled')
   const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
+  void notifyDone(orca, result.settings, model, Date.now() - started)
   await addHistory(orca, result.settings, {
     original: input.prompt.trim(),
     enhanced: result.enhanced,
@@ -533,8 +570,7 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
       exclude: new Set(exclude ?? []),
       extraFiles: settings.extraContextFiles,
       excludePatterns: settings.excludePatterns,
-      allowGit: settings.privacy.allowGit,
-      allowTerminal: settings.privacy.allowTerminalRead,
+      ...gatherPrivacy(settings),
       signal,
       workspaceId: workspaceId ?? null
     })
@@ -802,6 +838,9 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       for (const profile of config.profiles) await orca.secrets.delete(secretName(profile.id)).catch(() => undefined)
       await orca.storage.delete(MODELS_KEY)
       await orca.storage.delete(RULES_KEY)
+      // Confirmations go too: a switch that needs one asks again; what Orca reported is forgotten.
+      await orca.storage.delete(CONSENTS_KEY)
+      forgetActivity()
     }
     return { ok: true as const }
   })
@@ -913,7 +952,113 @@ function registerCommands(orca: OrcaWorkerApi): void {
   void refreshStatusBar(orca)
 }
 
+// ---- Orca integrations: what agents do, files saved in the editor, new agents, opening files
+
+/**
+ * The switches as the worker may use them now, for the hooks and events that fire often (they must
+ * not read settings each time). Refreshed when a setting or a confirmation changes.
+ */
+let live: Privacy = parsePrivacy({}, {})
+
+async function refreshLive(orca: OrcaWorkerApi): Promise<void> {
+  const before = live
+  live = (await readSettings(orca).catch(() => null))?.privacy ?? live
+  // A switch turned off forgets what it had kept.
+  if (before.allowAgentActivity && !live.allowAgentActivity) forgetActivity('agents')
+  if (before.allowEditorSaves && !live.allowEditorSaves) forgetActivity('saves')
+}
+
+/** A relative path inside a workspace, or null (absolute, parent folders, a secret file). */
+function workspacePath(path: unknown): string | null {
+  if (typeof path !== 'string') return null
+  const clean = path.trim().replace(/\\/g, '/').replace(/^\.\//, '')
+  if (!clean || clean.length > 500 || clean.startsWith('/') || /^[a-zA-Z]:/.test(clean) || clean.split('/').includes('..') || isSensitive(clean)) return null
+  return clean
+}
+
+/** Orca's id of the focused workspace: the panel's, when it knows it, else matched by name and branch. */
+async function focusedWorkspaceId(orca: OrcaWorkerApi, hint: unknown): Promise<string | null> {
+  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
+  if (!focused) return null
+  return (await findFocusedWorkspace(orca, focused, typeof hint === 'string' ? hint : null))?.id ?? null
+}
+
+/** The agent kinds a new agent can be started with: ids as Orca names them (letters, digits, - _). */
+const AGENT_KIND = /^[a-z][a-z0-9_-]{0,31}$/
+
+function registerIntegrations(orca: OrcaWorkerApi): void {
+  void refreshLive(orca)
+  orca.settings.onDidChange(() => void refreshLive(orca))
+  orca.storage.onDidChange(({ key }) => {
+    if (key === CONSENTS_KEY) void refreshLive(orca)
+  })
+
+  // Observe only: Orca does not wait for agent.tool.after; editor.save.before passes at once.
+  orca.hooks.on('agent.tool.after', (event) => {
+    if (live.allowAgentActivity) recordTool(event)
+  })
+  orca.events.on('agent.status.changed', (event) => {
+    if (live.allowAgentActivity) recordStatus(event)
+  })
+  orca.hooks.on('editor.save.before', (event) => {
+    if (live.allowEditorSaves) recordSave(event)
+  })
+
+  /** Which confirmations were given, and which switches need one. */
+  orca.panels.handle('consents.get', async () => {
+    const consents = parseConsents(await orca.storage.get(CONSENTS_KEY).catch(() => null))
+    return { granted: [...NEEDS_CONSENT].filter((key) => consents[key] === true), needed: [...NEEDS_CONSENT] }
+  })
+
+  /** The person confirmed (or withdrew) a switch after reading what it allows, in the panel. */
+  orca.panels.handle('consent.set', async ({ key, granted }) => {
+    if (!NEEDS_CONSENT.has(key as PrivacyKey)) throw hostError(msg('error.invalid_request'), 'invalid_params')
+    const consents = parseConsents(await orca.storage.get(CONSENTS_KEY).catch(() => null))
+    if (granted) consents[key as PrivacyKey] = true
+    else delete consents[key as PrivacyKey]
+    await orca.storage.set(CONSENTS_KEY, consents as JsonValue)
+    await refreshLive(orca)
+    return { granted: [...NEEDS_CONSENT].filter((entry) => consents[entry] === true) }
+  })
+
+  /** Starts a new agent in the focused workspace with the enhanced prompt (Privacy, confirmed). */
+  orca.panels.handle('agent.launch', async ({ agent, prompt, workspaceId }) => {
+    const settings = await readSettings(orca)
+    if (!settings.privacy.allowAgentLaunch) throw hostError(msg('error.launch_off'), 'not_permitted')
+    if (!orca.host.has('agent.launch')) throw hostError(msg('error.unsupported'), 'unavailable')
+    if (typeof agent !== 'string' || !AGENT_KIND.test(agent)) throw hostError(msg('error.invalid_request'), 'invalid_params')
+    const text = terminalSafe(String(prompt ?? '')).trim().slice(0, 20_000)
+    if (!text) throw hostError(msg('error.nothing_to_send'), 'invalid_params')
+    const id = await focusedWorkspaceId(orca, workspaceId)
+    if (!id) throw hostError(msg('note.no_workspace'), 'invalid_params')
+    return orca.host.call('agent.launch', { workspaceId: id, agent, prompt: text })
+  })
+
+  /** Opens a file of the focused workspace in Orca's editor (a context item the person clicked). */
+  orca.panels.handle('editor.open', async ({ path, workspaceId }) => {
+    const settings = await readSettings(orca)
+    if (!settings.privacy.allowOpenFiles) throw hostError(msg('error.open_off'), 'not_permitted')
+    if (!orca.host.has('editor.open')) throw hostError(msg('error.unsupported'), 'unavailable')
+    const clean = workspacePath(path)
+    if (!clean) throw hostError(msg('error.invalid_request'), 'invalid_params')
+    const id = await focusedWorkspaceId(orca, workspaceId)
+    if (!id) throw hostError(msg('note.no_workspace'), 'invalid_params')
+    return orca.host.call('editor.open', { workspaceId: id, path: clean })
+  })
+}
+
+/** After a long panel run: a desktop notification that names the model and time, never the prompt. */
+async function notifyDone(orca: OrcaWorkerApi, settings: Settings, model: string, ms: number): Promise<void> {
+  if (!settings.notifyWhenDone || ms < NOTIFY_AFTER_MS || !orca.host.has('notifications.show')) return
+  const lang = resolveLanguage(settings.uiLanguage, 'en')
+  const body = translate(lang, 'Enhanced prompt ready ({model}, {seconds} s)', { model, seconds: (ms / 1000).toFixed(0) })
+  await orca.host.call('notifications.show', { title: BRAND, body }).catch(() => undefined)
+}
+/** Shorter runs end while the person is still looking at the panel. */
+const NOTIFY_AFTER_MS = 8000
+
 export default function activate(orca: OrcaWorkerApi): void {
+  registerIntegrations(orca)
   registerRunHandlers(orca)
   registerModelHandlers(orca)
   registerDataHandlers(orca)

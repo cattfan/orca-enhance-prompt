@@ -45,6 +45,8 @@ export function orcaBridge(): Plugin {
   return {
     name: 'orca-bridge',
     apply: 'serve',
+    // ?fresh: start from empty saved panel state (pictures taken one after another share a browser profile).
+    transformIndexHtml: () => [{ tag: 'script', children: "if (new URLSearchParams(location.search).has('fresh')) localStorage.clear()", injectTo: 'head-prepend' }],
     configureServer(server) {
       server.middlewares.use('/__orca/status', (_req, res) => {
         orca(['plugin', 'list'], 20_000)

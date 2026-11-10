@@ -9,13 +9,14 @@ import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
-import { draft, files, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
+import { busy, draft, files, history, notice, optionsOpen, put, restoreSaved, tab } from '../../src/panel/state.ts'
 import { previews } from './attach'
 import {
   applyProgress,
   cancel,
   changeUiLanguage,
   detectClis,
+  refreshConsents,
   enhanceNow,
   learnTerminals,
   refreshDataSummary,
@@ -153,6 +154,7 @@ function setup(): void {
   void refreshTargets()
   void refreshRules()
   void detectClis()
+  void refreshConsents()
   if (read(tab) === 'privacy') void refreshDataSummary()
 }
 
@@ -187,7 +189,9 @@ async function start(): Promise<void> {
     }
     if (demo) {
       put(draft, demo)
-      if (query.get('run') !== '0') setTimeout(() => void enhanceNow(), 300)
+      // Run once the panel is idle (opening the options gathers the context first).
+      const go = (): void => void (read(busy) ? setTimeout(go, 200) : enhanceNow())
+      if (query.get('run') !== '0') setTimeout(go, 300)
     }
     // The drawn content's height, in the title: scripts/make-listing.mjs crops its shots with it.
     setInterval(() => {

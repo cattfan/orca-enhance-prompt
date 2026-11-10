@@ -4,11 +4,29 @@
 import { plugin, read, set } from 'orca'
 import { t } from '../../src/i18n.ts'
 import { files, notice, message, put, type AttachedFile } from '../../src/panel/state.ts'
+import { ATTACHMENT_CHUNK_BYTES, MAX_ATTACHMENT_BYTES, MAX_IMAGE_BYTES, sizeOver } from '../../src/image-limits.ts'
 
 export const MAX_FILES = 8
-export const MAX_FILE_BYTES = 10 * 1024 * 1024
-/** Raw bytes per request (about 1 MB once in base64). */
-const CHUNK = 768 * 1024
+export const MAX_FILE_BYTES = MAX_ATTACHMENT_BYTES
+/**
+ * Raw bytes per request. Orca refuses a panel request larger than 64 KiB ("message too large"):
+ * pieces of 768 KB (about 1 MB in base64) made every attachment fail. See src/image-limits.ts.
+ */
+const CHUNK = ATTACHMENT_CHUNK_BYTES
+
+const megabytes = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+/**
+ * Why a file cannot be attached, with its size and the limit; null when it can. An image larger than
+ * models accept (5 MB) is refused here too, instead of being sent by path without a word.
+ */
+export function tooLarge(file: { name: string; size: number; type: string }): string | null {
+  if (file.type.startsWith('image/') && file.size > MAX_IMAGE_BYTES) {
+    return t('{name} is {size}; an image can be at most {max}.', { name: file.name, size: sizeOver(file.size, MAX_IMAGE_BYTES), max: megabytes(MAX_IMAGE_BYTES) })
+  }
+  if (file.size > MAX_FILE_BYTES) return t('{name} is {size}; an attachment can be at most {max}.', { name: file.name, size: sizeOver(file.size, MAX_FILE_BYTES), max: megabytes(MAX_FILE_BYTES) })
+  return null
+}
 
 /** Previews of attached images, by path, for this panel run only. */
 export const previews = new Map<string, string>()
@@ -32,15 +50,15 @@ function nameOf(file: File): string {
   return `pasted-${stamp}.${extension}`
 }
 
-async function uploadOne(file: File): Promise<AttachedFile> {
+async function uploadOne(file: File, name: string): Promise<AttachedFile> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const id = newId()
-  const name = nameOf(file)
   const total = Math.max(1, Math.ceil(bytes.length / CHUNK))
   let answer: unknown = null
   for (let index = 0; index < total; index += 1) {
     const data = toBase64(bytes.subarray(index * CHUNK, (index + 1) * CHUNK))
-    answer = await plugin.request('attachments.put', { id, name, index, total, data }, { timeoutMs: 60_000 })
+    // The first piece says the whole size, so the worker can refuse a file that is too large at once.
+    answer = await plugin.request('attachments.put', { id, name, index, total, data, ...(index === 0 ? { size: bytes.length } : {}) }, { timeoutMs: 60_000 })
   }
   const done = answer as { path: string; bytes: number }
   return { path: done.path, name, bytes: bytes.length, type: file.type || 'application/octet-stream' }
@@ -51,15 +69,16 @@ export async function attachFiles(list: readonly File[], refresh: () => void): P
   const room = MAX_FILES - read<AttachedFile[]>(files).length - uploading.length
   if (list.length > room) set(notice, { tone: 'warning', text: t('At most {max} files per prompt.', { max: MAX_FILES }) })
   for (const file of list.slice(0, Math.max(0, room))) {
-    if (file.size > MAX_FILE_BYTES) {
-      set(notice, { tone: 'warning', text: t('{name} is too large; an attachment can be at most {max}.', { name: file.name, max: '10 MB' }) })
+    const refused = tooLarge(file)
+    if (refused) {
+      set(notice, { tone: 'warning', text: refused })
       continue
     }
     const name = nameOf(file)
     uploading = [...uploading, name]
     refresh()
     try {
-      const attached = await uploadOne(file)
+      const attached = await uploadOne(file, name)
       if (file.type.startsWith('image/')) previews.set(attached.path, URL.createObjectURL(file))
       put(files, [...read<AttachedFile[]>(files), attached])
     } catch (error) {

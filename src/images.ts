@@ -9,7 +9,7 @@ import { msg } from './messages.ts'
 import type { ModelProfile } from './presets.ts'
 
 /** At most this many images per prompt, of at most this size each (Anthropic's per-image limit). */
-import { MAX_IMAGE_BYTES, MAX_IMAGES } from './image-limits.ts'
+import { MAX_IMAGE_BYTES, MAX_IMAGES, sizeOver } from './image-limits.ts'
 export { MAX_IMAGE_BYTES, MAX_IMAGES }
 
 export type ImageType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
@@ -48,7 +48,7 @@ export async function inspectImage(text: string): Promise<ImageInfo> {
   const info = await stat(path).catch(() => null)
   if (!info || !info.isFile()) throw new LlmError(msg('error.image_missing', { path }), 'invalid_params')
   if (info.size > MAX_IMAGE_BYTES) {
-    throw new LlmError(msg('error.image_too_large', { name: basename(path), size: megabytes(info.size), max: megabytes(MAX_IMAGE_BYTES) }), 'too_large')
+    throw new LlmError(msg('error.image_too_large', { name: basename(path), size: sizeOver(info.size, MAX_IMAGE_BYTES), max: megabytes(MAX_IMAGE_BYTES) }), 'too_large')
   }
   const handle = await readFile(path).catch(() => null)
   const type = handle ? sniffImage(handle.subarray(0, 16)) : null

@@ -3,7 +3,8 @@
 //   basic     workspace name/branch, target agent
 //   standard  + agent rule files, README digest, stack & commands, repo tree
 //   deep      + git status/log/diff, files relevant to the prompt (paths, grep, snippets)
-//   max       + AI-picked files from the tree, recent output of the agent terminal
+//   max       + AI-picked files from the tree, recent output of the agent terminal, and (Privacy
+//             "Read other agents' sessions", off by default) the other agents and their sessions
 import type { OrcaWorkerApi } from 'orca/worker'
 import { LlmError, messageOf } from '../llm.ts'
 import { english, msg, raw, type Message } from '../messages.ts'
@@ -14,6 +15,8 @@ import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStat
 import { readRuleFiles } from './instructions.ts'
 import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
 import { detectStack } from './stack.ts'
+import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, SESSION_LINES } from './agents.ts'
+import { agentActivity, savedFiles } from './activity.ts'
 
 export type ContextItem = ContextItemView & { content: string }
 
@@ -44,6 +47,14 @@ export type GatherOptions = {
   /** Privacy switches: no git commands, no terminal output. */
   allowGit?: boolean
   allowTerminal?: boolean
+  /** Max level: the other agents of the workspace and their recent sessions. Off unless true. */
+  allowOtherAgents?: boolean
+  /** How many other agents, and how many lines of each terminal (defaults: 4 and 80). */
+  otherAgentsLimits?: { agents: number; lines: number }
+  /** Deep and Max: what the agents did lately (tools and targets, how sessions ended). Off unless true. */
+  allowAgentActivity?: boolean
+  /** Deep and Max: the files saved lately in Orca's editor (ranked first in the code search). Off unless true. */
+  allowEditorSaves?: boolean
   /** Progress: called when a step starts, finishes or is skipped. */
   onStep?: StepReporter
   /** Cancel: running git commands are stopped and the gather ends with a cancelled error. */
@@ -180,6 +191,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   step('workspace', 'done', focused?.displayName)
 
   let root: string | null = null
+  let workspaceId: string | null = null
   if (atLeast(level, 'standard')) step('project', 'running')
   if (focused && atLeast(level, 'standard')) {
     const workspace = await findFocusedWorkspace(orca, focused, options.workspaceId)
@@ -189,8 +201,16 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
       notes.push(msg('note.remote'))
     } else {
       root = workspace.path
+      workspaceId = workspace.id
     }
   }
+  // Files saved lately in Orca's editor (paths inside this workspace, made relative to it).
+  const saved =
+    root && workspaceId && options.allowEditorSaves === true && atLeast(level, 'deep')
+      ? savedFiles(workspaceId)
+          .map((path) => relativeTo(root as string, path))
+          .filter((path): path is string => path !== null && !isSensitive(path))
+      : []
 
   if (root) {
     stopIfCancelled(signal)
@@ -198,7 +218,10 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     items.push(...parts.items)
     step('project', 'done', String(parts.files.length))
     if (atLeast(level, 'deep')) {
-      items.push(...(await dynamicParts(root, parts, options, notes)))
+      items.push(...(await dynamicParts(root, parts, options, notes, saved)))
+      if (saved.length > 0 && !options.exclude.has('saved')) items.push(item('saved', 'saved', msg('label.saved'), saved.map((path) => `- ${path}`).join('\n')))
+      const activity = workspaceId && options.allowAgentActivity === true && !options.exclude.has('activity') ? agentActivity(workspaceId) : ''
+      if (activity) items.push(item('activity', 'activity', msg('label.activity'), activity))
     }
   } else if (atLeast(level, 'standard')) {
     step('project', 'skipped')
@@ -229,15 +252,31 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     step('terminal', 'done', String(lines.length))
   }
 
+  if (level === 'max' && options.allowOtherAgents === true) {
+    items.push(...(await otherAgentItems(orca, options, step)))
+  }
+
   stopIfCancelled(signal)
   return { items: fitBudget(items.filter((entry) => !options.exclude.has(entry.id)), BUDGET[level]), notes, root }
+}
+
+/** A path inside `root`, relative to it with forward slashes; null for a path outside it. */
+export function relativeTo(root: string, path: string): string | null {
+  const norm = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '')
+  const base = norm(root)
+  const full = norm(path)
+  if (!/^([a-zA-Z]:)?\//.test(full)) return full.includes('..') ? null : full.replace(/^\.\//, '')
+  const same = process.platform === 'win32' ? full.toLowerCase().startsWith(`${base.toLowerCase()}/`) : full.startsWith(`${base}/`)
+  return same ? full.slice(base.length + 1) : null
 }
 
 async function dynamicParts(
   root: string,
   parts: StaticParts,
   options: GatherOptions,
-  notes: Message[]
+  notes: Message[],
+  /** Files the person saved lately: ranked like changed files. */
+  saved: string[] = []
 ): Promise<ContextItem[]> {
   const out: ContextItem[] = []
   const patterns = compilePatterns(options.excludePatterns)
@@ -284,13 +323,14 @@ async function dynamicParts(
         )
       )
     }
-    if (status) changed = new Set(changedPaths(status.changed))
+    if (status) changed = new Set([...changedPaths(status.changed), ...saved])
     if (log?.trim()) out.push(item('git:log', 'git', msg('label.log'), log.trim()))
     if (diff) out.push(item('git:diff', 'git', msg('label.diff'), `${diff.stat}\n\n${diff.diff}`))
     step('git', 'done', String(changed.size))
   } else {
     notes.push(msg('note.not_git'))
     step('git', 'skipped')
+    changed = new Set(saved)
   }
 
   stopIfCancelled(signal)
@@ -359,9 +399,43 @@ async function dynamicParts(
   return out
 }
 
+/**
+ * The other agents of the focused workspace (not the one the prompt goes to): one summary item, then
+ * the newest output of each, as many as the person set (OTHER_AGENTS_LIMITS). An unticked item is not read; no other agent, or an
+ * Orca without these calls, adds nothing and says nothing.
+ */
+async function otherAgentItems(orca: OrcaWorkerApi, options: GatherOptions, step: StepReporter): Promise<ContextItem[]> {
+  const { signal } = options
+  if (options.exclude.has('agents')) {
+    step('agents', 'skipped')
+    return []
+  }
+  step('agents', 'running')
+  stopIfCancelled(signal)
+  const limits = options.otherAgentsLimits ?? { agents: MAX_SESSIONS, lines: SESSION_LINES }
+  const agents = (await otherAgents(orca, options.terminalId, signal)).slice(0, limits.agents)
+  stopIfCancelled(signal)
+  if (agents.length === 0) {
+    step('agents', 'done', '0')
+    return []
+  }
+  const out: ContextItem[] = [item('agents', 'agents', msg('label.agents'), agentsSummary(agents))]
+  for (const [index, agent] of agents.entries()) {
+    const id = `session:${agent.terminalId}`
+    if (options.exclude.has(id)) continue
+    const text = await readSession(orca, agent.terminalId, signal, limits.lines)
+    stopIfCancelled(signal)
+    step('agents', 'running', undefined, (index + 1) / agents.length)
+    if (text) out.push(item(id, 'session', msg('label.session', { name: agent.title ?? agent.agent ?? agent.terminalId }), text))
+  }
+  step('agents', 'done', String(agents.length))
+  return out
+}
+
 /** Keeps items in priority order until the budget; trims the one that crosses it. */
 export function fitBudget(items: ContextItem[], budget: number): ContextItem[] {
-  const priority: Record<string, number> = { error: 0, workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6 }
+  // Other agents come after everything else, so they never push out what a run used before them.
+  const priority: Record<string, number> = { error: 0, workspace: 0, agent: 0, rules: 1, stack: 2, file: 3, git: 4, terminal: 5, tree: 6, activity: 7, saved: 7, agents: 8, session: 9 }
   const sorted = [...items].sort((a, b) => (priority[a.kind] ?? 9) - (priority[b.kind] ?? 9))
   const out: ContextItem[] = []
   let used = 0

@@ -224,3 +224,134 @@ test('the gear section links to GitHub issues for feedback', async () => {
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
+
+// ---- other agents' sessions (Max level, Privacy "Read other agents' sessions", off by default)
+
+const SESSIONS: Record<string, string[]> = {
+  t1: ['target agent output'],
+  t2: ['claude: refactoring src/auth.ts', 'export OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz123456'],
+  t3: ['codex: tests pass']
+}
+function agentsHost(settings: Record<string, boolean | string | number>, consented = true) {
+  return mockHost({
+    settings,
+    // The switch also needs the person's confirmation in the panel (kept by the worker).
+    storage: { models: { profiles: [profile] }, ...(consented ? { consents: { allowOtherAgents: true } } : {}) },
+    secrets: { 'apiKey.oa': 'k' },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [{ id: 't1', title: 'Claude' }] },
+      'workspace.list': { workspaces: [], truncated: false },
+      'agents.list': {
+        agents: [
+          { terminalId: 't1', title: 'Claude', agent: 'claude', state: 'waiting', stateStartedAt: Date.now() },
+          { terminalId: 't2', title: 'Auth refactor', agent: 'claude', state: 'working', stateStartedAt: Date.now() - 120_000 },
+          { terminalId: 't3', title: 'Tests', agent: 'codex', state: 'done', stateStartedAt: Date.now() - 600_000 },
+          { terminalId: null, title: 'Detached', agent: 'gemini', state: 'done', stateStartedAt: 0 }
+        ]
+      },
+      'terminal.read': (params: { terminalId: string }) => ({ lines: SESSIONS[params.terminalId] ?? [], truncated: false })
+    }
+  })
+}
+const readTerminals = (host: ReturnType<typeof agentsHost>) => host.callsOf('terminal.read').map((params) => (params as { terminalId: string }).terminalId)
+
+test("other agents' sessions are not read while their switch is off (the default) or not confirmed, in a run and in Preview", async () => {
+  stubFetch()
+  const cases: [Record<string, boolean>, boolean][] = [
+    [{}, true],
+    [{ allowOtherAgents: true, allowTerminalRead: false }, true],
+    // On in Orca's Settings but never confirmed in the panel.
+    [{ allowOtherAgents: true }, false]
+  ]
+  for (const [settings, consented] of cases) {
+    const host = agentsHost(settings, consented)
+    const worker = await mountWorker(main, { host })
+    const run = await worker.request('prompt.enhance', { prompt: 'do it', level: 'max', terminalId: 't1' })
+    const preview = await worker.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1' })
+    for (const ids of [run.context.map((item) => item.id), preview.context.map((item) => item.id)]) {
+      assert.ok(!ids.some((id) => id === 'agents' || id.startsWith('session:')), ids.join(','))
+    }
+    assert.ok(!readTerminals(host).some((id) => id === 't2' || id === 't3'), readTerminals(host).join(','))
+    await worker.deactivate()
+  }
+})
+
+test("with the switch on, Max reads the other agents (not the target), masks secrets, and obeys unticking", async () => {
+  stubFetch()
+  const host = agentsHost({ allowOtherAgents: true })
+  const worker = await mountWorker(main, { host })
+  for (const kind of ['prompt.enhance', 'context.preview'] as const) {
+    const answer = await worker.request(kind, { prompt: 'do it', level: 'max', terminalId: 't1' })
+    const ids = answer.context.map((item) => item.id)
+    assert.ok(ids.includes('agents') && ids.includes('session:t2') && ids.includes('session:t3'), ids.join(','))
+    assert.ok(!ids.includes('session:t1'), ids.join(','))
+  }
+  // Below Max nothing of it is read.
+  const before = readTerminals(host).length
+  const deep = await worker.request('context.preview', { prompt: 'do it', level: 'deep', terminalId: 't1' })
+  assert.ok(!deep.context.some((item) => item.id === 'agents'))
+  assert.equal(readTerminals(host).length, before)
+  // Unticked: not read at all.
+  const others = () => readTerminals(host).filter((id) => id !== 't1').length
+  const othersBefore = others()
+  const unticked = await worker.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1', exclude: ['agents'] })
+  assert.ok(!unticked.context.some((item) => item.id === 'agents' || item.id.startsWith('session:')))
+  assert.equal(others(), othersBefore)
+  // The session text the model sees has its secrets masked.
+  const masked = await worker.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1' })
+  assert.equal(masked.context.find((item) => item.id === 'session:t2')?.chars, ['claude: refactoring src/auth.ts', 'export OPENAI_API_KEY=[redacted]'].join('\n').length)
+  await worker.deactivate()
+})
+
+test("auto-enhance never reads other agents' sessions (its 2 s budget), even with the switch on", async () => {
+  stubFetch()
+  const host = agentsHost({ allowOtherAgents: true, autoEnhanceMode: 'ai' })
+  const worker = await mountWorker(main, { host })
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 't1', prompt: 'add a login page', inputKind: 'launch' })
+  assert.equal(readTerminals(host).length, 0)
+  await worker.deactivate()
+})
+
+test("the number of agents and lines set for other agents' sessions is what a Max run reads", async () => {
+  stubFetch()
+  const host = agentsHost({ allowOtherAgents: true, otherAgentsMax: 1, otherAgentsLines: 25 })
+  const worker = await mountWorker(main, { host })
+  for (const kind of ['prompt.enhance', 'context.preview'] as const) {
+    const answer = await worker.request(kind, { prompt: 'do it', level: 'max', terminalId: 't1' })
+    const sessions = answer.context.filter((item) => item.id.startsWith('session:')).map((item) => item.id)
+    // One agent: the busiest other one (t2 is working, t3 is done).
+    assert.deepEqual(sessions, ['session:t2'])
+  }
+  const reads = host.callsOf('terminal.read').map((params) => params as { terminalId: string; maxLines: number }).filter((read) => read.terminalId !== 't1')
+  assert.ok(reads.length > 0 && reads.every((read) => read.maxLines === 25), JSON.stringify(reads))
+  await worker.deactivate()
+})
+
+test('out-of-range or wrong amounts are brought back within their limits; while off they read nothing', async () => {
+  const { parseOtherAgentsLimits } = await import('./privacy.ts')
+  assert.deepEqual(parseOtherAgentsLimits({}), { agents: 4, lines: 80 })
+  assert.deepEqual(parseOtherAgentsLimits({ otherAgentsMax: 0, otherAgentsLines: -5 }), { agents: 1, lines: 10 })
+  assert.deepEqual(parseOtherAgentsLimits({ otherAgentsMax: 9999, otherAgentsLines: 1e9 }), { agents: 8, lines: 300 })
+  assert.deepEqual(parseOtherAgentsLimits({ otherAgentsMax: 'abc', otherAgentsLines: null }), { agents: 4, lines: 80 })
+  assert.deepEqual(parseOtherAgentsLimits({ otherAgentsMax: '3', otherAgentsLines: 2.6 * 10 }), { agents: 3, lines: 26 })
+
+  stubFetch()
+  // Amounts changed while the switch is off, or on but not confirmed: no other terminal is read.
+  for (const [settings, consented] of [
+    [{ otherAgentsMax: 8, otherAgentsLines: 300 }, true],
+    [{ allowOtherAgents: true, otherAgentsMax: 8, otherAgentsLines: 300 }, false]
+  ] as const) {
+    const host = agentsHost(settings, consented)
+    const worker = await mountWorker(main, { host })
+    await worker.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1' })
+    assert.ok(!readTerminals(host).some((id) => id !== 't1'))
+    await worker.deactivate()
+  }
+  // Huge values from Orca's Settings are clamped before any read.
+  const host = agentsHost({ allowOtherAgents: true, otherAgentsMax: 50, otherAgentsLines: 100000 })
+  const worker = await mountWorker(main, { host })
+  await worker.request('context.preview', { prompt: 'do it', level: 'max', terminalId: 't1' })
+  const reads = host.callsOf('terminal.read').map((params) => params as { terminalId: string; maxLines: number }).filter((read) => read.terminalId !== 't1')
+  assert.ok(reads.length === 2 && reads.every((read) => read.maxLines === 300), JSON.stringify(reads))
+  await worker.deactivate()
+})

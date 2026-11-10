@@ -4,7 +4,7 @@
 // read). A model call reports no progress of its own: its share is an estimate from the time it has
 // been running, never 100% until the answer is in, and the panel marks it as an estimate.
 
-export type StepKey = 'error' | 'workspace' | 'project' | 'git' | 'search' | 'pick' | 'terminal' | 'model'
+export type StepKey = 'error' | 'workspace' | 'project' | 'git' | 'search' | 'pick' | 'terminal' | 'agents' | 'model'
 export type StepStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed'
 export type Step = {
   key: StepKey
@@ -20,7 +20,7 @@ export type ProgressSnapshot = { runId: string; startedAt: number; steps: Step[]
 const RANK = { off: 0, basic: 1, standard: 2, deep: 3, max: 4 } as const
 
 /** The steps a run will go through, in order. */
-export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean, readsError = false): StepKey[] {
+export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean, readsError = false, readsOtherAgents = false): StepKey[] {
   const steps: StepKey[] = readsError ? ['error'] : []
   if (RANK[level] >= RANK.basic) steps.push('workspace')
   if (RANK[level] >= RANK.standard && allowProjectFiles) steps.push('project')
@@ -28,6 +28,7 @@ export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean, 
   if (RANK[level] >= RANK.max) {
     if (allowProjectFiles) steps.push('pick')
     steps.push('terminal')
+    if (readsOtherAgents) steps.push('agents')
   }
   steps.push('model')
   return steps
@@ -37,7 +38,7 @@ export function planSteps(level: keyof typeof RANK, allowProjectFiles: boolean, 
  * How much of a run each step is, roughly by the time it usually takes: the model call is most of
  * it, the AI file picker is a smaller model call, reading the workspace or a terminal is instant.
  */
-export const STEP_WEIGHTS: Record<StepKey, number> = { error: 1, workspace: 0.5, project: 1, git: 1, search: 1, pick: 2, terminal: 0.5, model: 5 }
+export const STEP_WEIGHTS: Record<StepKey, number> = { error: 1, workspace: 0.5, project: 1, git: 1, search: 1, pick: 2, terminal: 0.5, agents: 0.5, model: 5 }
 
 /** Steps whose share is estimated from time, because a model call reports no progress. */
 export const ESTIMATED_STEPS: ReadonlySet<StepKey> = new Set<StepKey>(['model', 'pick'])

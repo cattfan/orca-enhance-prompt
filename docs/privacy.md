@@ -10,11 +10,26 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 | --- | --- |
 | Read project files | No rules, README, manifests or file list; Standard and above fall back to workspace and agent names |
 | Run git | No `git` commands; files are listed by walking the folder |
-| Read terminal output | The Max level skips the terminal |
+| Read terminal output | The Max level skips the terminal (and the other agents' sessions) |
+| Read other agents' sessions (**off by default, asks to confirm**) | At the Max level, the other agents in the workspace and the last lines of their terminals are left out. On: their kind, title and state, and the last lines of each terminal, with keys, tokens and passwords masked. You set how many agents (1 to 8, 4 by default) and lines (10 to 300, 80 by default) under the switch; the amounts do nothing while it is off |
+| Watch what agents do (**off by default, asks to confirm**) | Nothing is kept. On: each tool an agent runs in Orca (its name and target: a file path or a command, never its output) and how sessions end, kept in memory for 45 minutes and sent with prompts at Deep and Max |
+| Notice files you save (**off by default**) | Nothing is kept. On: the paths (never the text) of files you save in Orca's editor, in memory for 45 minutes; they rank first in the code search at Deep and Max |
 | Send to terminals | **Send** is refused; use **Copy** |
+| Start new agents (**off by default, asks to confirm**) | No button. On: a button that starts a new agent in the workspace with the enhanced prompt, only when you press it; the agent runs with your user account |
+| Open files in Orca | No open button on files in the context list |
 | Save history | Nothing is added to History |
 | Use API keys from environment variables | Only keys you saved in the Models tab |
 | Fetch model lists online | No `GET /models` or schema download; CLI lists still come from your machine |
+
+### Switches that ask to confirm
+
+![The Settings section: the switches, with Read other agents' sessions turned on and its agents and lines](assets/guide/9-other-agents-settings.png)
+
+![Turning on Watch what agents do: everything it allows, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
+
+**Read other agents' sessions**, **Watch what agents do** and **Start new agents** send more of your work to the model or start programs. Turning one on in the panel first shows everything it allows, in plain words, with **I understand, turn it on** and **Cancel**. Turned on in Orca's Settings alone, it stays off (the panel says so and offers to confirm). Turning it off withdraws the confirmation; **Delete everything** withdraws all of them.
+
+**Notify when a long enhance finishes** (Settings section, off by default) shows a desktop notification after runs longer than 8 s; it names the model and the time, never your prompt.
 
 The same tab shows what is stored and has **Clear history**, **Clear model lists** and **Delete everything** (history, model lists, saved models and their keys; press twice).
 

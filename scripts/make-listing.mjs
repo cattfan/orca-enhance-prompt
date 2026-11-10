@@ -25,7 +25,12 @@ await fetch(SERVER).catch(() => {
 })
 
 const work = mkdtempSync(join(tmpdir(), 'listing-'))
-const profile = () => `--user-data-dir=${mkdtempSync(join(tmpdir(), 'listing-browser-'))}`
+// One browser profile for the whole run: a fresh profile per launch is slow where a virus scanner
+// checks every new folder.
+const browserProfile = mkdtempSync(join(tmpdir(), 'listing-browser-'))
+const profile = () => `--user-data-dir=${browserProfile}`
+/** LISTING_ONLY=otherAgents,newAgent,dialog: only those panels and the pictures made from them alone. */
+const only = process.env.LISTING_ONLY ? new Set(process.env.LISTING_ONLY.split(',')) : null
 function shoot(out, url, width, height, waitMs, scale = 2) {
   try {
     execFileSync(
@@ -63,7 +68,7 @@ const PROMPT = encodeURIComponent('login page is broken on mobile')
 const VI = encodeURIComponent('trang đăng nhập bị vỡ trên điện thoại')
 const panels = {
   result: { query: `lang=en&demo=${PROMPT}`, wait: 15000 },
-  options: { query: `lang=en&demo=${PROMPT}&options=1`, wait: 15000 },
+  options: { query: `lang=en&demo=${PROMPT}&options=1&run=0`, wait: 8000 },
   attach: { query: `lang=en&demo=${PROMPT}&attach=1&run=0`, wait: 4000 },
   progress: { query: `lang=en&demo=${PROMPT}`, wait: 3000 },
   progressEarly: { query: `lang=en&demo=${PROMPT}`, wait: 1500 },
@@ -73,13 +78,18 @@ const panels = {
   vi: { query: `lang=vi&demo=${VI}`, wait: 15000 },
   zh: { query: 'lang=zh&tab=history', wait: 6000 },
   dark: { query: `lang=en&theme=dark&demo=${PROMPT}`, wait: 15000 },
-  modelsDark: { query: 'lang=en&theme=dark&tab=models', wait: 6000 }
+  modelsDark: { query: 'lang=en&theme=dark&tab=models', wait: 6000 },
+  // The Settings section with Read other agents' sessions on (2 agents, 120 lines) and the other new switches.
+  otherAgents: { query: 'lang=en&tab=privacy&set=allowOtherAgents:true,otherAgentsMax:2,otherAgentsLines:120,allowAgentActivity:true,allowAgentLaunch:true&consent=allowOtherAgents,allowAgentActivity,allowAgentLaunch', wait: 6000 },
+  // A result with the open-in-Orca buttons in the context list and Start a new agent.
+  newAgent: { query: `lang=en&demo=${PROMPT}&options=1&set=allowAgentLaunch:true&consent=allowAgentLaunch`, wait: 15000 }
 }
 const shots = {}
 const heights = {}
 for (const [name, { query, wait }] of Object.entries(panels)) {
+  if (only && !only.has(name)) continue
   const file = join(work, `${name}.png`)
-  const url = `${SERVER}/?mock=1&width=380&${query}`
+  const url = `${SERVER}/?mock=1&fresh&width=380&${query}`
   heights[name] = measure(url, wait)
   // The whole panel, its last card's corners included.
   shoot(file, url, 800, heights[name] + 40, wait)
@@ -149,7 +159,9 @@ const guide = {
   'docs/assets/guide/4-progress-early.png': 'progressEarly',
   'docs/assets/guide/6-rules-and-structures.png': 'rules',
   'docs/assets/guide/7-models.png': 'models',
-  'docs/assets/guide/8-history.png': 'history'
+  'docs/assets/guide/8-history.png': 'history',
+  'docs/assets/guide/9-other-agents-settings.png': 'otherAgents',
+  'docs/assets/guide/11-new-agent.png': 'newAgent'
 }
 
 const render = (html, width, height, out) => {
@@ -158,14 +170,22 @@ const render = (html, width, height, out) => {
   mkdirSync(dirname(out), { recursive: true })
   shoot(out, pathToFileURL(htmlFile).href, width, height, 3000, 1)
 }
-for (const [path, html] of Object.entries(pages)) {
+for (const [path, html] of only ? [] : Object.entries(pages)) {
   const [width, height] = path.includes('readme-features') ? [1440, 900] : [1600, 1000]
   const png = join(work, 'page.png')
   render(html, width, height, png)
   execFileSync('powershell', ['-NoProfile', '-File', join(root, 'scripts/to-jpg.ps1'), png, join(root, path), '88'], { stdio: 'inherit' })
   console.log(path, readFileSync(join(root, path)).length)
 }
+// The confirmation dialog, over the Settings section (a dialog is centred in the window, so this
+// one is shot whole rather than cut to the panel).
+if (!only || only.has('dialog')) {
+  shoot(join(root, 'docs/assets/guide/10-confirm-dialog.png'), `${SERVER}/?mock=1&fresh&lang=en&tab=privacy&ask=allowAgentActivity`, 760, 620, 6000, 1)
+  console.log('docs/assets/guide/10-confirm-dialog.png')
+}
+
 for (const [path, name] of Object.entries(guide)) {
+  if (!shots[name]) continue
   // 2x pixels of a 380 px panel with a 24 px margin: sharp on any screen, shown at half size.
   const height = heights[name] + 48
   const html = `<!doctype html><html><head><style>* { margin: 0 } body { width: 428px; height: ${height}px; background: #f5f5f4; } .panel { margin: 24px; width: 380px; height: ${heights[name]}px; overflow: hidden; border-radius: 12px; border: 1px solid #d6d3d1; background: #fff; } img { display: block; width: 800px }</style></head><body><div class="panel"><img src="${shots[name]}"></div></body></html>`
@@ -178,3 +198,4 @@ for (const [path, name] of Object.entries(guide)) {
   console.log(path)
 }
 rmSync(work, { recursive: true, force: true })
+rmSync(browserProfile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })

@@ -1,7 +1,8 @@
 // Files pasted, dropped or picked in the web panel: received in chunks, kept on disk, used in the prompt.
 import { readFileSync } from 'node:fs'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
+import { loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
+import { ATTACHMENT_CHUNK_BYTES, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, REQUEST_INPUT_LIMIT } from './image-limits.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
@@ -20,7 +21,7 @@ test('attachments arrive in chunks and are kept under a safe name; bad ids and h
   assert.ok('path' in done)
   assert.equal(readFileSync(done.path, 'utf8'), 'line one\nline two\n')
   await assert.rejects(putChunk({ id: '../x', name: 'a', index: 0, total: 1, data: '' }), /could not be received/)
-  await assert.rejects(putChunk({ id: 'att-test-2', name: 'big.bin', index: 0, total: 1, data: Buffer.alloc(MAX_ATTACHMENT_BYTES + 1).toString('base64') }), /too large/)
+  await assert.rejects(putChunk({ id: 'att-test-2', name: 'big.bin', index: 0, total: 300, data: 'AAAA', size: MAX_ATTACHMENT_BYTES + 1 }), /big.bin is 10,485,761 bytes; an attachment can be at most 10.0 MB/)
 })
 
 test('a run uses attached files: images as images, short text in the context, every path in the prompt', async () => {
@@ -42,4 +43,32 @@ test('a run uses attached files: images as images, short text in the context, ev
   assert.ok(answer.enhanced.includes(image.path) && answer.enhanced.includes(log.path), answer.enhanced)
   assert.ok(answer.context.some((item) => item.id === 'attach:build.log'))
   await worker.deactivate()
+})
+
+// "message too large": Orca refuses a panel request over 64 KiB, and the panel used to send pieces
+// of 768 KB. Every piece now fits, a 5 MB image goes through, and a file too large says its size.
+test('each attachment piece fits in one panel request, so a 5 MB image attaches', async () => {
+  const largest = JSON.stringify({ id: `att-${'x'.repeat(36)}`, name: 'n'.repeat(120), index: 9999, total: 9999, data: 'A'.repeat(MAX_CHUNK_BASE64), size: MAX_ATTACHMENT_BYTES })
+  assert.ok(largest.length < REQUEST_INPUT_LIMIT, `${largest.length} >= ${REQUEST_INPUT_LIMIT}`)
+  // An image of exactly the image limit, sent as the panel sends it, piece by piece.
+  const image = Buffer.alloc(MAX_IMAGE_BYTES, 7)
+  PNG.copy(image, 0)
+  const total = Math.ceil(image.length / ATTACHMENT_CHUNK_BYTES)
+  let done: Awaited<ReturnType<typeof putChunk>> | null = null
+  for (let index = 0; index < total; index++) {
+    const data = image.subarray(index * ATTACHMENT_CHUNK_BYTES, (index + 1) * ATTACHMENT_CHUNK_BYTES).toString('base64')
+    done = await putChunk({ id: 'att-five-mb', name: 'screen.png', index, total, data, ...(index === 0 ? { size: image.length } : {}) })
+  }
+  assert.ok(done && 'path' in done && done.bytes === MAX_IMAGE_BYTES)
+  const loaded = await loadFiles([(done as { path: string }).path])
+  assert.equal(loaded.images.length, 1, 'an image of exactly 5 MB is still an image')
+})
+
+test('a piece larger than one request, or a file over the limit, is refused with the sizes', async () => {
+  // The old 768 KB pieces: refused by the worker too, never written.
+  await assert.rejects(putChunk({ id: 'att-old-size', name: 'a.png', index: 0, total: 1, data: Buffer.alloc(768 * 1024).toString('base64') }), /could not be received/)
+  await assert.rejects(
+    putChunk({ id: 'att-too-big', name: 'big.log', index: 0, total: 300, data: 'AAAA', size: MAX_ATTACHMENT_BYTES + 1024 * 1024 }),
+    /big\.log is 11\.0 MB; an attachment can be at most 10\.0 MB/
+  )
 })

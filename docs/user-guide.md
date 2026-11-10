@@ -106,6 +106,25 @@ Gemini CLI) in one click, or an API with its key. Models are tried top to bottom
   another one.
 - **Settings** (gear): switches for what the plugin may read or keep, auto-enhance, what is stored,
   and **Delete everything**. See [Privacy & permissions](privacy.md).
+
+### Switches that read or do more (all off until you turn them on)
+
+![The Settings section with Read other agents' sessions on, set to 2 agents and 120 lines](assets/guide/9-other-agents-settings.png)
+
+- **Read other agents' sessions** (Max level): the other agents in the workspace and the last lines of
+  their terminals. Under the switch, pick **Agents read** (1 to 8, 4 by default) and **Lines per
+  agent** (10 to 300, 80 by default); they do nothing while the switch is off.
+- **Watch what agents do** (Deep and Max): the tools agents run and their targets, never the output.
+- **Notice files you save** (Deep and Max): the paths of files you save in Orca's editor.
+- **Start new agents** and **Open files in Orca**: buttons under the result and in the context list.
+
+![Turning on Watch what agents do: everything it allows, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
+
+The switches that send more of your work to the model, or start programs, first show everything they
+allow and ask you to confirm. Turned on in Orca's Settings alone, they stay off until you confirm in
+the panel.
+
+![A result with the open buttons in the context list and Or start a new agent](assets/guide/11-new-agent.png)
 - **Feedback** (gear): something broken, confusing, or a prompt that came out wrong? [Open an issue
   on GitHub](https://github.com/cattfan/orca-enhance-prompt/issues/new).
 

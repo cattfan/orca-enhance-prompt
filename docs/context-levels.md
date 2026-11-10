@@ -39,6 +39,9 @@ Write the names you know, in backticks if you like (`` `validateSession` ``, `sr
 - Everything in Deep, with up to 10 files.
 - A model reads the file list and picks the files it thinks matter. This uses the **File picker model** from the Models tab, or your model chain.
 - The last lines of the target agent's terminal (100 by default, see **Terminal lines** in [Settings](settings.md#context)), useful when the agent just failed and you want to tell it what to do next.
+- With **Privacy → Read other agents' sessions** on (it starts off): the other agents running in the same workspace (kind, title, state) and the last lines of their terminals, so the prompt knows what the other agents are doing. How many agents (1 to 8, 4 by default) and how many lines of each terminal (10 to 300, 80 by default) is set under the switch in the panel's Settings, or in Orca's Settings; keys and passwords are masked, and the sessions are listed after everything else so they never push out project context. Untick **Other agents** to leave them out of a run.
+
+  ![Settings: Read other agents' sessions with its agents and lines](assets/guide/9-other-agents-settings.png)
 
 ## See what is sent
 

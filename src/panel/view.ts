@@ -6,6 +6,7 @@ import { isStyle, STYLE_LABELS, STYLES } from '../prompts.ts'
 import { t } from '../i18n.ts'
 import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
+import type { PrivacyKey } from '../privacy.ts'
 import { type Catalog, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
 
 export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', vi: 'VI', zh: '中文' }
@@ -76,7 +77,11 @@ export function contextKind(kind: string): string {
     git: () => t('git'),
     file: () => t('file'),
     terminal: () => t('terminal'),
-    error: () => t('error')
+    error: () => t('error'),
+    agents: () => t('agents'),
+    session: () => t('agent session'),
+    activity: () => t('activity'),
+    saved: () => t('saved files')
   }
   return kinds[kind]?.() ?? kind
 }
@@ -95,6 +100,7 @@ export const STEP_LABELS: Record<Step['key'], string> = {
   search: 'Finding relevant code',
   pick: 'AI picking files',
   terminal: 'Reading terminal output',
+  agents: "Reading other agents' sessions",
   model: 'Writing the prompt'
 }
 export const STEP_GLYPH: Record<Step['status'], string> = { pending: '○', running: '●', done: '✓', skipped: '–', failed: '✕' }
@@ -106,6 +112,7 @@ export function stepText(entry: Step): string {
   if (entry.key === 'workspace' || entry.key === 'model' || !Number.isFinite(count)) return `${label} · ${entry.detail}`
   if (entry.key === 'terminal') return `${label} · ${t('{count} lines', { count })}`
   if (entry.key === 'git') return `${label} · ${t('{count} changed', { count })}`
+  if (entry.key === 'agents') return `${label} · ${t('{count} agents', { count })}`
   return `${label} · ${t('{count} files', { count })}`
 }
 
@@ -199,15 +206,44 @@ export function pickModel(value: string): void {
   set(modelChoice, model === PROFILE_DEFAULT || model === profile?.effectiveModel ? '' : model)
 }
 
-export const PRIVACY_ROWS: { key: 'allowProjectFiles' | 'allowGit' | 'allowTerminalRead' | 'allowTerminalSend' | 'saveHistory' | 'allowEnvKeys' | 'allowOnlineModelLists'; label: string; hint: string }[] = [
+export const PRIVACY_ROWS: { key: PrivacyKey; label: string; hint: string }[] = [
   { key: 'allowProjectFiles', label: 'Read project files', hint: 'Agent rules, README, manifest files and the file list of the focused workspace (Standard level and above). Off: only workspace and agent names are used.' },
   { key: 'allowGit', label: 'Run git', hint: 'Read-only git status, log, diff, ls-files and grep in the focused workspace (Deep and Max levels).' },
   { key: 'allowTerminalRead', label: 'Read terminal output', hint: 'The last lines of the terminal you picked, at the Max level only.' },
+  { key: 'allowOtherAgents', label: "Read other agents' sessions", hint: "At the Max level: the other agents running in this workspace (kind, title, state) and the last lines of their terminals, with keys and passwords masked. Needs Read terminal output too. Off until you turn it on." },
+  { key: 'allowAgentActivity', label: 'Watch what agents do', hint: 'Deep and Max levels: each tool an agent runs in Orca (its name and its target: a file path or a command, never its output) and how sessions end. Kept in memory for 45 minutes, never saved to disk.' },
+  { key: 'allowEditorSaves', label: 'Notice files you save', hint: "Deep and Max levels: the paths of files you save in Orca's editor (never their text), kept in memory for 45 minutes; they rank first in the code search." },
   { key: 'allowTerminalSend', label: 'Send to terminals', hint: 'Type the prompt into the terminal you pick when you click Send. Off: use Copy instead.' },
+  { key: 'allowAgentLaunch', label: 'Start new agents', hint: 'A button that starts a new agent (Claude Code, Codex…) in this workspace with the enhanced prompt, only when you press it.' },
+  { key: 'allowOpenFiles', label: 'Open files in Orca', hint: 'Clicking a file in the context list opens it in an editor tab.' },
   { key: 'saveHistory', label: 'Save history', hint: 'Keep your prompts and enhanced prompts in the History tab, on this machine only.' },
   { key: 'allowEnvKeys', label: 'Use API keys from environment variables', hint: 'OPENAI_API_KEY, ANTHROPIC_API_KEY and the others, when a model has no saved key.' },
   { key: 'allowOnlineModelLists', label: 'Fetch model lists online', hint: "GET /models from your API providers and the public Claude Code settings schema, to keep model menus current. CLI lists are always local." }
 ]
+
+/**
+ * What the person reads before turning on a switch that needs confirmation: what it reads or does,
+ * where that goes, what stays, and how to stop it. Nothing is left out.
+ */
+export const DISCLOSURES: Partial<Record<PrivacyKey, string[]>> = {
+  allowOtherAgents: [
+    'Reads which other agents run in this workspace (kind, title, state) and the last lines of each one\'s terminal, every time you enhance at the Max level: as many agents and lines as you set below the switch (4 agents and 80 lines by default, at most 8 and 300).',
+    'That text is sent with your prompt to the model you run (your API provider, or the subscription CLI and its provider). It can contain code, file contents, command output and anything the agents printed.',
+    'Values that look like keys, tokens or passwords are masked first, but masking cannot catch everything.',
+    'Nothing of it is saved by the plugin. You can untick it in the context list for one run, or turn this switch off at any time.'
+  ],
+  allowAgentActivity: [
+    'Orca tells the plugin each tool an agent runs in its terminals: the tool name and what it acted on (a file path, a command line, a search pattern or a URL), never the tool\'s output. Orca also tells it when a session finishes and how.',
+    'This is kept in the plugin\'s memory only, for 45 minutes and 60 entries per workspace, and forgotten when you turn this off, delete everything, or Orca restarts.',
+    'At the Deep and Max levels, the recent entries of the focused workspace are sent with your prompt to the model you run. Command lines are masked for obvious keys and passwords.',
+    'The plugin only watches: it never changes or blocks what an agent does.'
+  ],
+  allowAgentLaunch: [
+    'Adds a button that starts a new agent (Claude Code, Codex, Gemini…) in a new terminal of this workspace, and types the enhanced prompt into it once it is ready.',
+    'The agent runs with your user account, exactly as if you had opened it yourself: it can read and change files and run commands, within that agent\'s own permission settings.',
+    'It only happens when you press the button. The plugin never starts an agent by itself.'
+  ]
+}
 
 /** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
 export const ISSUES_URL = 'https://github.com/cattfan/orca-enhance-prompt/issues/new'

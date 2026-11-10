@@ -8,6 +8,8 @@ import {
   FileTextIcon,
   PaperclipIcon,
   ArrowUpToLineIcon,
+  BotIcon,
+  ExternalLinkIcon,
   RotateCcwIcon,
   SendIcon,
   SlidersHorizontalIcon,
@@ -49,7 +51,22 @@ import {
   workspaceKey,
   workspaceName
 } from '../../src/panel/state.ts'
-import { cancel, copy, enhanceNow, pickWorkspace, previewContext, refreshTargets, removeFile, removeImage, send, setSetting, toggleItem } from '../../src/panel/actions.ts'
+import {
+  allowed,
+  launchAgent,
+  openFile,
+  cancel,
+  copy,
+  enhanceNow,
+  pickWorkspace,
+  previewContext,
+  refreshTargets,
+  removeFile,
+  removeImage,
+  send,
+  setSetting,
+  toggleItem
+} from '../../src/panel/actions.ts'
 import {
   contextKind,
   currentModelValue,
@@ -115,7 +132,12 @@ function Attachments() {
       {byPath.map((image) => (
         <div key={image.path} className="bg-muted/60 relative flex max-w-44 items-center gap-1.5 rounded-md border py-1 pr-6 pl-2" title={image.path}>
           <span className="truncate text-xs">{image.name}</span>
-          <button type="button" aria-label={t('Remove {name}', { name: image.name })} onClick={() => removeImage(image.path)} className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded p-0.5">
+          <button
+            type="button"
+            aria-label={t('Remove {name}', { name: image.name })}
+            onClick={() => removeImage(image.path)}
+            className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded p-0.5"
+          >
             <XIcon className="size-3" />
           </button>
         </div>
@@ -328,7 +350,14 @@ function RunCard() {
             const isRunning = entry.status === 'running'
             return (
               <li key={entry.key} className="flex flex-col gap-0.5">
-                <div className={cn('flex justify-between gap-2', (entry.status === 'pending' || entry.status === 'skipped') && 'text-muted-foreground', isRunning && 'text-primary', entry.status === 'failed' && 'text-destructive')}>
+                <div
+                  className={cn(
+                    'flex justify-between gap-2',
+                    (entry.status === 'pending' || entry.status === 'skipped') && 'text-muted-foreground',
+                    isRunning && 'text-primary',
+                    entry.status === 'failed' && 'text-destructive'
+                  )}
+                >
                   <span className="truncate">{`${STEP_GLYPH[entry.status]}  ${stepText(entry)}`}</span>
                   <span className="tabular-nums">{stepShare(entry, now)}</span>
                 </div>
@@ -378,16 +407,24 @@ function ContextList() {
   return (
     <div className="bg-background flex flex-col gap-1.5 rounded-lg border px-2.5 py-2">
       {shown.map((item) => (
-        <label key={item.id} className="flex cursor-pointer items-start gap-2">
-          <Checkbox checked={!ex.has(item.id)} onCheckedChange={(checked) => toggleItem(item.id, checked === true)} className="mt-0.5" />
-          <span className="min-w-0">
-            <span className="block truncate text-sm">{item.title ? say(item.title) : item.label}</span>
-            <span className="text-muted-foreground block text-xs">
-              {t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}
-              {itemWhy(item)}
+        <div key={item.id} className="flex items-start gap-1">
+          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+            <Checkbox checked={!ex.has(item.id)} onCheckedChange={(checked) => toggleItem(item.id, checked === true)} className="mt-0.5" />
+            <span className="min-w-0">
+              <span className="block truncate text-sm">{item.title ? say(item.title) : item.label}</span>
+              <span className="text-muted-foreground block text-xs">
+                {t('{kind} · {chars} chars', { kind: contextKind(item.kind), chars: item.chars.toLocaleString() })}
+                {itemWhy(item)}
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+          {/* Outside the label: a press here must not tick or untick the item. */}
+          {item.id.startsWith('file:') && allowed('allowOpenFiles') ? (
+            <IconAction label={t('Open in Orca')} className="size-6 shrink-0" onClick={() => void openFile(item.id.slice('file:'.length))}>
+              <ExternalLinkIcon />
+            </IconAction>
+          ) : null}
+        </div>
       ))}
       {notes.map((note) => (
         <p key={JSON.stringify(note)} className="text-muted-foreground text-xs">
@@ -447,7 +484,9 @@ function ResultCard({ output }: { output: string }) {
       <Textarea aria-label={t('Enhanced prompt')} value={output} rows={10} onChange={(event) => put(result, event.target.value)} className="max-h-[60vh] text-[13px]" />
       {failed.length > 0 ? (
         <p className="text-warning-foreground text-xs">
-          {t('Fell back after: {list}', { list: failed.map((attempt) => `${attempt.name} (${attempt.errorText ? say(attempt.errorText) : (attempt.error ?? 'failed')})`).join(', ') })}
+          {t('Fell back after: {list}', {
+            list: failed.map((attempt) => `${attempt.name} (${attempt.errorText ? say(attempt.errorText) : (attempt.error ?? 'failed')})`).join(', ')
+          })}
         </p>
       ) : null}
       <div className="flex items-center gap-1.5">
@@ -466,6 +505,31 @@ function ResultCard({ output }: { output: string }) {
           {t('Send')}
         </Button>
       </div>
+      {allowed('allowAgentLaunch') ? <NewAgent output={output} /> : null}
+    </div>
+  )
+}
+
+/** Agents a new session can start with: those running here, then the usual ones. */
+function agentKinds(): string[] {
+  const running = read(targets)
+    .map((item) => item.agent)
+    .filter((agent): agent is string => Boolean(agent))
+  return [...new Set([...running, 'claude', 'codex', 'gemini'])]
+}
+
+/** Starts a new agent with the enhanced prompt (Privacy: Start new agents, confirmed). */
+function NewAgent({ output }: { output: string }) {
+  const kinds = agentKinds()
+  const [kind, setKind] = useState(kinds[0])
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-muted-foreground shrink-0 text-xs">{t('Or start a new agent')}</span>
+      <Pick label={t('Agent')} value={kind} options={kinds.map((value) => ({ value, label: value }))} onChange={setKind} className="h-7 w-28" />
+      <Button size="sm" variant="outline" onClick={() => void launchAgent(kind, output)} disabled={read(busy) !== null}>
+        <BotIcon />
+        {t('Start')}
+      </Button>
     </div>
   )
 }
@@ -479,7 +543,13 @@ function WorkspacePicker() {
       <AlertTitle>{t('Which folder is this project?')}</AlertTitle>
       <AlertDescription className="flex flex-col gap-2">
         <span>{t('Several projects are named {name} on the same branch. Pick its folder so the right files are read.', { name: read(workspaceName) ?? '?' })}</span>
-        <Pick label={t('Project folder')} value={undefined} placeholder={t('Choose a folder')} options={choices.map((choice) => ({ value: choice.id, label: choice.path }))} onChange={(value) => void pickWorkspace(value)} />
+        <Pick
+          label={t('Project folder')}
+          value={undefined}
+          placeholder={t('Choose a folder')}
+          options={choices.map((choice) => ({ value: choice.id, label: choice.path }))}
+          onChange={(value) => void pickWorkspace(value)}
+        />
       </AlertDescription>
     </Alert>
   )

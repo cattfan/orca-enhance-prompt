@@ -18,6 +18,9 @@ export type Defaults = {
   fallbackOn: string
   outputLanguage: string
   autoEnhanceMode: string
+  notifyWhenDone: boolean
+  /** Read other agents' sessions: how many agents, how many lines each. */
+  otherAgents: { agents: number; lines: number }
 }
 export type Form = Omit<ProfileInput, 'apiKey'> & { apiKey: string }
 
@@ -97,6 +100,8 @@ export const dataSummary = atom<{ history: number; profiles: number; keys: numbe
 export const privacy = atom<Record<string, boolean>>({})
 /** "Delete everything" asks for a second press. */
 export const confirmWipe = atom(false)
+/** The Privacy switches the person confirmed in the panel (the worker keeps them); see NEEDS_CONSENT. */
+export const consents = atom<string[]>([])
 /** The composer's options (style, context, output, Enter) are shown. */
 export const optionsOpen = atom('optionsOpen', false, { persist: 'plugin' })
 
@@ -191,7 +196,9 @@ export const defaults = atom<Defaults>({
   fallbackEnabled: true,
   fallbackOn: 'any',
   outputLanguage: 'auto',
-  autoEnhanceMode: 'off'
+  autoEnhanceMode: 'off',
+  notifyWhenDone: false,
+  otherAgents: { agents: 4, lines: 80 }
 })
 
 export const history = derived(() => parseHistory(read(historyRaw)))

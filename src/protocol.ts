@@ -84,9 +84,17 @@ declare module 'orca' {
     /** Copies `text` to the OS clipboard of the Orca host. */
     'prompt.copy': { input: { text: string }; output: { copied: boolean; error?: string } }
     /** One chunk (base64, in order) of a file pasted, dropped or picked in the web panel; the last answers with its path. */
-    'attachments.put': { input: { id: string; name: string; index: number; total: number; data: string }; output: { path: string; bytes: number } | { received: number } }
+    'attachments.put': { input: { id: string; name: string; index: number; total: number; data: string; size?: number }; output: { path: string; bytes: number } | { received: number } }
     /** The latest progress of a run (what `enhance.progress` last posted), for a caller that cannot hear panel events. */
     'enhance.progress.get': { input: { runId: string }; output: PluginPanelEvents['enhance.progress'] | null }
+    /** Which Privacy switches the person confirmed in the panel, and which need a confirmation. */
+    'consents.get': { output: { granted: string[]; needed: string[] } }
+    /** The person confirmed (or withdrew) a switch that needs it, after reading what it allows. */
+    'consent.set': { input: { key: string; granted: boolean }; output: { granted: string[] } }
+    /** Starts a new agent (`agent`: claude, codex…) in the focused workspace with this prompt. */
+    'agent.launch': { input: { agent: string; prompt: string; workspaceId?: string }; output: { terminalId: string } }
+    /** Opens a file of the focused workspace (a path relative to it) in Orca's editor. */
+    'editor.open': { input: { path: string; workspaceId?: string }; output: { opened: true } }
     /** Checks an image file to attach: an absolute path to a PNG, JPEG, GIF or WebP of at most 5 MB. */
     'images.inspect': { input: { path: string }; output: { path: string; name: string; bytes: number; type: string } }
     /** Agent terminals of the focused workspace, agents first. */

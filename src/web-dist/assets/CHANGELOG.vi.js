@@ -2,6 +2,22 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.5.0] - 2026-11-10
+
+### Thêm mới
+
+- Tận dụng thêm những gì Orca biết, mỗi thứ có công tắc riêng trong Cài đặt, tất cả tắt cho tới khi bạn bật: **Đọc phiên của các agent khác** (mức Tối đa: các agent khác trong workspace và những dòng cuối trong terminal của chúng, đã che key và mật khẩu; bạn chọn số agent, 1 đến 8, và số dòng, 10 đến 300), **Theo dõi việc các agent làm** (mức Sâu và Tối đa: công cụ agent chạy và đối tượng của nó, không bao giờ lấy kết quả, chỉ giữ trong bộ nhớ 45 phút), **Ghi nhận tệp bạn lưu** (đường dẫn tệp lưu trong trình soạn thảo của Orca được ưu tiên khi tìm code), **Mở agent mới** (nút mở Claude Code, Codex hoặc Gemini kèm prompt đã cải thiện), **Mở tệp trong Orca** (từ danh sách ngữ cảnh) và thông báo khi một lần chạy lâu xong.
+- Các công tắc gửi thêm dữ liệu cho model hoặc mở chương trình sẽ hiện toàn bộ những gì chúng cho phép và hỏi bạn xác nhận trước khi bật. Chỉ bật trong Settings của Orca thì chúng vẫn tắt cho tới khi bạn xác nhận trong panel.
+
+### Sửa lỗi
+
+- Dán, kéo-thả hoặc đính kèm ảnh hay tệp bị lỗi "message too large": panel gửi theo từng phần 768 KB, trong khi Orca chỉ nhận tối đa 64 KiB mỗi request. Giờ mỗi phần là 44 KiB, nên mọi ảnh tới 5 MB và tệp tới 10 MB đều đính kèm được; tệp quá giới hạn bị từ chối ngay, kèm kích thước và giới hạn.
+
+### Thay đổi
+
+- Panel không còn thanh cuộn (vẫn cuộn được).
+- Orca sẽ hỏi duyệt lại plugin: bản này thêm quyền mở agent, mở tệp trong Orca, hiện thông báo, và hai hook quan sát công cụ của agent và việc lưu tệp (không bao giờ thay đổi hay chặn gì).
+
 ## [2.4.5] - 2026-11-09
 
 ### Thay đổi
