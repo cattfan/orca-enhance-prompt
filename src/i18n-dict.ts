@@ -161,6 +161,9 @@ export const VI: Record<string, string> = {
   'Auto-enhanced ({mode}) a prompt for {agent}.': 'Đã tự cải thiện ({mode}) một prompt cho {agent}.',
   'an agent': 'một agent',
   Dismiss: 'Đóng',
+  // read by screen readers: a dialog's close button, a spinner
+  Close: 'Đóng',
+  Loading: 'Đang tải',
   // history
   'No history yet': 'Chưa có lịch sử',
   'Enhanced prompts show up here.': 'Các prompt đã cải thiện sẽ hiện ở đây.',
@@ -536,6 +539,8 @@ export const ZH: Record<string, string> = {
   'Auto-enhanced ({mode}) a prompt for {agent}.': '已为 {agent} 自动优化 ({mode}) 一条提示词。',
   'an agent': '某个 agent',
   Dismiss: '关闭',
+  Close: '关闭',
+  Loading: '加载中',
   'No history yet': '暂无历史',
   'Enhanced prompts show up here.': '优化过的提示词会显示在这里。',
   'Search history': '搜索历史',
