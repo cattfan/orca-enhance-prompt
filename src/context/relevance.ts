@@ -59,7 +59,8 @@ export type Scored = { path: string; score: number; hits: number[] }
 
 /**
  * Content score per file from per-keyword grep counts, weighted like IDF: a keyword found in few
- * files says much more than one found everywhere; keywords in over 20% of files are ignored.
+ * files says much more than one found everywhere; a keyword found in more than 20 files and more
+ * than 5% of them is ignored.
  */
 export function contentScores(
   perWord: Map<string, number>[],
