@@ -10,6 +10,7 @@ import {
   ArrowUpToLineIcon,
   BotIcon,
   ExternalLinkIcon,
+  LightbulbIcon,
   RotateCcwIcon,
   SendIcon,
   SlidersHorizontalIcon,
@@ -28,6 +29,7 @@ import {
   effectiveLevel,
   effectiveStyle,
   excluded,
+  feedbackShown,
   files,
   lastRun,
   level,
@@ -53,6 +55,7 @@ import {
   launchAgent,
   openFile,
   cancel,
+  closeFeedback,
   copy,
   enhanceNow,
   pickWorkspace,
@@ -60,6 +63,7 @@ import {
   refreshTargets,
   removeFile,
   send,
+  sendFeedback,
   setSetting,
   toggleItem
 } from '../../src/panel/actions.ts'
@@ -518,6 +522,23 @@ function NewAgent({ output }: { output: string }) {
   )
 }
 
+/** Now and then, under a result: asks for ideas and feedback (src/panel/view.ts says when). */
+function FeedbackNote() {
+  if (!read(feedbackShown)) return null
+  return (
+    <div className="bg-card flex items-center gap-2 rounded-xl border px-2.5 py-2">
+      <LightbulbIcon className="text-muted-foreground size-4 shrink-0" />
+      <p className="text-muted-foreground min-w-0 flex-1 text-xs">{t('Got an idea, or something that could work better? Send your feedback: it is how the plugin improves.')}</p>
+      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void sendFeedback()}>
+        {t('Send feedback')}
+      </Button>
+      <IconAction label={t('Close')} className="shrink-0" onClick={closeFeedback}>
+        <XIcon />
+      </IconAction>
+    </div>
+  )
+}
+
 /** Several workspaces share this one's name and branch: the person picks its folder once. */
 function WorkspacePicker() {
   const choices = read(workspaceChoices)
@@ -548,6 +569,7 @@ export function EnhanceSection({ refresh }: { refresh: () => void }) {
       <Composer refresh={refresh} />
       <RunCard />
       {output ? <ResultCard output={output} /> : null}
+      {output ? <FeedbackNote /> : null}
       {warning ? (
         <Alert variant="warning">
           <AlertTitle>{warning === 'no-model' ? t('No model yet') : t('No API key yet')}</AlertTitle>

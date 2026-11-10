@@ -2,7 +2,7 @@
 // to the state (state.ts) that follow. No UI here; the web panel (web/src) and the tests call these.
 import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
 import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
-import { ISSUES_URL } from './view.ts'
+import { feedbackDue, ISSUES_URL } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { attachmentItemId } from '../image-limits.ts'
 import { type Message } from '../messages.ts'
@@ -12,7 +12,7 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, feedbackAsk, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -237,6 +237,7 @@ export async function enhanceNow(): Promise<void> {
   const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, origin)
   set(busy, 'enhance')
   set(notice, null)
+  set(feedbackShown, false)
   try {
     const choice = read(profileChoice)
     const answer = await plugin.request(
@@ -263,6 +264,7 @@ export async function enhanceNow(): Promise<void> {
       put(result, answer.enhanced)
       put(lastRun, ran)
       showContext(answer.context, answer.notes)
+      askForFeedback()
     } else if (origin.key !== null && !removedWorkspaces.has(origin.key)) {
       // The person moved to another project meanwhile: the prompt waits in its own project.
       const slot = read(parked)[origin.key]
@@ -710,4 +712,31 @@ export function removeStructure(id: string): void {
 export async function openIssues(): Promise<void> {
   const opened = await shell.openExternal(ISSUES_URL).catch(() => ({ opened: false }))
   if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url: ISSUES_URL }) })
+}
+
+/**
+ * A prompt was enhanced and its result is on screen: shows the note that asks for ideas and feedback
+ * when it is due (view.ts: after the first few prompts, then now and then). Prompts are counted only
+ * until the note has shown once. Exported for tests.
+ */
+export function askForFeedback(now = Date.now()): void {
+  const ask = read(feedbackAsk)
+  const counted = ask.shownAt === 0 ? { ...ask, runs: ask.runs + 1 } : ask
+  if (feedbackDue(counted, now)) {
+    set(feedbackAsk, { ...counted, shownAt: now })
+    set(feedbackShown, true)
+  } else if (counted !== ask) {
+    set(feedbackAsk, counted)
+  }
+}
+
+export function closeFeedback(): void {
+  set(feedbackShown, false)
+}
+
+/** The note's button: the plugin's issue page, like Feedback in the settings. */
+export async function sendFeedback(): Promise<void> {
+  set(feedbackShown, false)
+  // Called at once, inside the press: Orca opens a link only from a gesture.
+  await openIssues()
 }

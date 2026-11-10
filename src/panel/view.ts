@@ -7,7 +7,7 @@ import { t } from '../i18n.ts'
 import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
 
 /** The names of the panel's sections, on its header icons (the Enhance section shows the brand instead). */
 export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Privacy' }
@@ -287,3 +287,19 @@ export const DISCLOSURES: Partial<Record<PrivacyKey, string[]>> = {
 
 /** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
 export const ISSUES_URL = 'https://github.com/cattfan/orca-enhance-prompt/issues/new'
+
+/**
+ * The note that asks for ideas and feedback: first once someone has enhanced this many prompts (they
+ * know the plugin by then), afterwards at most once in this many days.
+ */
+export const FEEDBACK_FIRST_RUNS = 5
+export const FEEDBACK_EVERY_DAYS = 14
+
+/**
+ * Whether the note is due now that a prompt was enhanced. A clock set back does not silence it for
+ * good: a last time further than the interval away counts, before or after now.
+ */
+export function feedbackDue(ask: FeedbackAsk, now: number): boolean {
+  if (ask.shownAt === 0) return ask.runs >= FEEDBACK_FIRST_RUNS
+  return Math.abs(now - ask.shownAt) >= FEEDBACK_EVERY_DAYS * 24 * 3600_000
+}

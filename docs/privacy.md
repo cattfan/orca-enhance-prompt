@@ -54,7 +54,7 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 | --- | --- |
 | Orca's encrypted secrets | API keys you paste |
 | The plugin's own storage | Model profiles, history, cached model lists, your rules and prompt structures, and which switches you confirmed |
-| The panel's saved state (kept by Orca for the panel) | Your picks in the panel (section, style, context level, model, output language) and which workspace each terminal belongs to. While **Save history** is on, also each project's draft, last result and context list, so they are there when you open the panel again; with it off, they are gone when the panel closes |
+| The panel's saved state (kept by Orca for the panel) | Your picks in the panel (section, style, context level, model, output language), which workspace each terminal belongs to, and for the feedback note: how many prompts you enhanced before it first showed (it stops counting at five) and when it last showed. While **Save history** is on, also each project's draft, last result and context list, so they are there when you open the panel again; with it off, they are gone when the panel closes |
 | Orca settings | The options on the [Settings](settings.md) page |
 | The system's temporary folder | The files you paste, drop or pick (removed after a day) |
 

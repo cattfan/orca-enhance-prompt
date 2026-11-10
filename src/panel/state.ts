@@ -113,6 +113,15 @@ export const contextShown = atom<ContextItemView[]>([])
 /** Notes are Messages; an older version saved plain strings. */
 export const contextNotes = atom<(Message | string)[]>([])
 /**
+ * The note that asks for ideas and feedback, under a result now and then (view.ts says when): how
+ * many prompts were enhanced before it first showed, and when it last showed. Kept by the panel on
+ * this machine; nothing about it is sent anywhere.
+ */
+export type FeedbackAsk = { runs: number; shownAt: number }
+export const feedbackAsk = atom<FeedbackAsk>('feedbackAsk', { runs: 0, shownAt: 0 }, { persist: 'plugin' })
+/** The note is on screen: until it is closed or used, or the next prompt is enhanced. */
+export const feedbackShown = atom(false)
+/**
  * Files attached in the panel (pasted, dropped or picked): the worker keeps a copy on disk and
  * answers with its path. Images among them are shown to models that read images.
  */

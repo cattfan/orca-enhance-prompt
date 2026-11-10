@@ -1,13 +1,13 @@
 // `orca plugin test .` runs this in Node with the same runtime and checks Orca uses. The panel's
 // state and actions run here without anything drawn (src/panel/testing.ts): what the web panel's
 // buttons call is called directly, and what it shows is read from the state.
-import { read } from 'orca'
+import { read, set } from 'orca'
 import { assert, mockHost, test } from 'orca/testing'
 import { attachmentItemId } from './image-limits.ts'
-import { applyPreset, enhanceNow, openForm, patchForm, removeFile, saveForm, send, toggleItem } from './panel/actions.ts'
-import { contextShown, draft, enabledProfiles, excluded, files, form, lastRun, notice, put, result } from './panel/state.ts'
+import { applyPreset, closeFeedback, enhanceNow, openForm, patchForm, removeFile, saveForm, send, sendFeedback, toggleItem } from './panel/actions.ts'
+import { contextShown, draft, enabledProfiles, excluded, feedbackAsk, feedbackShown, files, form, lastRun, notice, put, result } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { modelWarning, optionsSummary } from './panel/view.ts'
+import { FEEDBACK_EVERY_DAYS, FEEDBACK_FIRST_RUNS, feedbackDue, ISSUES_URL, modelWarning, optionsSummary } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 import type { ModelsView, ProfileInput } from './protocol.ts'
 
@@ -136,6 +136,83 @@ test('an attached text can be unticked like any context item, and leaves the lis
   await enhanceNow()
   assert.deepEqual(inputs[2].files, [other.path])
   assert.deepEqual(inputs[2].exclude, [])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('a note asks for ideas and feedback now and then: after the fifth enhanced prompt, then at most once in 14 days', async () => {
+  const DAY = 24 * 3600_000
+  let fail = false
+  const host = mockHost({
+    requests: {
+      'models.get': modelsView([gpt]),
+      'targets.list': { targets: [] },
+      'prompt.enhance': (input) => {
+        if (fail) throw Object.assign(new Error('All models failed.'), { code: 'action_failed' })
+        return { enhanced: `Better: ${input.prompt}`, model: 'gpt-4.1-mini', profileName: 'OpenAI', ms: 10, attempts: [], context: [], notes: [] }
+      }
+    }
+  })
+  const view = await mountPanel(host)
+  put(draft, 'add tests')
+  assert.deepEqual(read(feedbackAsk), { runs: 0, shownAt: 0 })
+
+  // The first four prompts are counted and nothing shows; a run that fails is not counted.
+  for (let prompts = 1; prompts <= 4; prompts++) {
+    await enhanceNow()
+    assert.equal(read(feedbackShown), false, `shown after ${prompts} prompts`)
+  }
+  fail = true
+  await enhanceNow()
+  fail = false
+  assert.deepEqual(read(feedbackAsk), { runs: 4, shownAt: 0 })
+
+  // The fifth: the note shows, and when it did is kept across panel runs.
+  const before = Date.now()
+  await enhanceNow()
+  assert.equal(read(feedbackShown), true)
+  const first = read(feedbackAsk)
+  assert.equal(first.runs, 5)
+  assert.ok(first.shownAt >= before && first.shownAt <= Date.now())
+  await view.settled()
+  assert.deepEqual(view.persisted.plugin.feedbackAsk, first)
+
+  // The next prompt takes the note away. It stays away, and prompts are no longer counted.
+  await enhanceNow()
+  assert.equal(read(feedbackShown), false)
+  assert.deepEqual(read(feedbackAsk), first)
+
+  // Thirteen days after it showed: still quiet. Fourteen: it shows again, from then on.
+  set(feedbackAsk, { runs: 5, shownAt: Date.now() - 13 * DAY })
+  await enhanceNow()
+  assert.equal(read(feedbackShown), false)
+  set(feedbackAsk, { runs: 5, shownAt: Date.now() - 14 * DAY - 1000 })
+  await enhanceNow()
+  assert.equal(read(feedbackShown), true)
+  assert.ok(Date.now() - read(feedbackAsk).shownAt < 5000)
+  // A run that fails takes it away too, and does not bring it back.
+  fail = true
+  await enhanceNow()
+  fail = false
+  assert.equal(read(feedbackShown), false)
+
+  // Its close button hides it; its Send feedback button opens the plugin's issue page.
+  set(feedbackShown, true)
+  closeFeedback()
+  assert.equal(read(feedbackShown), false)
+  set(feedbackShown, true)
+  await sendFeedback()
+  assert.equal(read(feedbackShown), false)
+  assert.deepEqual(host.callsOf('shell.openExternal'), [{ url: ISSUES_URL }])
+
+  // The rule itself: a clock set back does not silence the note for good.
+  const now = Date.now()
+  assert.equal(feedbackDue({ runs: FEEDBACK_FIRST_RUNS - 1, shownAt: 0 }, now), false)
+  assert.equal(feedbackDue({ runs: FEEDBACK_FIRST_RUNS, shownAt: 0 }, now), true)
+  assert.equal(feedbackDue({ runs: 5, shownAt: now - FEEDBACK_EVERY_DAYS * DAY + 60_000 }, now), false)
+  assert.equal(feedbackDue({ runs: 5, shownAt: now - FEEDBACK_EVERY_DAYS * DAY }, now), true)
+  assert.equal(feedbackDue({ runs: 5, shownAt: now + DAY }, now), false)
+  assert.equal(feedbackDue({ runs: 5, shownAt: now + 30 * DAY }, now), true)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
