@@ -9,6 +9,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 
 - Newer Claude models on the Anthropic API no longer refuse the request because of its temperature: the plugin sends no temperature to any model. Opus 4.7 and later and Fable 5 reject a request that sets one. The Temperature field is gone from the model form; saved models keep working.
 - An answer that stops at the model's token limit is no longer shown as if it were whole. The panel names the model and its limit and says to raise **Max tokens** in the Models tab, and fallback moves on to the next model. New models start at 8,000 max tokens instead of 2,000 (a model you saved earlier keeps its own limit), and requests to OpenAI's own API use \`max_completion_tokens\`, which its current models require.
+- With a CLI model (Claude Code, Codex, Gemini CLI), the enhanced prompt no longer repeats what the rewriter knows about the temporary folder it runs in, such as "the directory is not a git repository".
 - With several projects of one name on the same branch, the draft and its answer are no longer lost when Orca learns which project you are in while the prompt is being written.
 - Auto-enhance (AI): control characters in the model's answer are removed before Orca types it, and an empty answer never replaces your prompt.
 - Unticking an attached text file in the context list leaves its text out (the file stays listed by its path); it used to be sent all the same. Two attached files of one name are listed apart, and removing a file takes it out of the list.

@@ -8,6 +8,7 @@ Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mụ
 
 - Các model Claude mới trên Anthropic API không còn từ chối yêu cầu vì temperature: plugin không gửi temperature cho model nào nữa. Opus 4.7 trở lên và Fable 5 từ chối yêu cầu có đặt giá trị này. Ô Temperature không còn trong form model; các model đã lưu vẫn chạy bình thường.
 - Câu trả lời dừng ở giới hạn token của model không còn được hiện như thể đã trọn vẹn. Panel nêu tên model và giới hạn của nó, nhắc bạn tăng **Số token tối đa** trong tab Model, và chế độ dự phòng chuyển sang model kế tiếp. Model mới bắt đầu ở 8.000 token tối đa thay vì 2.000 (model bạn đã lưu giữ nguyên giới hạn của nó), và yêu cầu gửi tới API của chính OpenAI dùng \`max_completion_tokens\`, tham số mà các model hiện tại của họ đòi hỏi.
+- Với model CLI (Claude Code, Codex, Gemini CLI), prompt đã cải thiện không còn lặp lại những gì trình viết lại biết về thư mục tạm nơi nó chạy, chẳng hạn "thư mục này không phải git repository".
 - Khi có nhiều dự án cùng tên trên cùng một nhánh, bản nháp và câu trả lời không còn bị mất lúc Orca xác định được bạn đang ở dự án nào trong khi prompt đang được viết.
 - Tự cải thiện (AI): ký tự điều khiển trong câu trả lời của model được loại bỏ trước khi Orca gõ nó, và câu trả lời rỗng không bao giờ thay thế prompt của bạn.
 - Bỏ tick một tệp chữ đính kèm trong danh sách ngữ cảnh thì nội dung của nó không được gửi nữa (tệp vẫn được ghi theo đường dẫn); trước đây nó vẫn bị gửi. Hai tệp đính kèm cùng tên được liệt kê riêng, và gỡ một tệp thì mục của nó rời khỏi danh sách.
