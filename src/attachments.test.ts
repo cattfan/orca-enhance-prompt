@@ -31,6 +31,10 @@ test('attachments arrive in chunks and are kept under a safe name; bad ids and h
   assert.ok('path' in done)
   assert.equal(readFileSync(done.path, 'utf8'), 'line one\nline two\n')
   await assert.rejects(putChunk({ id: '../x', name: 'a', index: 0, total: 1, data: '' }), /could not be received/)
+  // A later piece whose first piece never arrived (or was deleted meanwhile) is refused as such, not
+  // with the file system's own error and its path.
+  await assert.rejects(putChunk({ id: 'att-no-first', name: 'notes.txt', index: 1, total: 2, data: text.toString('base64') }), /could not be received/)
+  assert.ok(!existsSync(join(ATTACHMENTS_DIR, 'att-no-first')))
   await assert.rejects(putChunk({ id: 'att-test-2', name: 'big.bin', index: 0, total: 300, data: 'AAAA', size: MAX_ATTACHMENT_BYTES + 1 }), /big.bin is 10,485,761 bytes; an attachment can be at most 10.0 MB/)
 })
 

@@ -51,7 +51,10 @@ export async function putChunk(input: { id: string; name: string; index: number;
     await mkdir(dir, { recursive: true })
   }
   const bytes = Buffer.from(input.data, 'base64')
-  const before = await stat(path).then((info) => info.size).catch(() => 0)
+  const written = await stat(path).then((info) => info.size).catch(() => null)
+  // A later piece whose first pieces are not there (never sent, or deleted meanwhile): start again.
+  if (input.index > 0 && written === null) throw new LlmError(msg('error.attachment_bad'), 'invalid_params')
+  const before = written ?? 0
   if (before + bytes.length > MAX_ATTACHMENT_BYTES) {
     await rm(dir, { recursive: true, force: true })
     throw new LlmError(msg('error.file_too_large', { name: safeName(input.name), size: sizeOver(before + bytes.length, MAX_ATTACHMENT_BYTES), max: megabytes(MAX_ATTACHMENT_BYTES) }), 'too_large')
