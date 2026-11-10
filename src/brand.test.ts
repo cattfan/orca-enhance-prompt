@@ -4,7 +4,7 @@ import { assert, test } from 'orca/testing'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('no gradients in the logo, the panel preview or the picture scripts', () => {
+test('no gradients in the logo or the picture scripts', () => {
   const scripts = readdirSync(new URL('../scripts/', import.meta.url)).filter((name) => name.endsWith('.mjs'))
   for (const path of ['assets/icon.svg', ...scripts.map((name) => `scripts/${name}`)]) {
     assert.ok(!/gradient/i.test(read(path)), `${path} has a gradient`)
