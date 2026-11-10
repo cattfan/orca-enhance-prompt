@@ -213,7 +213,15 @@ export async function complete(
   }
   const data = (await readJson(response, config.baseUrl, signal)) as {
     content?: { type: string; text?: string }[]
+    stop_reason?: string
+    stop_details?: { category?: string }
     choices?: { message?: { content?: string | { type: string; text?: string }[] } }[]
+  }
+  // Newer Claude models (Fable 5.2) can decline a request: say so, with the category, instead of
+  // "empty answer". Not transient, so "fall back on any error" moves on to the next model.
+  if (config.provider === 'anthropic' && data.stop_reason === 'refusal') {
+    const category = typeof data.stop_details?.category === 'string' ? data.stop_details.category.slice(0, 40) : 'refusal'
+    throw new LlmError(msg('error.refused', { model: config.model, category }))
   }
   let text = ''
   if (config.provider === 'anthropic') {

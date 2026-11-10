@@ -455,7 +455,8 @@ export const VI: Record<string, string> = {
   'Reads which other agents run in this workspace (kind, title, state) and the last lines of each one\'s terminal, every time you enhance at the Max level: as many agents and lines as you set below the switch (4 agents and 80 lines by default, at most 8 and 300).': 'Đọc các agent khác đang chạy trong workspace này (loại, tên, trạng thái) và những dòng cuối trong terminal của từng agent, mỗi lần bạn cải thiện ở mức Tối đa: số agent và số dòng theo lựa chọn bên dưới công tắc (mặc định 4 agent và 80 dòng, tối đa 8 và 300).',
   'Agents read': 'Số agent đọc',
   'Lines per agent': 'Số dòng mỗi agent',
-  'Used only while this switch is on and confirmed.': 'Chỉ dùng khi công tắc này đang bật và đã xác nhận.'
+  'Used only while this switch is on and confirmed.': 'Chỉ dùng khi công tắc này đang bật và đã xác nhận.',
+  '{model} declined this request ({category}). Use another model, or rephrase the request.': '{model} từ chối yêu cầu này ({category}). Hãy dùng model khác, hoặc viết lại yêu cầu.'
 }
 
 export const ZH: Record<string, string> = {
@@ -886,5 +887,6 @@ export const ZH: Record<string, string> = {
   'Reads which other agents run in this workspace (kind, title, state) and the last lines of each one\'s terminal, every time you enhance at the Max level: as many agents and lines as you set below the switch (4 agents and 80 lines by default, at most 8 and 300).': '每次以“最大”级别优化时，读取此工作区中运行的其他代理（类型、标题、状态）以及每个代理终端的最后几行：代理数和行数按开关下方的设置（默认 4 个代理、80 行，最多 8 个和 300 行）。',
   'Agents read': '读取的代理数',
   'Lines per agent': '每个代理的行数',
-  'Used only while this switch is on and confirmed.': '仅在此开关开启并已确认时使用。'
+  'Used only while this switch is on and confirmed.': '仅在此开关开启并已确认时使用。',
+  '{model} declined this request ({category}). Use another model, or rephrase the request.': '{model} 拒绝了此请求（{category}）。请换用其他模型，或改写请求。'
 }

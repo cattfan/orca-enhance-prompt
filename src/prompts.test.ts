@@ -103,3 +103,25 @@ test('the rewriter follows the vendors\' prompting guidance: reasons kept, posit
   // The rewriter's own instructions follow the same tone.
   assert.ok(!/\b(ONLY|THIS)\b/.test(system), 'capitals for emphasis in the system prompt')
 })
+
+test('the rewriter follows the Fable 5.2 guidance: finish the task, named approvals, scope, reports, no reasoning requests', async () => {
+  const { buildSystemPrompt } = await import('./prompts.ts')
+  const system = buildSystemPrompt({ style: 'balanced', language: 'auto', agent: 'claude' })
+  assert.match(system, /Complete every part of this task before you end your turn/)
+  assert.match(system, /find the cause and retry or try another way rather than stopping/)
+  assert.match(system, /works through ordinary obstacles/)
+  assert.match(system, /stops early only for a deliberate blocker/)
+  assert.match(system, /A small change \(one edit in one place, such as a typo or a rename in one file\) gets none of these three/)
+  // Concise prompts stay concise.
+  assert.match(buildSystemPrompt({ style: 'concise', language: 'auto' }), /and the "Larger tasks" additions/)
+  assert.match(system, /Name the actions that apply to this task/)
+  assert.match(system, /write it as approved/)
+  assert.match(system, /Avoid a bare "never" or "always"/)
+  assert.match(system, /lists nearby problems it notices at the end instead of fixing them/)
+  assert.match(system, /a closing summary that stands on its own/)
+  assert.match(system, /no request to show or write out its reasoning/)
+  assert.match(system, /no instruction to delegate to subagents/)
+  // Restructuring is offered only where the person asked for it.
+  assert.match(buildSystemPrompt({ style: 'refactor', language: 'auto' }), /inside the target code the agent may merge repeated code/)
+  assert.ok(!/may merge repeated code and reshape/.test(buildSystemPrompt({ style: 'bugfix', language: 'auto' })))
+})

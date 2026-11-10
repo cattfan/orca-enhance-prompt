@@ -123,3 +123,15 @@ test('an unknown preset id falls back to Custom', () => {
   assert.equal(presetById('no-such-preset').id, 'custom')
   assert.equal(presetById('openai').id, 'openai')
 })
+
+test('a refusal from a Claude model is a clear error naming the model and the category', async () => {
+  const { complete } = await import('./llm.ts')
+  const realFetch = globalThis.fetch
+  globalThis.fetch = (async () => new Response(JSON.stringify({ content: [], stop_reason: 'refusal', stop_details: { category: 'cyber' } }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch
+  try {
+    const config = { provider: 'anthropic' as const, baseUrl: 'https://api.anthropic.com', apiKey: 'k', model: 'claude-fable-5-2', temperature: 0.3, maxTokens: 100 }
+    await assert.rejects(complete(config, 'system', 'user'), /claude-fable-5-2 declined this request \(cyber\)/)
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})

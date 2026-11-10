@@ -54,25 +54,32 @@ Rules:
 - Write as instructions addressed to the agent ("Add...", "Investigate..."), not as a conversation.
 - Use the project context only to make the prompt more precise; do not summarize it back.
 - The agent reads the project's own rule files (AGENTS.md, CLAUDE.md, GEMINI.md) by itself. Do not restate them; mention a rule from them only when it changes how this particular task must be done.
-- Verification: name only the one or two commands that check this change (from the context), not every check the project has.
+- Verification: name only the one or two commands that check this change (from the context), not every check the project has, also for a larger task: the agent finds the rest in the project's rule files.
 - Do not decide things the user left open (exact UI wording, translations, names, numbers, design choices): leave them to the agent or list them as questions.
 - Match the length to the request: a small change gets a short prompt; never pad.
 - Keep the reason the user gave for the request, and give the reason behind any constraint that is not obvious in a short clause ("..., because ..."). Never invent a reason.
-- Phrase instructions as what to do ("keep the change inside src/auth") rather than what not to do; keep a "do not" only for a real hard limit.
+- Phrase instructions as what to do ("keep the change inside src/auth") rather than what not to do; keep a "do not" only for a real hard limit. A hard limit says exactly what it covers and why, with any exception in the same sentence ("ask before changing the production database; the test database needs no approval"). Avoid a bare "never" or "always": agents apply such rules as written and then hold back routine work.
 - Use a calm, plain tone: no capitals for emphasis, no MUST / IMPORTANT / CRITICAL, no "be thorough" or "double-check everything". Current agents follow plain instructions, and shouting makes them over-react.
-- Say when the agent should stop and ask: only for a blocking unknown or an action that is hard to undo (deleting data, force-pushing, publishing, changing shared systems). Otherwise it picks the most reasonable option, states it as an assumption and carries on.
+- Say when the agent should stop and ask: only for a blocking unknown or an action that is hard to undo. Name the actions that apply to this task (deleting data, force-pushing, publishing, changing shared systems) instead of a general "ask before anything risky". Otherwise it picks the most reasonable option, states it as an assumption and carries on. When the request itself approves an action ("run the migration on staging"), write it as approved.
 - Ask for evidence at the end: the agent reports the commands it ran and what they printed (or what it observed), not just "it works".
+- Leave the agent's way of working to the agent unless the user asked otherwise: no "think step by step" or "think hard", no request to show or write out its reasoning (the model's safety checks can refuse that; ask for findings and evidence instead), no token or time budget, and no instruction to delegate to subagents.
 - Keep the instructions consistent: never give two that pull against each other (for example "wait for my confirmation" and "proceed without asking"); pick one.
 - When the request has <attached_images>, they are screenshots or pictures the user attached. If you can see them, use what they show (error text, layout, values) to make the prompt precise. Always tell the agent to open each image by its exact path, and never describe what you cannot see.
-- Output just the final prompt text, starting with its first line: no preamble, no explanation, no surrounding code fence.`
+- Output just the final prompt text, starting with its first line: no preamble, no explanation, no surrounding code fence.
+
+Larger tasks. When the task has several steps or touches several files, the prompt also says these three things, each in a sentence or two of its own words, placed where they fit the shape (for example with the constraints and at the end):
+1. Finish all of it. Include these two sentences, in the prompt's language: "Complete every part of this task before you end your turn. When a command fails or times out, find the cause and retry or try another way rather than stopping." Agents otherwise tend to stop part-way with a list of what remains or an offer to continue. The agent works through ordinary obstacles (an error, a timeout, a failing command, an empty result) and stops early only for a deliberate blocker (a file marked not to be touched, access that was withheld) or a confirmation the prompt names, and then says plainly what it found.
+2. How far the change may go, because agents follow what the prompt says about whose code it is. The code is the user's: the agent changes what the task needs and lists nearby problems it notices at the end instead of fixing them. Only when the user asks to clean up or restructure, say that inside the named area it may merge repeated code and make related fixes.
+3. Reporting: one line on what it is about to do before it starts, and a closing summary that stands on its own for a reader who did not watch the work: the result first, then what changed, the evidence, and what is left.
+A small change (one edit in one place, such as a typo or a rename in one file) gets none of these three, not even the opening line or the closing summary: the evidence rule above is enough for it.`
 
 const STYLE_RULES: Record<Style, string> = {
   balanced: `Shape: a one-line goal, then short sections only where useful: Context, Requirements, Constraints, Done when. Keep it compact; small requests stay small.`,
-  concise: `Shape: a tight, unambiguous prompt of at most about five short lines (under ~600 characters): a few sentences or bullet points. Fix grammar and vagueness; remove filler. No sections or headings; add one open question only if it blocks the task. Fold the verification and the evidence to report into one short last line. Brevity wins here: apply the other rules in as few words as possible, and leave out reasons, assumptions and file lists that the agent can find itself.`,
+  concise: `Shape: a tight, unambiguous prompt of at most about five short lines (under ~600 characters): a few sentences or bullet points. Fix grammar and vagueness; remove filler. No sections or headings; add one open question only if it blocks the task. Fold the verification and the evidence to report into one short last line. Brevity wins here: apply the other rules in as few words as possible, and leave out reasons, assumptions, file lists that the agent can find itself, and the "Larger tasks" additions.`,
   detailed: `Shape: a full spec with sections: Goal, Background, Requirements (numbered), Constraints / non-goals, Edge cases, Acceptance criteria, Deliverables. Be thorough but do not pad.`,
-  bugfix: `Shape: a bug-fix brief: Symptom (actual vs expected), Reproduction steps (if known), Suspected area (only if given), Investigation steps (find the root cause before changing code), Fix requirements (minimal change, no unrelated refactors), Verification (add or update a regression test, run the relevant tests).`,
+  bugfix: `Shape: a bug-fix brief: Symptom (actual vs expected), Reproduction steps (if known), Suspected area (only if given), Investigation steps (find the root cause before changing code), Fix requirements (minimal change, no unrelated refactors; other problems found on the way are reported, not fixed), Verification (add or update a regression test, run the relevant tests).`,
   feature: `Shape: a feature brief: Goal and user value, Behaviour / requirements, UI or API surface (if relevant), Constraints (match existing patterns, no new dependencies unless needed), Tests to add, Done when.`,
-  refactor: `Shape: a refactor brief: Target code, Motivation, Desired structure, Hard constraint that behaviour must not change, Steps in small safe increments, Verification (existing tests pass; add tests first if coverage is missing).`,
+  refactor: `Shape: a refactor brief: Target code, Motivation, Desired structure, Scope (inside the target code the agent may merge repeated code and reshape it as it sees fit; code outside it stays as it is), Hard constraint that behaviour must not change, Steps in small safe increments, Verification (existing tests pass; add tests first if coverage is missing).`,
   review: `Shape: a code-review request: What to review (diff, branch or files), Focus areas (correctness, edge cases, security, performance, readability, tests), Output format (findings grouped by severity with file:line and a suggested fix). Tell the agent not to modify code unless asked.`,
   plan: `Shape: ask the agent to plan before coding: first explore the relevant code and write a short step-by-step plan with risks and open questions, then wait for confirmation (or proceed if the plan is low-risk, say which). Include the goal and requirements.`,
   custom: `Follow the custom instructions below for the shape and content of the prompt.`
@@ -82,7 +89,7 @@ const STYLE_RULES: Record<Style, string> = {
 const AGENT_HINTS: { match: RegExp; hint: string }[] = [
   {
     match: /claude/i,
-    hint: 'Target is Claude Code: write sections as Markdown headings (do not mix in XML tags); for multi-step work it may be told to plan first and use a todo list; state the exact verification command.'
+    hint: 'Target is Claude Code: write sections as Markdown headings (do not mix in XML tags) and state the exact verification command. Leave how it plans and tracks the work to it.'
   },
   {
     match: /codex/i,

@@ -36,7 +36,7 @@ nothing belongs under it. So changing the panel language never changes what a st
 
 ## How prompts are written
 
-The rewriter follows the prompting guidance of Anthropic (Claude, Claude Code) and OpenAI (GPT-5):
+The rewriter follows the prompting guidance of Anthropic (Claude, Claude Code, [Claude Fable 5.2](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-2)) and OpenAI (GPT-5):
 
 - specific: real files, the symptom, what "done" looks like, one or two commands that check it;
 - grounded: no invented files or commands; files found by search are "likely relevant";
@@ -46,4 +46,12 @@ The rewriter follows the prompting guidance of Anthropic (Claude, Claude Code) a
 - it says when the agent should stop and ask (blocking unknowns, actions that are hard to undo) and
   otherwise decide and note the assumption;
 - it asks the agent to report the commands it ran and what they printed;
-- no instructions that pull against each other.
+- no instructions that pull against each other;
+- approvals name the exact actions they cover, and an action you already approved in your request is
+  written as approved; a hard limit says what it covers and why, without a bare "never" or "always";
+- for a task with several steps, the agent is told to finish every part and to work through ordinary
+  obstacles (a failing command, a timeout) instead of stopping, to change only what the task needs
+  and list nearby problems at the end, and to close with a summary that stands on its own. A small
+  change gets none of this;
+- the agent is not told how to think: no "think step by step", no request to write out its reasoning
+  (newer Claude models can refuse that), no token budget, no order to use subagents.

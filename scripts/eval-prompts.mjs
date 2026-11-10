@@ -36,7 +36,13 @@ const CASES = [
   { name: 'concise rename', style: 'concise', prompt: 'rename the History tab to Log everywhere, also in the vi and zh translations', language: 'en', keep: ['History', 'Log'], maxChars: 800, noise: ['zz-', 'PANEL_REQUEST_LIMIT_MS'] },
   { name: 'details kept, Vietnamese', style: 'balanced', prompt: 'khi gửi prompt dài hơn 4096 ký tự vào terminal thì bị lỗi "text: Too big", xử lý giúp', language: 'vi', keep: ['4096', 'Too big'] },
   { name: 'reason kept, Vietnamese', style: 'balanced', prompt: 'tăng độ trễ trước khi nhấn Enter sau khi gửi lên 300 ms, vì Codex hay nhận thiếu đoạn cuối của prompt dài', language: 'vi', keep: ['300', 'Codex'], reason: true },
-  { name: 'structure', style: 'balanced', prompt: 'thêm nút xuất lịch sử ra file CSV', language: 'vi', keep: ['CSV'], structure: { name: 'Mine', sections: ['Mục tiêu', 'Yêu cầu', 'Tiêu chí hoàn thành'] } }
+  { name: 'structure', style: 'balanced', prompt: 'thêm nút xuất lịch sử ra file CSV', language: 'vi', keep: ['CSV'], structure: { name: 'Mine', sections: ['Mục tiêu', 'Yêu cầu', 'Tiêu chí hoàn thành'] } },
+  // Prompting Claude Fable 5.2: a task with several steps is finished in one go and ends with a summary that stands on its own.
+  { name: 'several steps: finish it, recap', style: 'detailed', prompt: 'move every scripts/*.test.mjs to TypeScript, update scripts/release.mjs to match, and get the whole test suite passing again', language: 'en', keep: ['scripts/release.mjs'], finish: true },
+  // ...while a small change gets none of that.
+  { name: 'small change stays small', style: 'balanced', prompt: 'fix the typo "recieve" in README.md', language: 'en', keep: ['recieve', 'README.md'], maxChars: 1100, small: true },
+  // An action the person already approved is written as approved, not asked about again.
+  { name: 'approved action', style: 'balanced', prompt: 'delete the unused scripts/shots.sh and commit it. I confirm the deletion, no need to ask me', language: 'en', keep: ['scripts/shots.sh'], approved: /(ask|confirm|check with)[^.\n]{0,40}before[^.\n]{0,30}delet|wait for (my |the user'?s? )?(confirmation|approval)/i }
 ]
 
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
@@ -82,6 +88,15 @@ for (const item of CASES) {
   // Claude Code: ask for evidence, not a claim.
   if (item.style !== 'concise' && !/(report|evidence|output|printed|báo cáo|báo lại|kết quả|in ra|đầu ra)/i.test(text)) problems.push('asks for no evidence')
   if (item.reason && !/(because|since|vì|do |bởi)/i.test(text)) problems.push('lost the reason the user gave')
+  // Prompting Claude Fable 5.2: how the agent thinks, and whether it delegates, is its own business.
+  const meddling = text.match(/step[- ]by[- ]step reasoning|think (hard|step[- ]by[- ]step)|chain of thought|(show|explain|write out) your (reasoning|thinking)|suy nghĩ từng bước|trình bày (quá trình )?suy luận|sub-?agents?|token budget/gi) ?? []
+  if (meddling.length > 0) problems.push(`tells the agent how to think or delegate (${[...new Set(meddling)].join(', ')})`)
+  if (item.finish) {
+    if (!/(retry|retries|another (way|approach)|work through|obstacle|carry on|keep going|rather than stopping|do not stop|before (you|it) (stops?|ends?)|every part)/i.test(text)) problems.push('does not ask to finish the whole task through ordinary obstacles')
+    if (!/(summary|recap|report)/i.test(text)) problems.push('asks for no closing summary')
+  }
+  if (item.small && /(obstacle|timeout|deliberate blocker|closing summary|nearby (problem|typo|issue))/i.test(text)) problems.push('pads a small change with long-task instructions')
+  if (item.approved?.test(text)) problems.push('asks again for an approval the request already gave')
   if (item.structure) {
     const missing = item.structure.sections.filter((section) => !text.includes(section))
     if (missing.length) problems.push(`missing headings: ${missing.join(', ')}`)
