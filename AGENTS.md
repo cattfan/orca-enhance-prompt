@@ -38,7 +38,12 @@ The test suite usually finishes in seconds, but some tests start real processes 
   Requests and events are declared once in `src/protocol.ts`.
 - **`terminal.sendText` takes at most 4096 characters per call**: send through `terminalChunks`
   (`SEND_CHUNK` = 4000) and `sendPieces`, which also closes a bracketed paste left open. Text typed
-  into a terminal goes through `terminalSafe` (no control characters from a model).
+  into a terminal goes through `terminalSafe` (no control characters from a model): what the panel
+  sends, the prompt of a new agent, and the auto-enhance hook's rewrite, which Orca types. The hook
+  never replaces a prompt with an empty one.
+- **Project files are read with `readText`** (`src/context/files.ts`): it refuses secret files by
+  name, and a link that leads out of the workspace or to a secret file. A new read of a project
+  file goes through it.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
@@ -107,9 +112,10 @@ and `setup.ts` (`wirePanel()`: Orca's events to the state, and the first request
 draws that, and `web/src/orca-runtime.ts` stands in for the `orca` module inside the frame. The tests
 run the same code on Orca's panel runtime with nothing drawn: `mountPanel()` from
 `src/panel/testing.ts`, then call the actions and read the atoms. So anything worth a test goes in
-`src/panel/`, not in a component: nothing in `web/src` is covered by `orca plugin test`.
+`src/panel/`, not in a component: of `web/src`, `orca plugin test` covers only `store.ts`.
 Pasted, dropped or picked files go to the worker in chunks (`attachments.put`, `src/attachments.ts`)
-and reach the run as `files`.
+and reach the run as `files`. Their copies live in a temporary folder (`ATTACHMENTS_DIR`: a day at
+most, and gone with Delete everything); under the test runner that folder is the test file's own.
 
 ```sh
 npm run web:install   # once
