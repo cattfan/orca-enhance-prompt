@@ -21,6 +21,8 @@ export type Defaults = {
   outputLanguage: string
   autoEnhanceMode: string
   notifyWhenDone: boolean
+  /** The note that asks for ideas and feedback may show (the person can turn it off). */
+  feedbackNote: boolean
   /** Read other agents' sessions: how many agents, how many lines each. */
   otherAgents: { agents: number; lines: number }
 }
@@ -115,11 +117,11 @@ export const contextNotes = atom<(Message | string)[]>([])
 /**
  * The note that asks for ideas and feedback, under a result now and then (view.ts says when): how
  * many prompts were enhanced before it first showed, and when it last showed. Kept by the panel on
- * this machine; nothing about it is sent anywhere.
+ * this machine; nothing about it is sent anywhere. The setting `feedbackNote` turns the note off.
  */
 export type FeedbackAsk = { runs: number; shownAt: number }
 export const feedbackAsk = atom<FeedbackAsk>('feedbackAsk', { runs: 0, shownAt: 0 }, { persist: 'plugin' })
-/** The note is on screen: until it is closed or used, or the next prompt is enhanced. */
+/** The note came up: until it is closed or used, or the next prompt is enhanced (see feedbackVisible). */
 export const feedbackShown = atom(false)
 /**
  * Files attached in the panel (pasted, dropped or picked): the worker keeps a copy on disk and
@@ -196,6 +198,7 @@ export const defaults = atom<Defaults>({
   outputLanguage: 'auto',
   autoEnhanceMode: 'off',
   notifyWhenDone: false,
+  feedbackNote: true,
   otherAgents: { agents: 4, lines: 80 }
 })
 

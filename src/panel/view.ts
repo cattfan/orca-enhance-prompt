@@ -7,7 +7,7 @@ import { t } from '../i18n.ts'
 import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, feedbackShown, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
 
 /** The names of the panel's sections, on its header icons (the Enhance section shows the brand instead). */
 export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Privacy' }
@@ -290,10 +290,14 @@ export const ISSUES_URL = 'https://github.com/cattfan/orca-enhance-prompt/issues
 
 /**
  * The note that asks for ideas and feedback: first once someone has enhanced this many prompts (they
- * know the plugin by then), afterwards at most once in this many days.
+ * know the plugin by then), afterwards at most once in this many days. Often enough to be there when
+ * an idea comes, which is why it can be turned off (the setting `feedbackNote`, and in the note).
  */
 export const FEEDBACK_FIRST_RUNS = 5
-export const FEEDBACK_EVERY_DAYS = 14
+export const FEEDBACK_EVERY_DAYS = 3
+
+/** The note is on screen: it came up, and the person has not turned such notes off meanwhile. */
+export const feedbackVisible = (): boolean => read(feedbackShown) && read(defaults).feedbackNote
 
 /**
  * Whether the note is due now that a prompt was enhanced. A clock set back does not silence it for

@@ -56,6 +56,12 @@ Clicking the item opens the right sidebar, where the panel lives. Orca's status 
 
 See [Auto-enhance](auto-enhance.md#settings).
 
+## Feedback
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| Ask for feedback now and then | On | A short note under the enhanced prompt invites your ideas: first after your fifth enhanced prompt, then at most once in 3 days. Off: it never shows. The same switch is under **Feedback** in the panel's Settings section, and **Don't ask again** in the note turns it off |
+
 ## Commands
 
 | Command | Does |

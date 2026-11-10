@@ -64,7 +64,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -818,6 +818,11 @@ export function SettingsSection() {
               <ExternalLinkIcon />
             </IconAction>
           }
+        />
+        <Row
+          title={t('Ask for feedback now and then')}
+          description={t('A short note under the enhanced prompt invites your ideas, at most once in {days} days. Off: it never shows.', { days: FEEDBACK_EVERY_DAYS })}
+          control={<Switch checked={prefs.feedbackNote} aria-label={t('Ask for feedback now and then')} onCheckedChange={(value) => void setSetting('feedbackNote', value)} />}
         />
       </Group>
     </div>

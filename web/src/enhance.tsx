@@ -29,7 +29,6 @@ import {
   effectiveLevel,
   effectiveStyle,
   excluded,
-  feedbackShown,
   files,
   lastRun,
   level,
@@ -65,11 +64,13 @@ import {
   send,
   sendFeedback,
   setSetting,
+  stopFeedback,
   toggleItem
 } from '../../src/panel/actions.ts'
 import {
   contextKind,
   currentModelValue,
+  feedbackVisible,
   itemWhy,
   levelOptions,
   modelMenu,
@@ -522,17 +523,27 @@ function NewAgent({ output }: { output: string }) {
   )
 }
 
-/** Now and then, under a result: asks for ideas and feedback (src/panel/view.ts says when). */
+/**
+ * Now and then, under a result: asks for ideas and feedback (src/panel/view.ts says when). Three
+ * ways out: send some, close the note for now, or never be asked again (the switch in the settings).
+ */
 function FeedbackNote() {
-  if (!read(feedbackShown)) return null
+  if (!feedbackVisible()) return null
   return (
-    <div className="bg-card flex items-center gap-2 rounded-xl border px-2.5 py-2">
-      <LightbulbIcon className="text-muted-foreground size-4 shrink-0" />
-      <p className="text-muted-foreground min-w-0 flex-1 text-xs">{t('Got an idea, or something that could work better? Send your feedback: it is how the plugin improves.')}</p>
-      <Button size="sm" variant="outline" className="shrink-0" onClick={() => void sendFeedback()}>
-        {t('Send feedback')}
-      </Button>
-      <IconAction label={t('Close')} className="shrink-0" onClick={closeFeedback}>
+    <div className="bg-card flex items-start gap-2 rounded-xl border py-2 pr-1.5 pl-2.5">
+      <LightbulbIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <p className="text-muted-foreground text-xs">{t('Got an idea, or something that could work better? Send your feedback: it is how the plugin improves.')}</p>
+        <div className="flex flex-wrap items-center gap-1">
+          <Button size="xs" variant="outline" onClick={() => void sendFeedback()}>
+            {t('Send feedback')}
+          </Button>
+          <Button size="xs" variant="ghost" className="text-muted-foreground" onClick={() => void stopFeedback()}>
+            {t("Don't ask again")}
+          </Button>
+        </div>
+      </div>
+      <IconAction label={t('Close')} className="size-6 shrink-0" onClick={closeFeedback}>
         <XIcon />
       </IconAction>
     </div>

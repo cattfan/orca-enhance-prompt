@@ -144,6 +144,7 @@ export async function refreshDefaults(): Promise<void> {
     outputLanguage: typeof all.outputLanguage === 'string' ? all.outputLanguage : 'auto',
     autoEnhanceMode: typeof all.autoEnhanceMode === 'string' ? all.autoEnhanceMode : 'off',
     notifyWhenDone: all.notifyWhenDone === true,
+    feedbackNote: all.feedbackNote !== false,
     otherAgents: parseOtherAgentsLimits(all)
   })
   set(uiLanguageSetting, typeof all.uiLanguage === 'string' ? all.uiLanguage : 'auto')
@@ -717,9 +718,11 @@ export async function openIssues(): Promise<void> {
 /**
  * A prompt was enhanced and its result is on screen: shows the note that asks for ideas and feedback
  * when it is due (view.ts: after the first few prompts, then now and then). Prompts are counted only
- * until the note has shown once. Exported for tests.
+ * until the note has shown once, and not at all while the person has turned the note off. Exported
+ * for tests.
  */
 export function askForFeedback(now = Date.now()): void {
+  if (!read(defaults).feedbackNote) return
   const ask = read(feedbackAsk)
   const counted = ask.shownAt === 0 ? { ...ask, runs: ask.runs + 1 } : ask
   if (feedbackDue(counted, now)) {
@@ -739,4 +742,15 @@ export async function sendFeedback(): Promise<void> {
   set(feedbackShown, false)
   // Called at once, inside the press: Orca opens a link only from a gesture.
   await openIssues()
+}
+
+/**
+ * "Don't ask again" in the note: turns the setting off (the same switch as in the settings section)
+ * and says where to turn it back on, so the choice is never a dead end.
+ */
+export async function stopFeedback(): Promise<void> {
+  set(feedbackShown, false)
+  await setSetting('feedbackNote', false)
+  // setSetting says so itself when the setting could not be saved.
+  if (!read(defaults).feedbackNote) set(notice, { tone: 'neutral', text: t('No more feedback notes. To turn them back on, open the gear icon and look under Feedback.') })
 }

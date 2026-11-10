@@ -130,9 +130,10 @@ the panel.
 - **Feedback** (gear): something broken, confusing, or a prompt that came out wrong? [Open an issue
   on GitHub](https://github.com/cattfan/orca-enhance-prompt/issues/new).
 - Now and then a short note under the result asks for your ideas: first after your fifth enhanced
-  prompt, then at most once in two weeks. **Send feedback** opens the same issue page, × closes the
-  note, and it goes away by itself with your next prompt. Nothing is sent or counted anywhere but
-  in the panel on this machine.
+  prompt, then at most once in three days. **Send feedback** opens the same issue page, × closes the
+  note for now, and it goes away by itself with your next prompt. **Don't ask again** turns the
+  notes off; the switch **Ask for feedback now and then**, under Feedback in the gear section,
+  turns them back on. Nothing is sent or counted anywhere but in the panel on this machine.
 
 ## 8. What's new
 
