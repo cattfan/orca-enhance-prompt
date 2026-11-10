@@ -3,7 +3,7 @@
 import { read } from 'orca'
 import { assert, mockHost, test, type MockRequests, type TestPanel } from 'orca/testing'
 import { enhanceNow, pickWorkspace, send } from './panel/actions.ts'
-import { draft, notice, put, result, run, target, workspaceChoices, workspaceKey } from './panel/state.ts'
+import { draft, lastRun, notice, put, result, run, target, workspaceChoices, workspaceKey } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 
@@ -114,6 +114,34 @@ test('switching projects while the prompt is being written: it lands in its own 
     assert.equal(draftText(), 'fix login in app A')
     await pressSend()
     assert.deepEqual(w.sent, [{ terminalId: A.terminal, text: 'Enhanced for A' }])
+  }))
+
+test('a finished prompt stays in its project: a project opened for the first time starts empty', () =>
+  scenario(async (view, w) => {
+    put(draft, 'task for A')
+    const enhancing = enhanceNow()
+    await until(() => w.pending.length === 1)
+    w.pending[0].resolve('Enhanced for A')
+    await enhancing
+    assert.equal(shownResult(), 'Enhanced for A')
+    assert.ok(read(lastRun))
+
+    // B has never been opened: nothing of A's shows there, so nothing of A's can be sent from there.
+    await w.switchTo(view, B)
+    await view.settled()
+    assert.equal(read(workspaceKey), B.id)
+    assert.equal(shownResult(), null)
+    assert.equal(draftText(), '')
+    assert.equal(read(lastRun), null)
+    await pressSend()
+    assert.deepEqual(w.sent, [])
+
+    // A still has all of it.
+    await w.switchTo(view, A)
+    await view.settled()
+    assert.equal(shownResult(), 'Enhanced for A')
+    assert.equal(draftText(), 'task for A')
+    assert.ok(read(lastRun))
   }))
 
 test('back and forth over several projects: each keeps its own draft and result', () =>
