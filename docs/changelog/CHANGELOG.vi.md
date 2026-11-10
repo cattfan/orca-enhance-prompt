@@ -2,6 +2,12 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.0] - 2026-11-10
+
+### Thêm mới
+
+- Thỉnh thoảng một ghi chú ngắn dưới kết quả mời bạn góp ý tưởng và phản hồi: lần đầu sau prompt thứ năm được cải thiện, sau đó tối đa hai tuần một lần. **Gửi góp ý** mở trang issue của plugin trên GitHub, dấu × đóng ghi chú, và nó tự biến mất khi bạn chạy prompt kế tiếp. Không có gì được gửi đi hay đếm ở đâu khác ngoài panel trên máy này.
+
 ## [2.5.4] - 2026-11-10
 
 ### Sửa lỗi
