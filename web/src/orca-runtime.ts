@@ -1,7 +1,8 @@
-// The `orca` module of a components panel, rebuilt for the web panel's frame. The panel's state and
-// actions (src/panel/state.ts, actions.ts, view.ts) are shared with the components panel unchanged:
-// they use atom/read/set and plugin/settings, which this file provides on top of `window.orca` (the
-// frame API). Vite points the import 'orca' here; TypeScript keeps checking against Orca's own types.
+// The `orca` module, as the panel's state and actions use it, built for the web panel's frame. That
+// code (src/panel/state.ts, actions.ts, view.ts, setup.ts) is written against Orca's panel runtime
+// (atom/read/set, plugin, settings), which is what the tests run it on; in the frame this file
+// provides the same on top of `window.orca` (the frame API). Vite points the import 'orca' here;
+// TypeScript keeps checking against Orca's own types.
 // The atoms themselves are in ./store (no React there, so the plugin's tests can load them).
 import { useSyncExternalStore } from 'react'
 import { frame, subscribe, version } from './store'

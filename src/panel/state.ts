@@ -1,4 +1,6 @@
-// state.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
+// state.ts: what the panel knows (its atoms), with no UI in it. The web panel (web/src) draws it and
+// the tests read it; actions.ts changes it, view.ts turns it into labels and options, setup.ts wires
+// Orca's events to it.
 import { atom, derived, read, set, type Atom, type JsonValue } from 'orca'
 import { HISTORY_KEY, parseHistory } from '../history.ts'
 import type { RulesConfig } from '../rules.ts'
@@ -37,8 +39,7 @@ export const modelChoice = atom('modelChoice', '', { persist: 'plugin' })
 export const outputChoice = atom('outputChoice', 'default', { persist: 'plugin' })
 export const excluded = atom<string[]>('excluded', [])
 export const target = atom<string | null>('target', null)
-/** "Fix this error": the box is open, and the terminal whose error it is about. */
-export const fixOpen = atom('fixOpen', false, { persist: 'plugin' })
+/** "Fix this error": the terminal whose error it is about. */
 export const errorTerminal = atom<string | null>('errorTerminal', null)
 export const pressEnter = atom<boolean | null>('pressEnter', null)
 export const historyRaw = atom<JsonValue>(HISTORY_KEY, [], { persist: 'storage' })
@@ -113,13 +114,10 @@ export const lastRun = atom<LastRun>(null)
 export const contextShown = atom<ContextItemView[]>([])
 /** Notes are Messages; an older version saved plain strings. */
 export const contextNotes = atom<(Message | string)[]>([])
-/** The context list is unfolded (Preview unfolds it). */
-export const contextOpen = atom(false)
-/** Images attached to the draft (checked by the worker): their path, name, size and type. */
+/** Images attached to the draft by their path (checked by the worker): their path, name, size and type. */
 export type AttachedImage = { path: string; name: string; bytes: number; type: string }
 export const images = atom<AttachedImage[]>([])
-/** The attach box is open, and the path being typed in it. */
-export const imagesOpen = atom('imagesOpen', false, { persist: 'plugin' })
+/** The path of an image to attach, as typed (addImage reads it). */
 export const imageDraft = atom('')
 /**
  * Files attached in the web panel (pasted, dropped or picked): the worker keeps them on disk and

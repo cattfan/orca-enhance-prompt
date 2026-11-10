@@ -212,7 +212,7 @@ orca plugin check .
 orca plugin dev watch . --check
 ```
 
-**Live UI preview:** `npm run dev` opens http://localhost:5173 with every scenario of `src/panel.check.ts` drawn side by side (sample data only). Pick a scenario, switch dark/light, change the panel width, open the folds; it redraws on every save in `src/`. To see the real panel in Orca instead, run `orca plugin dev watch .`: the development folder replaces the installed copy while it runs.
+**Live UI preview:** `npm run web:install` once, then `npm run web:dev` opens the panel at http://localhost:5174 on sample data and redraws on every save. Add `?lang=vi&theme=dark&width=360` for the language, the theme and a sidebar's width, `?tab=models` for a section, `?demo=<prompt>` to type a prompt and run it. To see the real panel in Orca instead, run `orca plugin dev watch .`: the development folder replaces the installed copy while it runs.
 
 The panel is built from `web/` into `src/web-dist` (`npm run web:build`); the worker has no build step. `node scripts/make-listing.mjs` regenerates the listing pictures from the web panel's sample data (with `npm run web:dev` running). Releases follow [AGENTS.md](AGENTS.md).
 

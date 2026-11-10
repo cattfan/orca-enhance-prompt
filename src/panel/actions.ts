@@ -1,4 +1,5 @@
-// actions.ts: part of the Enhance Prompt panel (entry: src/panel.tsx).
+// actions.ts: what the panel does (what its buttons call): requests to the worker, and the changes
+// to the state (state.ts) that follow. No UI here; the web panel (web/src) and the tests call these.
 import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
 import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
 import { ISSUES_URL } from './view.ts'
@@ -11,7 +12,7 @@ import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { MAX_IMAGES } from '../image-limits.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
-import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, contextOpen, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, images, imageDraft, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, errorTerminal, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -309,12 +310,6 @@ export function stopTicking(): void {
   ticker = null
 }
 
-/** The progress mock drives the clock itself (simulated time). */
-export function setNowForTest(ms: number): void {
-  stopTicking()
-  set(tick, ms)
-}
-
 /** Takes a worker snapshot when it belongs to the running run. Exported for tests. */
 export function applyProgress(snapshot: { runId: string; startedAt: number; steps: { key: string; status: Step['status']; detail?: string; fraction?: number; startedAt?: number }[] }): void {
   const current = read(run)
@@ -330,8 +325,7 @@ export const OPEN_STEP_ENDS: Record<Run['status'], Step['status']> = { running: 
 export function finishRun(runId: string, status: Run['status'], error?: string): void {
   const current = read(run)
   if (!current || current.runId !== runId || current.status !== 'running') return
-  // The card's clock (the progress mock runs it on simulated time).
-  const now = Math.max(Date.now(), read(tick))
+  const now = Date.now()
   // A step still running keeps the share it had reached (its estimate included), so the card shows
   // where the run stopped; the bar keeps the run's share at that moment and never jumps to 100.
   const steps: Step[] = current.steps.map((entry) => {
@@ -388,8 +382,6 @@ export async function previewContext(): Promise<void> {
       { timeoutMs: 60_000 }
     )
     showContext(answer.context, answer.notes)
-    // The list's own title says how many items and characters: show the list rather than a notice.
-    set(contextOpen, true)
     set(notice, null)
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })

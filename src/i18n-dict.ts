@@ -1,5 +1,5 @@
-// The translations, English text as the key. No imports: the components panel (src/i18n.ts) and
-// the web panel (web/src/i18n.ts) both read them. resolveLanguage picks the language.
+// The translations, English text as the key. No imports: the panel (through src/i18n.ts) and the
+// worker (its notification) both read them. resolveLanguage picks the language.
 
 export type UiLanguage = 'en' | 'vi' | 'zh'
 

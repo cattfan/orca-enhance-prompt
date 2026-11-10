@@ -1,6 +1,6 @@
 // Panel UI translations. The English text is the key; vi and zh map it to their wording.
 // `{name}` placeholders are filled from params. Missing entries fall back to English.
-// The dictionaries live in src/i18n-dict.ts, shared with the web panel.
+// The dictionaries live in src/i18n-dict.ts (no imports, so the worker reads them too).
 import { atom, env, read } from 'orca'
 import { resolveLanguage, translate, VI, ZH, type UiLanguage } from './i18n-dict.ts'
 

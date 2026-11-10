@@ -1,5 +1,5 @@
-// History, Models, Rules and Settings (privacy) sections of the web panel. Same state and actions as
-// the components panel (src/panel/*), drawn with shadcn/ReUI.
+// History, Models, Rules and Settings (privacy) sections of the web panel: the panel's state and
+// actions (src/panel/*), drawn with shadcn/ReUI.
 import { useState } from 'react'
 import { read, set, update } from 'orca'
 import { ArrowDownIcon, ArrowUpIcon, RotateCcwIcon, CheckIcon, CopyIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
@@ -64,7 +64,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { DISCLOSURES, hookChoice, hookModels, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, hookChoice, hookModels, KEY_LABEL, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -613,12 +613,6 @@ export function RulesSection() {
 
 // ---------------------------------------------------------------- Settings (privacy)
 
-const MODE_HINTS: Record<string, string> = {
-  off: 'Prompts Orca sends to agents go out as they are.',
-  rules: 'Adds your fixed text to the end of each prompt Orca sends to an agent. Instant, no model. The text is in Orca Settings → Plugins → Enhance Prompt.',
-  ai: 'A fast API model rewrites each prompt Orca sends to an agent (a new agent with a task, the task board, orchestration). Orca waits at most 2 s, then sends the original.'
-}
-
 /** Choices offered for the amounts (a value set in Orca's Settings is added when it is not one of them). */
 const AGENT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8]
 const LINE_CHOICES = [10, 20, 40, 80, 120, 200, 300]
@@ -710,7 +704,7 @@ export function SettingsSection() {
             ]}
             onChange={(value) => void setSetting('autoEnhanceMode', value)}
           />
-          <p className="text-muted-foreground text-xs">{t(MODE_HINTS[prefs.autoEnhanceMode] ?? MODE_HINTS.off)}</p>
+          <p className="text-muted-foreground text-xs">{t(AUTO_MODE_HINTS[prefs.autoEnhanceMode] ?? AUTO_MODE_HINTS.off)}</p>
         </Row>
         {view && prefs.autoEnhanceMode === 'ai' && hookOptions.length === 0 ? (
           <Row

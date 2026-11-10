@@ -1,5 +1,5 @@
-// view.ts: what both panels show, as plain data (labels, options, progress text). The components
-// panel (src/panel/*.tsx) and the web panel (web/src) draw it each in their own way.
+// view.ts: what the panel shows, as plain data (labels, options, progress text, the small decisions
+// about what to offer). The web panel (web/src) draws it; the tests check it.
 import { read, set } from 'orca'
 import { CONTEXT_LEVEL_LABELS, CONTEXT_LEVELS, isContextLevel, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle, STYLE_LABELS, STYLES } from '../prompts.ts'
@@ -8,6 +8,16 @@ import { allStructures, structureById, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
 import { type Catalog, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+
+/** The names of the panel's sections, on its header icons (the Enhance section shows the brand instead). */
+export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Privacy' }
+
+/** What each auto-enhance mode does, said under its switch. */
+export const AUTO_MODE_HINTS: Record<string, string> = {
+  off: 'Prompts Orca sends to agents go out as they are.',
+  rules: 'Adds your fixed text to the end of each prompt Orca sends to an agent. Instant, no model. The text is in Orca Settings → Plugins → Enhance Prompt.',
+  ai: 'A fast API model rewrites each prompt Orca sends to an agent (a new agent with a task, the task board, orchestration). Orca waits at most 2 s, then sends the original.'
+}
 
 export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', vi: 'VI', zh: '中文' }
 export const OUTPUT_LANGUAGE_LABELS: Record<string, string> = {

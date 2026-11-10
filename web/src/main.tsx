@@ -6,7 +6,7 @@ import { read, set } from 'orca'
 import { BookOpenIcon, BotIcon, LanguagesIcon, ScrollTextIcon, SettingsIcon, SparklesIcon } from 'lucide-react'
 import './index.css'
 import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
-import { UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
+import { SECTION_LABELS, UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
 import { busy, draft, files, history, optionsOpen, put, tab } from '../../src/panel/state.ts'
@@ -28,11 +28,11 @@ const RulesSection = lazy(() => loadSections().then((module) => ({ default: modu
 const SettingsSection = lazy(() => loadSections().then((module) => ({ default: module.SettingsSection })))
 
 const SECTIONS = [
-  { value: 'enhance', label: 'Enhance', Icon: SparklesIcon },
-  { value: 'history', label: 'History', Icon: BookOpenIcon },
-  { value: 'models', label: 'Models', Icon: BotIcon },
-  { value: 'rules', label: 'Rules', Icon: ScrollTextIcon },
-  { value: 'privacy', label: 'Privacy', Icon: SettingsIcon }
+  { value: 'enhance', Icon: SparklesIcon },
+  { value: 'history', Icon: BookOpenIcon },
+  { value: 'models', Icon: BotIcon },
+  { value: 'rules', Icon: ScrollTextIcon },
+  { value: 'privacy', Icon: SettingsIcon }
 ] as const
 
 /** The panel language, at the top left (Auto follows Orca). */
@@ -80,10 +80,10 @@ function App() {
           </div>
           <nav className="flex shrink-0 items-center">
             <LanguagePicker />
-            {SECTIONS.map(({ value, label, Icon }) => (
+            {SECTIONS.map(({ value, Icon }) => (
               <IconAction
                 key={value}
-                label={value === 'history' ? `${t('History')} (${read(history).length})` : value === 'enhance' ? BRAND : t(label)}
+                label={value === 'history' ? `${t(SECTION_LABELS.history)} (${read(history).length})` : value === 'enhance' ? BRAND : t(SECTION_LABELS[value])}
                 variant={value === current.value ? 'secondary' : 'ghost'}
                 onClick={() => openSection(value)}
               >

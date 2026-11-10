@@ -5,34 +5,58 @@ import { currentLanguage, dictionaries, resolveLanguage, t, translate } from './
 import { changeUiLanguage, enhanceNow, previewContext } from './panel/actions.ts'
 import { contextNotes, contextShown, draft, put, run, say } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { itemWhy } from './panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, itemWhy, KEY_LABEL, OUTPUT_LANGUAGE_LABELS, PRIVACY_ROWS, SECTION_LABELS, STEP_LABELS } from './panel/view.ts'
 import { english, MESSAGES, msg, raw } from './messages.ts'
 import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
 import { STYLE_LABELS } from './prompts.ts'
+import { BUILT_IN_STRUCTURES } from './rules.ts'
+
+/** The text of every source file under a folder, its subfolders included (not the tests). */
+function sources(folder: URL): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(folder, { withFileTypes: true })) {
+    if (entry.isDirectory()) out.push(...sources(new URL(`${entry.name}/`, folder)))
+    else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) out.push(readFileSync(new URL(entry.name, folder), 'utf8'))
+  }
+  return out
+}
+
+/** Every English text the plugin shows through t() or translate(): the keys the dictionaries need. */
+function uiStrings(): Set<string> {
+  // Written in place: the panel's state, actions and view (src/panel), the web UI that Orca shows
+  // (web/src), and the worker's notification (src/worker.ts).
+  const code = [...sources(new URL('./panel/', import.meta.url)), ...sources(new URL('../web/src/', import.meta.url)), readFileSync(new URL('./worker.ts', import.meta.url), 'utf8')].join('\n')
+  const keys = new Set<string>()
+  for (const match of code.matchAll(/\b(?:t\(|translate\(\s*\w+\s*,)\s*(['"`])((?:\\.|(?!\1)[^\\])+)\1/g)) keys.add(match[2].replace(/\\(['"`])/g, '$1'))
+  // Kept in tables and passed to t() by variable. A new table of shown texts belongs in this list.
+  const tables: string[] = [
+    ...Object.values(STYLE_LABELS),
+    ...Object.values(CONTEXT_LEVEL_LABELS),
+    ...Object.values(STEP_LABELS),
+    ...Object.values(KEY_LABEL),
+    ...Object.values(OUTPUT_LANGUAGE_LABELS),
+    ...Object.values(SECTION_LABELS),
+    ...Object.values(AUTO_MODE_HINTS),
+    ...PRIVACY_ROWS.flatMap((row) => [row.label, row.hint]),
+    ...Object.values(DISCLOSURES).flat(),
+    ...BUILT_IN_STRUCTURES.flatMap((structure) => [structure.name, ...structure.sections]),
+    // Every message the worker sends by code (notes, labels, errors); 'raw' is outside text, never translated.
+    ...Object.entries(MESSAGES).flatMap(([code, template]) => (code === 'raw' ? [] : [template]))
+  ]
+  for (const text of tables) keys.add(text)
+  return keys
+}
 
 test('every UI string has a Vietnamese and a Chinese translation', () => {
-  // The panel is src/panel.tsx and its parts in src/panel/.
-  const parts = readdirSync(new URL('./panel/', import.meta.url)).filter((name) => /\.tsx?$/.test(name))
-  const source = [new URL('./panel.tsx', import.meta.url), ...parts.map((name) => new URL(`./panel/${name}`, import.meta.url))]
-    .map((url) => readFileSync(url, 'utf8'))
-    .join('\n')
-  const keys = new Set<string>()
-  for (const match of source.matchAll(/\bt\('((?:[^'\\]|\\.)+)'/g)) keys.add(match[1].replace(/\\'/g, "'"))
-  for (const label of [...Object.values(STYLE_LABELS), ...Object.values(CONTEXT_LEVEL_LABELS)]) keys.add(label)
-  for (const key of ['key saved', 'key from env', 'no key', 'local', 'subscription', 'Output: same as prompt', 'Output: English', 'Output: Vietnamese', 'Output: Chinese']) keys.add(key)
-  // Every message the worker sends by code (notes, labels, errors); 'raw' is outside text, never translated.
-  for (const [code, template] of Object.entries(MESSAGES)) if (code !== 'raw') keys.add(template)
-  // Labels kept in tables and passed to t() by variable: progress steps and Privacy rows.
-  for (const match of source.matchAll(/^\s+(?:workspace|project|git|search|pick|terminal|model): '([^']+)',?$/gm)) keys.add(match[1])
-  for (const match of source.matchAll(/\{ key: '[A-Za-z]+', label: '([^']+)', hint: (['"])((?:(?!\2).)+)\2 \}/g)) {
-    keys.add(match[1])
-    keys.add(match[3])
-  }
+  const keys = uiStrings()
   for (const [lang, dict] of Object.entries(dictionaries)) {
     const missing = [...keys].filter((key) => !(key in dict))
     assert.deepEqual(missing, [], `${lang} is missing translations`)
   }
-  assert.ok(keys.size > 80)
+  // The web UI alone has well over a hundred: far fewer means the scan above lost its files.
+  assert.ok(keys.size > 300, `only ${keys.size} texts found`)
+  // A text built from pieces cannot be looked up: use {params}.
+  assert.deepEqual([...keys].filter((key) => key.includes('${')), [])
 })
 
 test('placeholders survive translation; auto follows the Orca locale', () => {

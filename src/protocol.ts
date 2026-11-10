@@ -1,4 +1,4 @@
-// The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
+// The panel <-> worker contract, declared once: the panel (src/panel/, web/src) and src/worker.ts both read it.
 import type { Message } from './messages.ts'
 import type { RulesConfig } from './rules.ts'
 import type { ContextItemView, ProfileView, Preset, Provider } from './presets.ts'

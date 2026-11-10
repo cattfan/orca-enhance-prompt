@@ -20,8 +20,10 @@ The test suite usually finishes in seconds, but some tests start real processes 
 ## Rules that must keep holding
 
 - **Every UI string goes through `t('...')`** from `src/i18n.ts`, with its Vietnamese and Chinese
-  entries in the same change. `src/i18n.test.tsx` fails on a missing key. Worker messages the panel
-  shows are translated there too, so keep their wording in step.
+  entries in the same change. `src/i18n.test.tsx` fails on a missing key: it reads every `t('…')`
+  in `src/panel/` and `web/src/`, and the tables of texts passed to `t()` by variable (a new table
+  is added to its list). Worker messages the panel shows are translated there too, so keep their
+  wording in step.
 - **The name "Enhance Prompt" is a brand**: use `BRAND` from `src/brand.ts`, never `t()`; text that
   names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
 - **Flat colours only**: no gradients in the logo (`assets/icon.png`, cut from `assets/art/logo-source.jpg` by `scripts/cut-icon.ps1`; vector in
@@ -57,14 +59,14 @@ for; approve it yourself, then run `node scripts/e2e.mjs --approve <fingerprint>
 subscription) and checks the output mechanically (no preamble, right language, no invented paths,
 details kept, length, structure headings). Run it after changing `src/prompts.ts`.
 
-`npm run mock:progress` (`node scripts/mock-progress.mjs [--vi] [--width 280]`) plays the run card through simulated runs
-(steps one after another, side by side, and a cancel) on the real panel code, with no worker, model or
-network: it prints the total and every step's percentage per frame and writes
-`.orca/mock-progress/index.html` (frames play like a video) and a PNG per frame. With `npm run dev` running, the same mock is at
-http://localhost:5173/mock-progress?lang=vi (`&width=260` for a narrow panel).
-
-`npm run dev` serves http://localhost:5173: the panel's scenarios from `src/panel.check.ts`, drawn by
-`scripts/render-panel.mjs`, redrawn on every save. Add a scenario there to preview a new state.
+`npm run web:dev` serves the panel at http://localhost:5174 on sample data (`web/src/mock-orca.ts`),
+redrawn on every save, with no worker, model or network. The address sets what to look at:
+`?lang=vi&theme=dark&width=360` (language, theme, a sidebar's width), `?tab=models` (a section),
+`?demo=<prompt>` (types the prompt and runs it: the run card plays its steps; `&run=0` only types it),
+`?options=1`, `?attach=1`, `?ask=allowAgentLaunch` (a confirmation dialog), and `?mock=1` keeps the
+sample data even while Orca has the development plugin loaded (without it the page talks to that
+plugin's real worker). `node scripts/shot-web.mjs [out.png] [width] [height] [query]` saves a picture
+of it; `node scripts/make-listing.mjs` redraws every listing, README and guide picture from it.
 
 ## Releases
 
@@ -87,18 +89,27 @@ The plugin must stay free, have no tracking or analytics, and contain no obfusca
 
 ## The panel (`enhance`, web)
 
-The only panel Orca shows (since 2.4.0) is `ui: "html"`, built with React + Tailwind + shadcn/ReUI from `web/` into
-`src/web-dist/` (committed: Orca runs no build step; minified, which the listing policy allows since the source is in `web/src`). Run `npm run web:build` before committing a change under `web/`. It reuses the
-older components panel's state and actions (`src/panel/state.ts`, `actions.ts`, `view.ts`) unchanged.
-`src/panel.tsx` and `src/panel/*.tsx` are no longer in the manifest; their tests still drive that shared
-state and those actions, so keep them passing (or move the tests to the web panel before removing them):
-`web/src/orca-runtime.ts` stands in for the `orca` module inside the frame. Pasted, dropped or picked
-files go to the worker in chunks (`attachments.put`, `src/attachments.ts`) and reach the run as `files`.
+The panel Orca shows is `ui: "html"`, built with React + Tailwind + shadcn/ReUI from `web/` into
+`src/web-dist/` (committed: Orca runs no build step; minified, which the listing policy allows since the source is in `web/src`).
+Run `npm run web:build` before committing a change under `web/`, and also after changing a file under
+`src/` that the panel imports (`src/panel/*`, `src/i18n*.ts`, `src/messages.ts`, `src/presets.ts`,
+`src/version.ts`…) or a changelog: they are all bundled. The build is reproducible, so a build that
+leaves `src/web-dist` unchanged means it was up to date.
+
+What the panel knows and does has no UI in it and lives in `src/panel/`: `state.ts` (the atoms),
+`actions.ts` (what the buttons call), `view.ts` (labels, options and small decisions, as plain data)
+and `setup.ts` (`wirePanel()`: Orca's events to the state, and the first requests). `web/src` only
+draws that, and `web/src/orca-runtime.ts` stands in for the `orca` module inside the frame. The tests
+run the same code on Orca's panel runtime with nothing drawn: `mountPanel()` from
+`src/panel/testing.ts`, then call the actions and read the atoms. So anything worth a test goes in
+`src/panel/`, not in a component: nothing in `web/src` is covered by `orca plugin test`.
+Pasted, dropped or picked files go to the worker in chunks (`attachments.put`, `src/attachments.ts`)
+and reach the run as `files`.
 
 ```sh
 npm run web:install   # once
-npm run web:dev       # http://localhost:5174 with sample data (?lang=vi&theme=dark&width=360)
+npm run web:dev       # http://localhost:5174 with sample data (see Live preview)
 npm run web:build     # then orca plugin dev load . to see it in Orca
 ```
 
-Its strings go through `t()` too; translations live in `src/i18n-dict.ts`.
+Its strings go through `t()`; translations live in `src/i18n-dict.ts`.
