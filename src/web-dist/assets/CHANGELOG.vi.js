@@ -2,6 +2,12 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.2] - 2026-11-10
+
+### Sửa lỗi
+
+- Cập nhật không còn bắt bạn phê duyệt lại plugin. Bản 2.6.1 đã đưa công tắc của ghi chú mời góp ý vào Settings của Orca, mà Orca coi một thiết lập mới là thêm quyền truy cập, nên bản cập nhật phải chờ duyệt. Công tắc giờ chỉ nằm trong panel (mục Góp ý trong phần bánh răng, và nút **Đừng hỏi lại** trong ghi chú). Nếu bạn đã tắt ghi chú ở bản 2.6.1, hãy tắt lại một lần nữa.
+
 ## [2.6.1] - 2026-11-10
 
 ### Thay đổi
