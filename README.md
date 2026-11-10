@@ -169,6 +169,8 @@ orca plugin install cattfan/orca-enhance-prompt
 orca plugin update cattfan.enhance-prompt
 ```
 
+Installed this way, the plugin comes straight from this repository and Orca does not update it by itself: run the update command when a new version is out. Installed from Orca's catalog, it updates by itself. See [Where do I update it?](docs/troubleshooting.md#where-do-i-update-it)
+
 Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 
 > [!NOTE]

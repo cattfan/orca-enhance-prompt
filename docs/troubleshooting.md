@@ -7,14 +7,17 @@
 
 ## Where do I update it?
 
-**Settings → Plugins → Enhance Prompt.** Updates that ask for nothing new install by themselves within about 6 hours. An update that adds commands or settings waits for you and shows **Update needs review**; open the plugin and approve it.
+It depends on how you installed it.
 
-From a terminal:
+- **From the catalog** (Settings → Plugins, or **Open in Orca**): Orca updates it by itself while its setting **Update plugins automatically** is on. A new version installs about 12 hours after Orca first sees it in the catalog; Orca looks at startup and every 6 hours. To have it sooner, open **Settings → Plugins → Enhance Prompt** and click **Update**.
+- **From the GitHub link** (`orca plugin install cattfan/orca-enhance-prompt`, or the repository's address): Orca never updates it by itself. Run the command below, or install the same link again: both move it to the newest release.
 
 ```bash
 orca plugin update cattfan.enhance-prompt
 # If it prints an --approve command, run that command to confirm.
 ```
+
+An update that asks for nothing new keeps your approval. One that adds commands or settings waits for you: Orca shows **Update needs review**, and the command above prints what it asks for instead of installing. Open the plugin and approve it.
 
 ## The status bar menu has no entry for Enhance Prompt
 

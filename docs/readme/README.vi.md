@@ -144,6 +144,8 @@ orca plugin install cattfan/orca-enhance-prompt
 orca plugin update cattfan.enhance-prompt
 ```
 
+Cài theo cách này, plugin được lấy thẳng từ repo này và Orca không tự cập nhật nó: hãy chạy lệnh cập nhật khi có bản mới. Cài từ catalog của Orca thì plugin tự cập nhật. Xem [Cập nhật ở đâu?](../troubleshooting.md#where-do-i-update-it)
+
 Sau đó làm theo **[Prompt đầu tiên](../getting-started.md)**.
 
 > [!NOTE]

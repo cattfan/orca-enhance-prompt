@@ -144,6 +144,8 @@ orca plugin install cattfan/orca-enhance-prompt
 orca plugin update cattfan.enhance-prompt
 ```
 
+这样安装的插件直接来自本仓库，Orca 不会自动更新它：有新版本时请运行更新命令。从 Orca 的目录安装的插件会自动更新。参见[在哪里更新？](../troubleshooting.md#where-do-i-update-it)
+
 然后按照 **[第一条优化提示词](../getting-started.md)** 操作。
 
 > [!NOTE]
