@@ -3,6 +3,12 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.5.3] - 2026-11-10
+
+### Fixed
+
+- Typing in the middle of the prompt or of the enhanced prompt no longer moves the cursor to the end of the text.
+
 ## [2.5.2] - 2026-11-10
 
 ### Changed
@@ -444,6 +450,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.5.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.3
 [2.5.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.2
 [2.5.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.1
 [2.5.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.0
