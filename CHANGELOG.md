@@ -3,6 +3,12 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.6.2] - 2026-11-10
+
+### Fixed
+
+- Updating no longer asks you to approve the plugin again. 2.6.1 added the switch for the feedback note to Orca's Settings, and Orca counts a new setting as more access, so the update waited for a review. The switch now lives only in the panel (under Feedback in the gear section, and **Don't ask again** in the note). If you turned the note off in 2.6.1, turn it off once more.
+
 ## [2.6.1] - 2026-11-10
 
 ### Changed
@@ -491,6 +497,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.2
 [2.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.1
 [2.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.0
 [2.5.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.5.4
