@@ -117,7 +117,7 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 
 **Also in the box:**
 
-- **[Files and screenshots](docs/user-guide.md#2-attach-files-and-screenshots)**: paste a screenshot, drop files or attach them; models that read images see them, short text files join the context, and the prompt lists every path for the agent.
+- **[Files and screenshots](docs/user-guide.md#2-attach-files-and-screenshots)**: paste a screenshot, drop files or attach them; models that read images see them, text files join the context (a long one as its beginning and its end), and the prompt lists every path for the agent.
 - **[Your rules and prompt structures](docs/rules-and-fixes.md)**: rules for the project you are in, and the headings you want prompts written under (the built-in ones can be edited).
 - **[What's new](docs/user-guide.md#8-whats-new)**: click the version in the panel for this version's notes and the full changelog.
 - **[Auto-enhance](docs/auto-enhance.md)**: rewrite the prompts Orca itself sends to agents (launch, task and orchestration prompts), with your rules or a fast model.

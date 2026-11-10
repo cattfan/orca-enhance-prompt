@@ -4,6 +4,7 @@ import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca
 import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
 import { ISSUES_URL } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
+import { attachmentItemId } from '../image-limits.ts'
 import { type Message } from '../messages.ts'
 import { DEFAULT_MAX_TOKENS, isContextLevel, presetById, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle } from '../prompts.ts'
@@ -343,6 +344,10 @@ export function finishRun(runId: string, status: Run['status'], error?: string):
 
 export function removeFile(path: string): void {
   put(files, read(files).filter((file) => file.path !== path))
+  // Its text leaves the context list with it, ticked or not.
+  const id = attachmentItemId(path)
+  put(contextShown, read(contextShown).filter((item) => item.id !== id))
+  update(excluded, (list) => list.filter((entry) => entry !== id))
 }
 
 export async function previewContext(): Promise<void> {

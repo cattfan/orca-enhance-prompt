@@ -115,7 +115,7 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 **Ngoài ra:**
 
-- **[Tệp và ảnh chụp màn hình](../user-guide.md#2-attach-files-and-screenshots)**: dán ảnh, kéo-thả hoặc đính kèm tệp; model xem được ảnh sẽ dùng ảnh, tệp chữ ngắn vào ngữ cảnh, và prompt ghi đường dẫn từng tệp cho agent.
+- **[Tệp và ảnh chụp màn hình](../user-guide.md#2-attach-files-and-screenshots)**: dán ảnh, kéo-thả hoặc đính kèm tệp; model xem được ảnh sẽ dùng ảnh, tệp chữ vào ngữ cảnh (tệp dài chỉ lấy phần đầu và phần cuối), và prompt ghi đường dẫn từng tệp cho agent.
 - **[Quy tắc và cấu trúc prompt](../rules-and-fixes.md)**: quy tắc cho dự án đang mở, và các mục bạn muốn prompt được viết theo (sửa được cả cấu trúc có sẵn).
 - **[Có gì mới](../user-guide.md#8-whats-new)**: bấm số phiên bản trong panel để xem ghi chú bản này và toàn bộ nhật ký thay đổi.
 - **[Tự cải thiện](../auto-enhance.md)**: viết lại prompt mà chính Orca gửi cho agent (khi launch, task, orchestration), bằng luật của bạn hoặc một model nhanh.

@@ -115,7 +115,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 **另外还有：**
 
-- **[文件和截图](../user-guide.md#2-attach-files-and-screenshots)**：粘贴截图、拖放或附加文件；能看图的模型会使用图片，短文本文件加入上下文，提示词会为 agent 列出每个文件路径。
+- **[文件和截图](../user-guide.md#2-attach-files-and-screenshots)**：粘贴截图、拖放或附加文件；能看图的模型会使用图片，文本文件加入上下文（长文件只取开头和结尾），提示词会为 agent 列出每个文件路径。
 - **[规则与提示词结构](../rules-and-fixes.md)**：适用于当前项目的规则，以及提示词要使用的标题（内置结构也可编辑）。
 - **[新功能](../user-guide.md#8-whats-new)**：点击面板中的版本号，查看本版说明和完整更新日志。
 - **[自动优化](../auto-enhance.md)**：改写 Orca 自己发给 agent 的提示词（启动、任务、编排），使用你的规则或快速模型。

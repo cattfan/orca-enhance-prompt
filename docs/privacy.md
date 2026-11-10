@@ -37,7 +37,7 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 
 - Your prompt, plus the context items listed under **Options**, is sent **only to the model you run**: the API endpoint of that model profile, or the subscription CLI on your machine, which talks to its own provider.
 - With fallback on, a failed request is retried on your next model.
-- Files you attach: images go with it to models that read images (Anthropic, and the OpenAI, OpenRouter and Gemini presets; Codex CLI with `-i`). Other models get only their paths; short text files join the context. The enhanced prompt lists the paths so your agent can open the files.
+- Files you attach: images go with it to models that read images (Anthropic, and the OpenAI, OpenRouter and Gemini presets; Codex CLI with `-i`). Other models get only their paths. Text files join the context (of a long one, the beginning and the end: 20,000 characters in all) unless you untick them in the context list. Only files you attached in the panel are read this way. The enhanced prompt lists the paths so your agent can open the files.
 - Model lists are fetched from the same providers (`GET /models`), from the CLIs themselves, and, for Claude Code aliases, from the public [Claude Code settings schema](https://www.schemastore.org/claude-code-settings.json). Nothing about you or your project is sent with these.
 
 ## What is read on your machine

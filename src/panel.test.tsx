@@ -3,8 +3,9 @@
 // buttons call is called directly, and what it shows is read from the state.
 import { read } from 'orca'
 import { assert, mockHost, test } from 'orca/testing'
-import { applyPreset, enhanceNow, openForm, patchForm, saveForm, send, toggleItem } from './panel/actions.ts'
-import { contextShown, draft, enabledProfiles, form, lastRun, notice, put, result } from './panel/state.ts'
+import { attachmentItemId } from './image-limits.ts'
+import { applyPreset, enhanceNow, openForm, patchForm, removeFile, saveForm, send, toggleItem } from './panel/actions.ts'
+import { contextShown, draft, enabledProfiles, excluded, files, form, lastRun, notice, put, result } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
 import { modelWarning, optionsSummary } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
@@ -85,6 +86,57 @@ test('enhances with context, then sends to the chosen agent', async () => {
   assert.deepEqual(read(notice), { tone: 'success', text: 'Sent to Claude · waiting.' })
   assert.deepEqual(view.errors, [])
   assert.deepEqual(view.refusals, [])
+  await view.unmount()
+})
+
+test('an attached text can be unticked like any context item, and leaves the list when its file is removed', async () => {
+  const log = { path: '/tmp/enhance-prompt-attachments/att-abc123/build.log', name: 'build.log', bytes: 30, type: 'text/plain' }
+  // A second file of the same name (another folder's build.log): its own item.
+  const other = { path: 'C:\\Temp\\enhance-prompt-attachments\\att-def456\\build.log', name: 'build.log', bytes: 40, type: 'text/plain' }
+  const inputs: { files?: string[]; exclude?: string[] }[] = []
+  const host = mockHost({
+    requests: {
+      'models.get': modelsView([gpt]),
+      'targets.list': { targets: [] },
+      'prompt.enhance': (input) => {
+        inputs.push(input)
+        const attached = (input.files ?? []).map((path) => ({ id: attachmentItemId(path), kind: 'file', label: 'build.log', chars: 30 }))
+        return {
+          enhanced: 'Better',
+          model: 'gpt-4.1-mini',
+          profileName: 'OpenAI',
+          ms: 10,
+          attempts: [],
+          // As the worker answers: an unticked item is not in the context of the run.
+          context: [...attached, { id: 'tree', kind: 'tree', label: 'Repository tree', chars: 800 }].filter((item) => !(input.exclude ?? []).includes(item.id)),
+          notes: []
+        }
+      }
+    }
+  })
+  const view = await mountPanel(host)
+  put(files, [log, other])
+  put(draft, 'fix the build')
+  await enhanceNow()
+  assert.deepEqual(inputs[0].files, [log.path, other.path])
+  assert.deepEqual(read(contextShown).map((item) => item.id), ['attach:att-abc123/build.log', 'attach:att-def456/build.log', 'tree'])
+
+  // Unticked: the worker is told to leave its text out, and the item stays listed to tick again.
+  toggleItem('attach:att-abc123/build.log', false)
+  await enhanceNow()
+  assert.deepEqual(inputs[1].exclude, ['attach:att-abc123/build.log'])
+  assert.deepEqual(inputs[1].files, [log.path, other.path])
+  assert.deepEqual(read(contextShown).map((item) => item.id).sort(), ['attach:att-abc123/build.log', 'attach:att-def456/build.log', 'tree'])
+
+  // The file is removed: its item goes with it (nothing left to tick), the other build.log stays.
+  removeFile(log.path)
+  assert.deepEqual(read(files), [other])
+  assert.deepEqual(read(contextShown).map((item) => item.id).sort(), ['attach:att-def456/build.log', 'tree'])
+  assert.deepEqual(read(excluded), [])
+  await enhanceNow()
+  assert.deepEqual(inputs[2].files, [other.path])
+  assert.deepEqual(inputs[2].exclude, [])
+  assert.deepEqual(view.errors, [])
   await view.unmount()
 })
 

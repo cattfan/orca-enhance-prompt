@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { after } from 'node:test'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
-import { ATTACHMENTS_DIR, loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName } from './attachments.ts'
-import { ATTACHMENT_CHUNK_BYTES, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, REQUEST_INPUT_LIMIT } from './image-limits.ts'
+import { ATTACHMENTS_DIR, excerpt, loadFiles, MAX_ATTACHMENT_BYTES, putChunk, safeName, TEXT_MAX } from './attachments.ts'
+import { ATTACHMENT_CHUNK_BYTES, attachmentItemId, MAX_CHUNK_BASE64, MAX_IMAGE_BYTES, REQUEST_INPUT_LIMIT } from './image-limits.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
@@ -51,7 +51,118 @@ test('a run uses attached files: images as images, short text in the context, ev
   assert.match(user[0].text ?? '', /ERROR: cannot find module x/)
   assert.match(user[0].text ?? '', /<attached_files>\n1\. .*build\.log/)
   assert.ok(answer.enhanced.includes(image.path) && answer.enhanced.includes(log.path), answer.enhanced)
-  assert.ok(answer.context.some((item) => item.id === 'attach:build.log'))
+  // A short text is whole: listed as a file of the context, with no "trimmed" next to it.
+  const item = answer.context.find((entry) => entry.id === 'attach:att-test-4/build.log')
+  assert.deepEqual(item, { id: 'attach:att-test-4/build.log', kind: 'file', label: 'build.log', chars: 'ERROR: cannot find module x'.length })
+  await worker.deactivate()
+})
+
+/** Attaches bytes as the panel does, piece by piece, and answers with the path of the copy. */
+async function attach(id: string, name: string, content: string | Buffer): Promise<string> {
+  const bytes = Buffer.from(content)
+  const total = Math.max(1, Math.ceil(bytes.length / ATTACHMENT_CHUNK_BYTES))
+  let done: Awaited<ReturnType<typeof putChunk>> | null = null
+  for (let index = 0; index < total; index++) {
+    done = await putChunk({ id, name, index, total, data: bytes.subarray(index * ATTACHMENT_CHUNK_BYTES, (index + 1) * ATTACHMENT_CHUNK_BYTES).toString('base64') })
+  }
+  assert.ok(done && 'path' in done)
+  return done.path
+}
+
+/** A worker with one OpenAI model, and what it sent: the user message of each call. */
+async function workerWithModel() {
+  const sent: string[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { messages: { content: unknown }[] }
+    sent.push(String(body.messages[1].content))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Fix the build.' } }] }), { status: 200 })
+  }) as typeof fetch
+  const profile = { id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }
+  const worker = await mountWorker(main, { host: mockHost({ storage: { models: { profiles: [profile] } }, secrets: { 'apiKey.gpt': 'k' } }) })
+  return { worker, sent }
+}
+
+const SPLIT = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+
+test('a long text is kept as its beginning and its end: whole lines, the count of what was left out, no character split', () => {
+  assert.deepEqual(excerpt('short'), { text: 'short', cut: 0 })
+  assert.equal(excerpt('x'.repeat(TEXT_MAX)).cut, 0)
+  // A log of 5,000 lines: its first and its last lines are there, the middle is counted.
+  const lines = Array.from({ length: 5000 }, (_, index) => `line ${index + 1}: something happened here`)
+  const log = lines.join('\n')
+  const { text, cut } = excerpt(log)
+  const parts = text.split(`\n…(${cut.toLocaleString('en-US')} characters left out)…\n`)
+  assert.equal(parts.length, 2, text.slice(0, 200))
+  const [head, tail] = parts
+  assert.ok(head.startsWith('line 1: something happened here\nline 2:'))
+  assert.ok(tail.endsWith('\nline 5000: something happened here'))
+  assert.ok(!text.includes('line 2500:'))
+  assert.equal(head.length + tail.length + cut, log.length)
+  assert.ok(head.length + tail.length <= TEXT_MAX && head.length + tail.length > TEXT_MAX * 0.9, `${head.length} + ${tail.length}`)
+  // The cut falls between lines on both sides, and more of the beginning is kept than of the end.
+  assert.ok(lines.includes(head.split('\n').at(-1) ?? '') && lines.includes(tail.split('\n')[0]))
+  assert.ok(head.length > tail.length)
+  // One endless line has no line break to cut on: it is cut where the limit falls.
+  assert.equal(excerpt('y'.repeat(TEXT_MAX * 3)).cut, TEXT_MAX * 2)
+  // A character of two code units (an emoji) is never cut in two, at the beginning or at the end.
+  for (const max of [9, 10, 11, 12, 13]) {
+    const cutEmoji = excerpt('😀'.repeat(40), max)
+    assert.ok(!SPLIT.test(cutEmoji.text), `max ${max}: ${JSON.stringify(cutEmoji.text)}`)
+    assert.ok(cutEmoji.cut >= 80 - max)
+  }
+})
+
+test('a long attached text goes to the model as an excerpt marked as trimmed; a file with binary bytes goes by path only', async () => {
+  const lines = Array.from({ length: 6000 }, (_, index) => `step ${index + 1} passed`)
+  lines[2999] = 'THE-MIDDLE-OF-THE-LOG'
+  lines[5999] = 'ERROR: the build failed at the last step'
+  const long = lines.join('\n')
+  assert.ok(long.length > TEXT_MAX * 4)
+  const log = await attach('att-long-log', 'ci.log', long)
+  // Text at first, binary further on (past the first 200,000 bytes, where only the start used to be looked at).
+  const binary = await attach('att-binary', 'core.dump', Buffer.concat([Buffer.from('looks like text\n'.repeat(15_000)), Buffer.from([0, 1, 2, 3])]))
+  const { worker, sent } = await workerWithModel()
+  const answer = await worker.request('prompt.enhance', { prompt: 'why did the build fail?', level: 'off', files: [log, binary] })
+
+  assert.match(sent[0], /step 1 passed\nstep 2 passed/)
+  assert.match(sent[0], /ERROR: the build failed at the last step/)
+  assert.match(sent[0], /\n…\([\d,]+ characters left out\)…\n/)
+  assert.ok(!sent[0].includes('THE-MIDDLE-OF-THE-LOG'))
+  assert.match(sent[0], /<item kind="file" label="ci\.log" note="trimmed">/)
+  // The whole message stays small: the excerpt, not the 100,000 characters of the file.
+  assert.ok(sent[0].length < TEXT_MAX + 2000, String(sent[0].length))
+  const item = answer.context.find((entry) => entry.id === attachmentItemId(log))
+  assert.ok(item && item.chars <= TEXT_MAX + 60, JSON.stringify(item))
+  assert.equal(item.note, 'trimmed')
+  assert.deepEqual(item.why, { code: 'why.trimmed' })
+
+  // The binary file: none of its bytes in the message, no context item, but listed by its path like the log.
+  assert.ok(!sent[0].includes('looks like text'))
+  assert.ok(!answer.context.some((entry) => entry.id === attachmentItemId(binary)))
+  assert.ok(sent[0].includes(`<attached_files>\n1. ${log}\n2. ${binary}\n</attached_files>`), sent[0].slice(-400))
+  assert.ok(answer.enhanced.includes(log) && answer.enhanced.includes(binary))
+  await worker.deactivate()
+})
+
+test('two attached files of one name are two context items; an unticked one keeps its path but its text is left out', async () => {
+  const first = await attach('att-same-a', 'error.log', 'FIRST-LOG: timeout')
+  const second = await attach('att-same-b', 'error.log', 'SECOND-LOG: refused')
+  assert.equal(attachmentItemId(first), 'attach:att-same-a/error.log')
+  assert.equal(attachmentItemId('C:\\Temp\\enhance-prompt-attachments\\att-same-b\\error.log'), 'attach:att-same-b/error.log')
+  const { worker, sent } = await workerWithModel()
+  const enhance = (exclude: string[]) => worker.request('prompt.enhance', { prompt: 'fix it', level: 'off', files: [first, second], exclude })
+
+  const both = await enhance([])
+  assert.deepEqual(both.context.map((entry) => entry.id), ['attach:att-same-a/error.log', 'attach:att-same-b/error.log'])
+  assert.ok(sent[0].includes('FIRST-LOG: timeout') && sent[0].includes('SECOND-LOG: refused'))
+
+  // Unticked in the panel's context list: its text stays out, the agent can still open the file.
+  const one = await enhance(['attach:att-same-b/error.log'])
+  assert.deepEqual(one.context.map((entry) => entry.id), ['attach:att-same-a/error.log'])
+  assert.ok(sent[1].includes('FIRST-LOG: timeout'))
+  assert.ok(!sent[1].includes('SECOND-LOG'), sent[1])
+  assert.ok(sent[1].includes(`2. ${second}`))
+  assert.ok(one.enhanced.includes(second))
   await worker.deactivate()
 })
 
@@ -140,6 +251,6 @@ test('a run reads only files the panel attached: any other path is refused befor
   assert.ok('path' in log)
   const answer = await enhance([log.path])
   assert.equal(calls, 1)
-  assert.ok(answer.context.some((item) => item.id === 'attach:build.log'))
+  assert.ok(answer.context.some((item) => item.id === attachmentItemId(log.path)))
   await worker.deactivate()
 })

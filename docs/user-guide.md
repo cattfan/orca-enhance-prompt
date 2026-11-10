@@ -42,7 +42,9 @@ What happens to them:
 
 - **Images** go to the models that read images (the Anthropic API, the OpenAI, OpenRouter and Gemini
   presets, and Codex CLI); other models get their paths.
-- **Short text files** (logs, configs, code) are added to the context.
+- **Text files** (logs, configs, code) are added to the context. A long one goes in as its beginning
+  and its end, 20,000 characters in all, with a line saying how much was left out between them; the
+  context list marks it as trimmed. Untick it there (**Options**) to leave its text out.
 - The enhanced prompt **lists every file by its path**, so the agent in the terminal can open them.
 
 The files are kept on this machine, in a temporary folder that is cleaned after a day.

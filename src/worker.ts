@@ -11,6 +11,7 @@ import { resolveLanguage, translate } from './i18n-dict.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
 import { imagesBlock, imageSupport, withImagePaths } from './images.ts'
 import { cleanAttachments, clearAttachments, loadFiles, putChunk } from './attachments.ts'
+import { attachmentItemId } from './image-limits.ts'
 import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
@@ -301,7 +302,12 @@ export async function enhance(
     throw error
   })
   const images = files.images
-  const attachedTexts = files.texts.map((file) => contextItem(`attach:${file.name}`, 'file', raw(file.name), file.content))
+  // An attached text is a context item like the others: unticked in the panel, its text is left out
+  // (the file stays listed by its path); a long one is an excerpt, marked as trimmed.
+  const excluded = new Set(input.exclude ?? [])
+  const attachedTexts = files.texts
+    .map((file) => contextItem(attachmentItemId(file.path), 'file', raw(file.name), file.content, file.cut > 0 ? msg('why.trimmed') : undefined))
+    .filter((entry) => !excluded.has(entry.id))
   if (attachedTexts.length > 0) gathered.items = [...attachedTexts, ...gathered.items]
   const otherFiles = files.paths.filter((path) => !images.some((image) => image.path === path))
   const user = [buildUserMessage(prompt, gathered.items), imagesBlock(images), otherFiles.length > 0 ? `<attached_files>\n${otherFiles.map((path, index) => `${index + 1}. ${path}`).join('\n')}\n</attached_files>` : '']

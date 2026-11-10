@@ -17,9 +17,10 @@ import { msg } from './messages.ts'
  * writes into, or deletes, the folder that holds what a person attached in the real panel.
  */
 export const ATTACHMENTS_DIR = join(tmpdir(), `enhance-prompt-attachments${process.env.NODE_TEST_CONTEXT ? `-test-${process.pid}` : ''}`)
-/** An attachment can be at most MAX_ATTACHMENT_BYTES; text files at most TEXT_MAX of it go in the context. */
+/** An attachment can be at most MAX_ATTACHMENT_BYTES. */
 export { MAX_ATTACHMENT_BYTES }
-export const TEXT_MAX = 200_000
+/** How many characters of an attached text file go in the context (see `excerpt`). */
+export const TEXT_MAX = 20_000
 const DAY_MS = 24 * 3600_000
 
 /** A file name safe on every system, its extension kept. */
@@ -80,8 +81,8 @@ export async function clearAttachments(): Promise<void> {
 export type LoadedFiles = {
   /** Image files among them, for models that read images. */
   images: ImageData[]
-  /** Short text files: their content goes in the context. */
-  texts: { path: string; name: string; content: string }[]
+  /** Text files: their content goes in the context, a long one as an excerpt (`cut` characters left out). */
+  texts: { path: string; name: string; content: string; cut: number }[]
   /** Every attached file, by path, for the agent. */
   paths: string[]
 }
@@ -92,7 +93,29 @@ function isAttachment(path: string): boolean {
   return inside !== '' && !inside.startsWith('..') && !isAbsolute(inside)
 }
 
-/** Reads attached files: images as images, short text as text, anything else by path only. */
+/**
+ * A long text as its beginning and its end, with a line between them saying how much was left out:
+ * a config's or a source file's shape is at its beginning, a log's cause at its end, and the agent
+ * can open the whole file by its path. Cuts fall on a line break when one is near, and never inside
+ * a surrogate pair. `cut` is how many characters were left out (0: the text is whole).
+ */
+export function excerpt(text: string, max = TEXT_MAX): { text: string; cut: number } {
+  if (text.length <= max) return { text, cut: 0 }
+  const headMax = Math.floor(max * 0.6)
+  let head = text.slice(0, headMax)
+  let tail = text.slice(text.length - (max - headMax))
+  // On a line break, when there is one in the last fifth of the beginning (the first fifth of the end).
+  const lineEnd = head.lastIndexOf('\n')
+  if (lineEnd >= head.length * 0.8) head = head.slice(0, lineEnd)
+  const lineStart = tail.indexOf('\n')
+  if (lineStart !== -1 && lineStart < tail.length * 0.2) tail = tail.slice(lineStart + 1)
+  if (/[\uD800-\uDBFF]$/.test(head)) head = head.slice(0, -1)
+  if (/^[\uDC00-\uDFFF]/.test(tail)) tail = tail.slice(1)
+  const cut = text.length - head.length - tail.length
+  return { text: `${head}\n…(${cut.toLocaleString('en-US')} characters left out)…\n${tail}`, cut }
+}
+
+/** Reads attached files: images as images, text as text (a long one as an excerpt), anything else by path only. */
 export async function loadFiles(paths: readonly string[]): Promise<LoadedFiles> {
   const out: LoadedFiles = { images: [], texts: [], paths: [] }
   for (const path of paths) {
@@ -111,8 +134,10 @@ export async function loadFiles(paths: readonly string[]): Promise<LoadedFiles> 
       out.images.push({ path, name: basename(path), bytes: info.size, type, base64: bytes.toString('base64') })
       continue
     }
-    const head = bytes.subarray(0, TEXT_MAX)
-    if (!type && !head.includes(0)) out.texts.push({ path, name: basename(path), content: head.toString('utf8') })
+    // Text: no image, and no NUL byte anywhere in it.
+    if (type || bytes.includes(0)) continue
+    const { text: content, cut } = excerpt(bytes.toString('utf8'))
+    out.texts.push({ path, name: basename(path), content, cut })
   }
   return out
 }
