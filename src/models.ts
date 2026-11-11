@@ -182,7 +182,16 @@ export async function runChain(
       continue
     }
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), Math.min(options.timeoutMs, remaining))
+    // The per-model timeout keeps time for the model that comes next. The last one to try has no
+    // next: within a run's own limit it may use all that is left, since stopping a slow answer
+    // early would only turn it into an error.
+    const last = profile === list[list.length - 1]
+    const limit = last && options.totalMs !== undefined ? remaining : Math.min(options.timeoutMs, remaining)
+    let ranOut = false
+    const timer = setTimeout(() => {
+      ranOut = true
+      controller.abort()
+    }, limit)
     const onAbort = () => controller.abort()
     options.signal?.addEventListener('abort', onAbort)
     try {
@@ -216,7 +225,10 @@ export async function runChain(
       )
       attempts.push({ profileId: profile.id, name: profile.name, model, ok: true, ms: Date.now() - attemptStart })
       return { text, profile, attempts }
-    } catch (error) {
+    } catch (caught) {
+      // Stopped by the limit above, not by the person: say which model, and how long it had.
+      const error =
+        ranOut && !options.signal?.aborted ? new LlmError(msg('error.model_timeout', { model: model || profile.name, seconds: Math.max(1, Math.round(limit / 1000)) }), 'timeout') : caught
       lastError = error
       attempts.push({
         profileId: profile.id,

@@ -4,7 +4,7 @@
 import { atom, derived, read, set, type Atom, type JsonValue } from 'orca'
 import { HISTORY_KEY, parseHistory } from '../history.ts'
 import type { RulesConfig } from '../rules.ts'
-import { isMessage, render, type Message } from '../messages.ts'
+import { isMessage, messageIn, plainText, render, type Message } from '../messages.ts'
 import { type ContextItemView } from '../presets.ts'
 import { t } from '../i18n.ts'
 import { type Step } from '../progress.ts'
@@ -228,9 +228,14 @@ export function say(text: Message | string): string {
   return typeof text === 'string' ? text : render(text, (template, params) => t(template, params))
 }
 
-/** An error in the panel's language: the worker's Message when it sent one, else its text. */
+/**
+ * An error in the panel's language. The worker's message comes inside the error's text (Orca passes
+ * on a thrown error's code and text only; see messages.ts); without one, the text is shown as it is.
+ */
 export const message = (error: unknown) => {
   const text = error && typeof error === 'object' && 'text' in error ? (error as { text: unknown }).text : null
   if (isMessage(text)) return say(text)
-  return error instanceof Error ? error.message : String(error)
+  if (!(error instanceof Error)) return String(error)
+  const carried = messageIn(error.message)
+  return carried ? say(carried) : plainText(error.message)
 }

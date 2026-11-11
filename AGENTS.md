@@ -70,7 +70,16 @@ The test suite usually finishes in seconds, but some tests start real processes 
   before 2.6.5 and still means a workspace's name; it is not converted, since nothing says which
   project it was meant for.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
-  `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
+  `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`). The per-model timeout
+  keeps time for the model that comes next; the last model of a chain has no next and may use the
+  rest of the run (`runChain` in `src/models.ts`): cutting the only model at 60 s turned a slow
+  answer into an error.
+- **A thrown error reaches the panel as its code and its text, nothing else**: Orca passes no other
+  field of the error on (the test host does, which hid this). A worker error for the panel is made
+  with `hostError`, whose text carries the message after the English sentence (`withMessage` in
+  `src/messages.ts`); the panel reads it with `message()` (`src/panel/state.ts`) and shows it in
+  its own language. A step's detail in the progress card is not translated: put names and counts
+  there, never a sentence.
 - **The manifest asks for nothing new without a decision**: when an update's manifest has a new
   capability, command, panel, hook, event, status bar item or setting, Orca asks every user to
   approve again and installs nothing until they do ("Update needs review"), so they miss the

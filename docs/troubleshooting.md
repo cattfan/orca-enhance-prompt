@@ -41,6 +41,14 @@ Open the **Models** tab and add a model: click a CLI under **Use your subscripti
 - "was not found": Orca can't see the CLI on its `PATH`. Edit the model and set the full path in **Command** (for example `~/.local/bin/claude`).
 - A quota or rate-limit error comes from your plan. With [fallback](models.md#fallback), the next model answers.
 
+## "… did not answer within … s"
+
+The model took longer than the run could wait. A run in the panel has about 110 s in all; a model with another one after it gets **Timeout per model** (60 s by default, in [Settings](settings.md#models)) so the next still has time, and the last one to try gets what is left.
+
+- Press **Try again**: a model that usually answers in half a minute can be slow for one run.
+- Pick a lower context level (the Max level sends the most), or a faster model for this prompt.
+- With several models, raise **Timeout per model** if the first one is cut too early.
+
 ## "… reached its limit of … tokens before it finished"
 
 The answer stopped at the model's **Max tokens**. Models that think before they answer use part of that limit for thinking. Open the model in the **Models** tab (⋮ → **Edit**) and raise **Max tokens**; models added before 2.5.4 were created with 2,000, new ones get 8,000.

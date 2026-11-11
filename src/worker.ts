@@ -35,7 +35,7 @@ import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
 import { BRAND, BRAND_SHORT } from './brand.ts'
 import { LlmError, messageOf } from './llm.ts'
-import { english, msg, raw, type Message } from './messages.ts'
+import { english, msg, raw, withMessage, type Message } from './messages.ts'
 
 const AUTO_MODES = ['off', 'rules', 'ai'] as const
 type AutoMode = (typeof AUTO_MODES)[number]
@@ -120,11 +120,12 @@ export async function readSettings(orca: OrcaWorkerApi): Promise<Settings> {
 }
 
 /**
- * An error for the panel: English message (logs), a code, and `text`, the message as a code and
- * parameters that the panel shows in its language (extra fields reach the panel as they are).
+ * An error for the panel: a code, and the message as a code and parameters, which the panel shows
+ * in its own language. Orca passes on an error's code and text only, so the message travels inside
+ * the text, after the English sentence (messages.ts); `text` is there for callers in this process.
  */
 function hostError(text: Message, code: string): Error {
-  return Object.assign(new Error(english(text)), { code, text })
+  return Object.assign(new Error(withMessage(text)), { code, text })
 }
 
 function chainOptions(settings: Settings, signal?: AbortSignal, extra: Partial<ChainOptions> = {}): ChainOptions {
@@ -324,6 +325,8 @@ export async function enhance(
   const list = candidates(config.profiles, input.profileId ?? null, settings.fallbackEnabled).map((profile) =>
     chosenModel && profile.id === input.profileId ? { ...profile, model: chosenModel } : profile
   )
+  /** The model being tried, as the progress card names it. */
+  let tried = ''
   try {
     const result = await runChain(
       orca,
@@ -333,8 +336,10 @@ export async function enhance(
       chainOptions(settings, signal, {
         ...(deadline === undefined ? {} : { totalMs: left() }),
         images,
-        onAttempt: (profile, model, attempt, total) =>
-          step('model', 'running', `${profile.name} · ${model || 'default'}${attempt > 1 ? ` · ${attempt}/${total}` : ''}`)
+        onAttempt: (profile, model, attempt, total) => {
+          tried = `${profile.name} · ${model || 'default'}${attempt > 1 ? ` · ${attempt}/${total}` : ''}`
+          step('model', 'running', tried)
+        }
       })
     )
     step('model', 'done', `${result.profile.name} · ${result.attempts.find((attempt) => attempt.ok)?.model ?? ''}`)
@@ -350,8 +355,14 @@ export async function enhance(
       style
     }
   } catch (error) {
-    step('model', 'failed', (error as Error).message.slice(0, 160))
-    if (error instanceof ChainError) throw hostError(error.text, error.code)
+    // The step names the model that was tried. Why it failed is the run's error, which the panel
+    // shows in its own language (a step's detail is not translated).
+    step('model', 'failed', tried || undefined)
+    if (error instanceof ChainError) {
+      // Every model that was tried ran out of time: say what makes a run faster.
+      const slow = error.attempts.length > 0 && error.attempts.every((attempt) => attempt.errorText?.code === 'error.model_timeout')
+      throw hostError(slow ? msg('error.too_slow', { reason: error.text }) : error.text, error.code)
+    }
     throw error
   }
 }

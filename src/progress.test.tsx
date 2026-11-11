@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { read, set } from 'orca'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { messageIn, msg, plainText, withMessage } from './messages.ts'
 import { applyProgress, beginRun, enhanceNow, finishRun } from './panel/actions.ts'
 import { draft, lastRun, put, run, tick } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
@@ -137,10 +138,12 @@ test('a failing model marks the model step failed', async () => {
     results: { 'workspace.readContext': null }
   })
   const worker = await mountWorker(main, { host })
-  await assert.rejects(worker.request('prompt.enhance', { prompt: 'x', level: 'off', runId: 'r' }))
+  // Why it failed is the run's error (which the panel shows in its own language)...
+  await assert.rejects(worker.request('prompt.enhance', { prompt: 'x', level: 'off', runId: 'r' }), /401: bad key/)
   const last = (worker.posts.filter((post) => post.event === 'enhance.progress').at(-1)!.payload as ProgressSnapshot).steps
   assert.equal(last.at(-1)!.status, 'failed')
-  assert.match(last.at(-1)!.detail ?? '', /401/)
+  // ...and the failed step names the model that was tried, not an English sentence.
+  assert.equal(last.at(-1)!.detail, 'OpenAI · gpt')
   await worker.deactivate()
 })
 
@@ -199,6 +202,101 @@ test('the panel shows live steps, ignores old runs, and ends with the result or 
   assert.equal(read(run)?.status, 'done')
   assert.deepEqual(view.errors, [])
   await view.unmount()
+})
+
+test('a failed run says why in the panel\'s language, although Orca passes on only the error\'s code and text', async () => {
+  // What the real Orca hands the panel when the worker's handler throws: an Error with a code and
+  // the text, and no other field of the thrown error.
+  let thrown = withMessage(msg('error.too_slow', { reason: msg('error.model_timeout', { model: 'claude-fable-5-2', seconds: 109 }) }))
+  const host = mockHost({
+    settings: { uiLanguage: 'vi' },
+    requests: {
+      'models.get': models,
+      'targets.list': { targets: [] },
+      'models.detect': { found: [] },
+      'prompt.enhance': () => {
+        throw Object.assign(new Error(thrown), { code: 'timeout' })
+      }
+    }
+  })
+  const view = await mountPanel(host)
+  put(draft, 'fix it')
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'error')
+  assert.equal(read(run)?.error, 'claude-fable-5-2 không trả lời trong 109 giây. Mức ngữ cảnh thấp hơn hoặc model nhanh hơn sẽ trả lời sớm hơn.')
+  // Cut short on the way: the sentence as it came, without the marks of what it carried.
+  thrown = thrown.slice(0, -6)
+  await enhanceNow()
+  assert.equal(read(run)?.error, 'claude-fable-5-2 did not answer within 109 s. A lower context level or a faster model answers sooner.')
+  // An error that carries nothing (Orca's own) is shown as it is.
+  thrown = 'The plugin worker could not start.'
+  await enhanceNow()
+  assert.equal(read(run)?.error, 'The plugin worker could not start.')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('a slow model: the only one may use the rest of the run; one with another after it gets the per-model timeout', async () => {
+  const saved = main.RUN_LIMITS.budgetMs
+  main.RUN_LIMITS.budgetMs = 1200
+  // Each model answers after its own delay, unless it is stopped first.
+  const delays: Record<string, number> = { slow: 500, hung: 5000, quick: 20 }
+  const stopped: string[] = []
+  globalThis.fetch = ((_url: RequestInfo | URL, init?: RequestInit) =>
+    new Promise((resolve, reject) => {
+      const model = String(JSON.parse(String(init?.body)).model)
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify({ choices: [{ message: { content: `answer of ${model}` } }] }), { status: 200 })), delays[model])
+      init?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        stopped.push(model)
+        reject(new DOMException('aborted', 'AbortError'))
+      })
+    })) as typeof fetch
+  const profile = (id: string) => ({ id, name: id, preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: id, maxTokens: 2000, enabled: true, command: '', args: '' })
+  const hostWith = (ids: string[]) =>
+    mockHost({
+      storage: { models: { profiles: ids.map(profile) } },
+      secrets: Object.fromEntries(ids.map((id) => [`apiKey.${id}`, 'k'])),
+      // 0.2 s per model: far less than the slow model needs.
+      settings: { timeoutSeconds: 0.2, fallbackEnabled: true },
+      results: { 'workspace.readContext': null }
+    })
+  try {
+    // The only model: it is not cut at 0.2 s, since nothing comes after it. It answers at 0.5 s.
+    const alone = await mountWorker(main, { host: hostWith(['slow']) })
+    const answer = await alone.request('prompt.enhance', { prompt: 'x', level: 'off' })
+    assert.equal(answer.enhanced, 'answer of slow')
+    assert.deepEqual(stopped, [])
+    await alone.deactivate()
+
+    // With another model after it, the slow one is stopped at 0.2 s so the next has time; the run
+    // says which model was too slow, and the next one answers.
+    const chain = await mountWorker(main, { host: hostWith(['slow', 'quick']) })
+    const fallback = await chain.request('prompt.enhance', { prompt: 'x', level: 'off' })
+    assert.equal(fallback.enhanced, 'answer of quick')
+    assert.deepEqual(stopped, ['slow'])
+    assert.deepEqual(fallback.attempts.map((attempt) => [attempt.name, attempt.ok, attempt.errorText?.code ?? null]), [['slow', false, 'error.model_timeout'], ['quick', true, null]])
+    assert.equal(fallback.attempts[0].error, 'slow did not answer within 1 s.')
+    await chain.deactivate()
+
+    // The only model never answers: the run ends at its own limit and says so, with what helps.
+    stopped.length = 0
+    const hung = await mountWorker(main, { host: hostWith(['hung']) })
+    const started = Date.now()
+    const failure = await hung.request('prompt.enhance', { prompt: 'x', level: 'off', runId: 'r' }).then(
+      () => null,
+      (error: Error) => error
+    )
+    assert.ok(failure && Date.now() - started < 3000 && Date.now() - started >= 1000, `took ${Date.now() - started} ms`)
+    assert.deepEqual(stopped, ['hung'])
+    assert.match(plainText(failure.message), /^hung did not answer within 1 s\. A lower context level or a faster model answers sooner\.$/)
+    assert.equal(messageIn(failure.message)?.code, 'error.too_slow')
+    const steps = (hung.posts.filter((post) => post.event === 'enhance.progress').at(-1)!.payload as ProgressSnapshot).steps
+    assert.deepEqual([steps.at(-1)!.status, steps.at(-1)!.detail], ['failed', 'hung · hung'])
+    await hung.deactivate()
+  } finally {
+    main.RUN_LIMITS.budgetMs = saved
+  }
 })
 
 test('the run card shows the total and every step in percent, ≈ for an estimate, – for skipped; a cancel freezes the bar', async () => {

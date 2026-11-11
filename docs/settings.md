@@ -34,7 +34,7 @@ Code, identifiers, paths and error messages are always kept as they are.
 | --- | --- | --- |
 | Fallback to the next model | On | See [Fallback](models.md#fallback) |
 | Fall back on | Any error | Or only network, timeout, rate limit and 5xx |
-| Timeout per model | 60 s | How long one model may take |
+| Timeout per model | 60 s | How long a model may take before the next one is tried. The last model to try (the only one, when you have one) may use the rest of the run instead: about 110 s in the panel |
 
 ## Sending
 

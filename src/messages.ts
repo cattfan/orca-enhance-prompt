@@ -54,6 +54,8 @@ export const MESSAGES = {
   'error.https_only': 'The API base URL must use https (http is allowed only for localhost).',
   'error.key_in_url': 'Put the API key in the Models tab, not in the URL.',
   'error.timeout': 'The request was cancelled or timed out.',
+  'error.model_timeout': '{model} did not answer within {seconds} s.',
+  'error.too_slow': '{reason} A lower context level or a faster model answers sooner.',
   'error.stopped': '{url} stopped answering: {detail}',
   'error.not_json': '{url} did not answer with JSON ({what}). A proxy or sign-in page may be in the way.',
   'error.empty_body': 'an empty answer',
@@ -80,8 +82,42 @@ export const MESSAGES = {
 
 export type MessageCode = keyof typeof MESSAGES
 export type MessageParam = string | number | Message | MessageParam[]
-/** Plain JSON, so it travels in request outputs and thrown errors alike. */
+/** Plain JSON: it travels as it is in a request's output, and inside the text of a thrown error (below). */
 export type Message = { code: MessageCode; params?: Record<string, MessageParam> }
+
+/**
+ * A thrown error reaches the panel as its code and its text only: Orca passes no other field on.
+ * So the message travels inside the text: the English sentence (for logs and the command line),
+ * then the message itself between these marks, as percent-encoded JSON: it then holds no bracket
+ * and no space, so whatever a provider's own text contains, the marks are found again. The panel
+ * reads it back and shows it in its own language; where the marks did not survive, the sentence
+ * alone is shown.
+ */
+const WIRE_OPEN = ' [[message:'
+const WIRE_CLOSE = ']]'
+
+/** The text of an error that carries `message` to the panel. */
+export function withMessage(message: Message): string {
+  return `${english(message)}${WIRE_OPEN}${encodeURIComponent(JSON.stringify(message))}${WIRE_CLOSE}`
+}
+
+/** The message an error's text carries, or null when it carries none. */
+export function messageIn(text: string): Message | null {
+  const at = text.lastIndexOf(WIRE_OPEN)
+  if (at < 0 || !text.endsWith(WIRE_CLOSE)) return null
+  try {
+    const parsed: unknown = JSON.parse(decodeURIComponent(text.slice(at + WIRE_OPEN.length, text.length - WIRE_CLOSE.length)))
+    return isMessage(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/** An error's text without what it carries: the sentence a person or a log reads. */
+export function plainText(text: string): string {
+  const at = text.lastIndexOf(WIRE_OPEN)
+  return at < 0 ? text : text.slice(0, at)
+}
 
 export function msg(code: MessageCode, params?: Record<string, MessageParam>): Message {
   return params ? { code, params } : { code }
