@@ -8,7 +8,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 ### Changed
 
 - The status bar item reads **Enhance: On** or **Enhance: Off**. It used to show the mode's own word ("Enhance: rules", "Enhance: AI", translated with the panel), which told less at a glance. On means auto-enhance is at work, with rules or with AI; the tooltip says which.
-- Its icon is always the plugin's lightbulb, coloured while auto-enhance is on. The lightning bolt it switched to is gone.
+- Its icon is always the plugin's lightbulb. The lightning bolt it switched to is gone: the item is bright while auto-enhance is on and dimmed while it is off.
 
 ### Fixed
 

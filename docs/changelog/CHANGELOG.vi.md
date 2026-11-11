@@ -7,7 +7,7 @@ Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mụ
 ### Thay đổi
 
 - Mục trên thanh trạng thái hiện **Enhance: On** hoặc **Enhance: Off**. Trước đây nó hiện tên của chế độ ("Enhance: rules", "Enhance: AI", dịch theo ngôn ngữ panel), nhìn lướt qua khó hiểu hơn. On nghĩa là tự cải thiện đang hoạt động, theo quy tắc hoặc bằng AI; tooltip cho biết là loại nào.
-- Biểu tượng của nó luôn là bóng đèn của plugin, có màu khi tự cải thiện đang bật. Biểu tượng tia sét trước đây không còn nữa.
+- Biểu tượng của nó luôn là bóng đèn của plugin. Biểu tượng tia sét trước đây không còn nữa: mục này sáng khi tự cải thiện đang bật và mờ khi tắt.
 
 ### Sửa lỗi
 
