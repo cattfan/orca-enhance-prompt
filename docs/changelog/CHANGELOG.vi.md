@@ -2,6 +2,22 @@
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.5] - 2026-11-11
+
+### Thay đổi
+
+- Quy tắc bạn thêm trong tab Quy tắc giờ thuộc về dự án, không còn theo tên workspace. Orca đặt tên bản checkout đầu tiên của mỗi dự án theo nhánh, nên quy tắc thêm ở một dự án được lưu dưới tên "main" và được áp dụng ở mọi dự án có workspace tên main. Quy tắc mới được lưu dưới tên riêng của dự án (tên repo của nó trong Orca): nó đi theo dự án vào từng worktree và không lọt sang các dự án khác của bạn. Dòng dưới ô nhập cho thấy điều đó: "Chỉ" và tên dự án.
+- Khi nhiều dự án của bạn trùng tên và Orca chưa cho biết dự án nào đang mở, tab Quy tắc hỏi thư mục của dự án, giống tab Cải thiện. Chừng nào chưa biết, không quy tắc riêng của dự án nào được áp dụng, và quy tắc bạn thêm là dành cho mọi dự án.
+- Panel gọi dự án bằng tên riêng của nó ở những chỗ trước đây ghi "main": "Prompt đã cải thiện được giữ cho Reup".
+
+### Sửa lỗi
+
+- Một dự án bị Orca gỡ rồi được mở lại không còn bị coi là đã đóng: trước đây prompt đã cải thiện hoàn tất sau khi bạn chuyển sang dự án khác bị bỏ thay vì được giữ cho dự án đó.
+
+### Ghi chú
+
+- Các quy tắc bạn đã lưu trước bản này không bị thay đổi: chúng được lưu dưới tên workspace và vẫn được áp dụng ở mọi nơi có workspace tên đó ("Chỉ main" nghĩa là mọi dự án có workspace tên main). Muốn gắn một quy tắc như vậy vào đúng một dự án, hãy xoá nó rồi thêm lại trong dự án đó.
+
 ## [2.6.4] - 2026-11-11
 
 ### Sửa lỗi
