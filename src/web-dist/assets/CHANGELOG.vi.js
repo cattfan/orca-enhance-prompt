@@ -12,6 +12,9 @@ Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mụ
 
 ### Sửa lỗi
 
+- Một model chậm không còn bị cắt ở 60 giây khi nó là model duy nhất để thử. **Timeout per model** dành thời gian cho model kế tiếp; model cuối cùng của chuỗi (hoặc model duy nhất của bạn) giờ được dùng phần thời gian còn lại của lượt chạy, khoảng 110 giây trong panel, thay vì báo lỗi "The request was cancelled or timed out" sau một phút.
+- Khi một model thật sự hết thời gian, lỗi nêu tên model và nó đã có bao lâu ("claude-fable-5-2 không trả lời trong 109 giây") và nói cách khắc phục: mức ngữ cảnh thấp hơn hoặc model nhanh hơn.
+- Lỗi của một lượt chạy hiện bằng ngôn ngữ của panel. Trước đây chúng luôn hiện bằng tiếng Anh dù panel dùng ngôn ngữ nào, vì Orca chỉ chuyển mã lỗi và câu thông báo; bước bị lỗi trong thẻ tiến trình giờ ghi tên model đã thử thay vì lặp lại câu lỗi bằng tiếng Anh.
 - Một dự án bị Orca gỡ rồi được mở lại không còn bị coi là đã đóng: trước đây prompt đã cải thiện hoàn tất sau khi bạn chuyển sang dự án khác bị bỏ thay vì được giữ cho dự án đó.
 
 ### Ghi chú

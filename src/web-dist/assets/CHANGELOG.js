@@ -13,6 +13,9 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 
 ### Fixed
 
+- A slow model is no longer cut off at 60 s when it is the only one to try. **Timeout per model** keeps time for the model that comes next; the last model of the chain (or your only one) now gets the rest of the run, about 110 s in the panel, instead of failing with "The request was cancelled or timed out" after a minute.
+- When a model does run out of time, the error names it and how long it had ("claude-fable-5-2 did not answer within 109 s") and says what helps: a lower context level or a faster model.
+- Errors from a run are shown in the panel's language. They came out in English whatever the language, because Orca passes on only an error's code and text; the failed step in the progress card now names the model that was tried instead of repeating the error in English.
 - A project that Orca removed and that is open again is no longer treated as closed: an enhanced prompt that finished after you had moved to another project was dropped instead of kept for it.
 
 ### Notes
