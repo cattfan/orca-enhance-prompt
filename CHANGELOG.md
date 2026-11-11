@@ -3,6 +3,25 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.6.5] - 2026-11-11
+
+### Changed
+
+- A rule you add in the Rules tab now belongs to the project, not to the workspace's name. Orca names a project's first checkout after its branch, so a rule added in one project was kept under "main" and followed in every project whose workspace is called main. A new rule is kept under the project's own name (its repository's name in Orca): it follows the project into each of its worktrees and stays out of your other projects. The line under the box shows it: "Only" and the project's name.
+- While several of your projects share a name and Orca has not yet said which one is open, the Rules tab asks for the project's folder, as the Enhance tab does. Until it is known, no project's own rule is followed, and a rule you add is for every project.
+- The panel calls a project by its own name where it used to say "main": "The enhanced prompt is kept for Reup".
+
+### Fixed
+
+- A slow model is no longer cut off at 60 s when it is the only one to try. **Timeout per model** keeps time for the model that comes next; the last model of the chain (or your only one) now gets the rest of the run, about 110 s in the panel, instead of failing with "The request was cancelled or timed out" after a minute.
+- When a model does run out of time, the error names it and how long it had ("claude-fable-5-2 did not answer within 109 s") and says what helps: a lower context level or a faster model.
+- Errors from a run are shown in the panel's language. They came out in English whatever the language, because Orca passes on only an error's code and text; the failed step in the progress card now names the model that was tried instead of repeating the error in English.
+- A project that Orca removed and that is open again is no longer treated as closed: an enhanced prompt that finished after you had moved to another project was dropped instead of kept for it.
+
+### Notes
+
+- Rules you saved before this version are not changed: they were kept under the workspace's name and are still followed wherever a workspace has that name ("Only main" means every project whose workspace is called main). To tie one to a single project, delete it and add it again in that project.
+
 ## [2.6.4] - 2026-11-11
 
 ### Fixed
@@ -519,6 +538,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.5
 [2.6.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.4
 [2.6.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.3
 [2.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.2
