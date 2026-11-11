@@ -81,7 +81,10 @@ test('step and total percentages: 0 to 100, consistent, never over 100, never 10
   // The model estimate grows with time, stays at or under 95 while running.
   const model = (ms: number) => stepPercent({ key: 'model', status: 'running', startedAt: at }, at + ms)!
   assert.equal(model(0), 0)
-  assert.ok(model(4000) > 30 && model(4000) < model(12_000) && model(12_000) < 95)
+  assert.ok(model(4000) > 20 && model(4000) < model(12_000) && model(12_000) < 95)
+  // A slow model: the bar is still moving after a minute and after three (a run may take five),
+  // not sitting at its end from half a minute on.
+  assert.deepEqual([model(8000), model(18_000), model(60_000), model(120_000), model(180_000), model(300_000)], [41, 60, 77, 86, 90, 94])
   assert.equal(model(10 * 60_000), 95)
   // The total is the weighted mean of the step shares, skipped steps excluded.
   const mixed = steps({ key: 'workspace', status: 'done' }, { key: 'git', status: 'skipped' }, { key: 'search', status: 'running', fraction: 0.5 }, { key: 'model' })
@@ -398,7 +401,7 @@ test('the run card shows the total and every step in percent, ≈ for an estimat
   const model = stepShare(steps[4], now)
   assert.match(model, /^≈\d+%$/)
   const estimate = Number(model.slice(1, -1))
-  assert.ok(estimate > 50 && estimate < 95, String(estimate))
+  assert.ok(estimate > 35 && estimate < 95, String(estimate))
 
   // Cancel: the bar stays where it was, never 100%, and the card ends.
   set(tick, now)

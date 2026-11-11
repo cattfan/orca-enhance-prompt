@@ -44,8 +44,14 @@ export const STEP_WEIGHTS: Record<StepKey, number> = { workspace: 0.5, project: 
 export const ESTIMATED_STEPS: ReadonlySet<StepKey> = new Set<StepKey>(['model', 'pick'])
 /** The estimate approaches this share and never passes it before the answer arrives. */
 const ESTIMATE_CAP = 95
-/** Time constant of the estimate: about 63% after 8 s, 90% after 18 s. */
-const ESTIMATE_TAU_MS = 8000
+/**
+ * The estimate follows the running time in two parts. Quickly at first, since most answers come
+ * within seconds (about 40% after 8 s, 60% after 18 s); then slowly for as long as a run may take
+ * (77% after a minute, 86% after two, 94% after five), so the bar of a slow model keeps moving
+ * instead of sitting at its end for minutes.
+ */
+const ESTIMATE_QUICK = { share: 60, tauMs: 8000 }
+const ESTIMATE_SLOW = { share: ESTIMATE_CAP - 60, tauMs: 90_000 }
 
 const clamp = (value: number, max: number) => Math.min(max, Math.max(0, Math.round(value)))
 
@@ -63,7 +69,8 @@ export function stepPercent(step: Step, now = Date.now()): number | null {
   if (step.fraction !== undefined) return clamp(step.fraction * 100, 99)
   if (step.status === 'running' && ESTIMATED_STEPS.has(step.key) && step.startedAt !== undefined) {
     const elapsed = Math.max(0, now - step.startedAt)
-    return clamp(ESTIMATE_CAP * (1 - Math.exp(-elapsed / ESTIMATE_TAU_MS)), ESTIMATE_CAP)
+    const part = ({ share, tauMs }: { share: number; tauMs: number }) => share * (1 - Math.exp(-elapsed / tauMs))
+    return clamp(part(ESTIMATE_QUICK) + part(ESTIMATE_SLOW), ESTIMATE_CAP)
   }
   return 0
 }
