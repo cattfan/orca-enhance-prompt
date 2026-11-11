@@ -1,6 +1,7 @@
 // The plugin's worker: gathers project context at the chosen level, runs the model chain with
 // fallback, sends prompts to agent terminals, keeps history, manages model profiles, and runs the
 // optional agent.prompt.before auto-enhance hook.
+import type { PluginRequests } from 'orca'
 import type { JsonValue, OrcaWorkerApi } from 'orca/worker'
 import { apiCatalog, claudeCatalog, claudeProgramSignature, codexCatalog, geminiCatalog, parseCatalog, type Catalog } from './catalog.ts'
 import { CLI_BINARIES, detectClis } from './cli.ts'
@@ -42,11 +43,20 @@ type AutoMode = (typeof AUTO_MODES)[number]
 /** Orca waits 2 s for a hook; leave room to answer. */
 const HOOK_BUDGET_MS = 1700
 /**
- * A panel run must answer before the panel stops waiting: the whole run (AI file picker and every
- * model of the fallback chain) shares this budget, a few seconds under the panel's limit. Mutable
- * for tests only.
+ * How long a panel run may take. Orca ends a panel's request after 120 s, so:
+ * - `budgetMs`: a run that must answer within one request (a caller that does not say it keeps
+ *   waiting): the whole run, AI file picker and every model of the chain, a few seconds under the
+ *   panel's limit;
+ * - `sliceMs`: how long one request waits for a run the panel keeps waiting for, before it answers
+ *   "still going" and the panel asks again. Well under the 120 s: starting a large CLI program can
+ *   hold the worker for seconds (13.5 s was seen for a 5 s wait on Windows), and an answer that
+ *   comes after Orca ended the request is lost;
+ * - `totalMs`: how long such a run may take in all;
+ * - `orphanMs`: how long it goes on with nobody waiting (the moment between two requests), before
+ *   it is stopped: a run lives only while a panel waits for it.
+ * Mutable for tests only.
  */
-export const RUN_LIMITS = { budgetMs: PANEL_REQUEST_LIMIT_MS - 5_000, pickerMs: 25_000 }
+export const RUN_LIMITS = { budgetMs: PANEL_REQUEST_LIMIT_MS - 5_000, pickerMs: 25_000, sliceMs: 90_000, totalMs: 300_000, orphanMs: 10_000 }
 
 /** Model lists are fetched again after a day, or on Refresh. */
 const CATALOG_TTL_MS = 24 * 3600_000
@@ -490,10 +500,6 @@ async function fetchCatalog(
   return apiCatalog(source.provider === 'anthropic' ? 'anthropic' : 'openai', source.baseUrl, source.typedKey || savedKey || envKey)
 }
 
-/**
- * One Enhance from the panel. It answers within the panel's wait (RUN_LIMITS.budgetMs); when the panel
- * has stopped waiting (closed, cancelled or timed out), the result is dropped and nothing is saved.
- */
 /** The latest progress of recent runs, by run id, for callers that cannot hear panel events (the web panel's dev server). */
 type ProgressSnapshot = Parameters<Parameters<typeof createProgress>[2]>[0]
 const latestProgress = new Map<string, ProgressSnapshot>()
@@ -503,13 +509,26 @@ export function progressOf(runId: string): ProgressSnapshot | null {
   return latestProgress.get(runId) ?? null
 }
 
-export async function enhanceRequest(
-  orca: OrcaWorkerApi,
-  input: Parameters<typeof enhance>[1] & { runId?: string },
-  signal: AbortSignal,
-  panelId: string
-) {
-  const started = Date.now()
+type EnhanceInput = Parameters<typeof enhance>[1] & { runId?: string; resumable?: boolean; resume?: boolean }
+type Outcome = { ok: true; result: Awaited<ReturnType<typeof enhance>> } | { ok: false; error: unknown }
+/** What a request for a run answers: the enhanced prompt, or `pending` with every other field empty. */
+type EnhanceAnswer = PluginRequests['prompt.enhance']['output']
+/** A run that is going, or done and not fetched yet. `outcome` never rejects. */
+type LiveRun = {
+  id: string
+  input: EnhanceInput
+  started: number
+  stop: AbortController
+  outcome: Promise<Outcome>
+  /** Requests waiting for it now. */
+  waiting: number
+  /** Stops the run when nobody has asked about it for RUN_LIMITS.orphanMs. */
+  orphan: ReturnType<typeof setTimeout> | null
+}
+const liveRuns = new Map<string, LiveRun>()
+let unnamedRuns = 0
+
+function startRun(orca: OrcaWorkerApi, input: EnhanceInput, panelId: string, budgetMs: number): LiveRun {
   const runId = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
   // Progress goes only to the panel that asked, and only when it asked for it.
   const progress = runId
@@ -521,27 +540,113 @@ export async function enhanceRequest(
           orca.panels.post('enhance.progress', snapshot, { panel: panelId })
         })
     : undefined
-  const result = await enhance(orca, input, signal, progress, RUN_LIMITS.budgetMs)
-  // The panel gave up while the model was answering: it shows an error, so keep no trace either.
-  if (signal.aborted) throw hostError(msg('error.cancelled'), 'cancelled')
-  const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
-  void notifyDone(orca, result.settings, model, Date.now() - started)
-  await addHistory(orca, result.settings, {
-    original: input.prompt.trim(),
-    enhanced: result.enhanced,
-    style: result.style,
-    model,
-    source: 'panel'
-  }).catch((error) => orca.log(`history: ${(error as Error).message}`))
-  return {
-    enhanced: result.enhanced,
-    model,
-    profileName: result.profile.name,
-    ms: Date.now() - started,
-    attempts: result.attempts,
-    context: view(result.items),
-    notes: result.notes
+  const stop = new AbortController()
+  const run: LiveRun = {
+    id: runId || `unnamed-${++unnamedRuns}`,
+    input,
+    started: Date.now(),
+    stop,
+    waiting: 0,
+    orphan: null,
+    outcome: enhance(orca, input, stop.signal, progress, budgetMs).then(
+      (result) => ({ ok: true as const, result }),
+      (error: unknown) => ({ ok: false as const, error })
+    )
   }
+  // An id belongs to one run (the panel makes a new one for each): one still going under it stops.
+  liveRuns.get(run.id)?.stop.abort()
+  liveRuns.set(run.id, run)
+  return run
+}
+
+function endRun(run: LiveRun): void {
+  if (run.orphan) clearTimeout(run.orphan)
+  run.orphan = null
+  if (liveRuns.get(run.id) === run) liveRuns.delete(run.id)
+}
+
+/**
+ * Waits for a run: until it ends, or (with `sliceMs`) at most that long, then answers null: it is
+ * still going. The answer is handed out, and saved to history, only to a request that is still
+ * waiting: when the panel has given up (cancelled, closed) the run is stopped and leaves no trace.
+ */
+async function waitForRun(orca: OrcaWorkerApi, run: LiveRun, signal: AbortSignal, sliceMs: number | null): Promise<EnhanceAnswer | null> {
+  if (run.orphan) clearTimeout(run.orphan)
+  run.orphan = null
+  run.waiting += 1
+  let slice: ReturnType<typeof setTimeout> | null = null
+  let onAbort: (() => void) | null = null
+  try {
+    const first = await Promise.race<Outcome | 'pending' | 'gone'>([
+      run.outcome,
+      ...(sliceMs === null ? [] : [new Promise<'pending'>((resolve) => (slice = setTimeout(() => resolve('pending'), sliceMs)))]),
+      new Promise<'gone'>((resolve) => {
+        if (signal.aborted) resolve('gone')
+        else signal.addEventListener('abort', (onAbort = () => resolve('gone')))
+      })
+    ])
+    if (first === 'pending') return null
+    if (first === 'gone' || signal.aborted) {
+      run.stop.abort()
+      endRun(run)
+      throw hostError(msg('error.cancelled'), 'cancelled')
+    }
+    endRun(run)
+    if (!first.ok) throw first.error
+    const { result } = first
+    const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
+    void notifyDone(orca, result.settings, model, Date.now() - run.started)
+    await addHistory(orca, result.settings, {
+      original: run.input.prompt.trim(),
+      enhanced: result.enhanced,
+      style: result.style,
+      model,
+      source: 'panel'
+    }).catch((error) => orca.log(`history: ${(error as Error).message}`))
+    return {
+      enhanced: result.enhanced,
+      model,
+      profileName: result.profile.name,
+      ms: Date.now() - run.started,
+      attempts: result.attempts,
+      context: view(result.items),
+      notes: result.notes
+    }
+  } finally {
+    if (slice) clearTimeout(slice)
+    if (onAbort) signal.removeEventListener('abort', onAbort)
+    run.waiting -= 1
+    // Nobody waits for it now: the panel asks again at once, or it is gone and the run goes with it.
+    if (run.waiting === 0 && liveRuns.get(run.id) === run) {
+      run.orphan = setTimeout(() => {
+        run.stop.abort()
+        endRun(run)
+      }, RUN_LIMITS.orphanMs)
+    }
+  }
+}
+
+/**
+ * One Enhance from the panel is a run, and a run is not tied to one request: Orca ends a panel's
+ * request after 120 s, and a slow model on a large context can take longer. A panel that says it
+ * keeps waiting (`resumable`) is answered `pending` when the run outlasts a request, and asks again
+ * (`resume`) until the run is done, RUN_LIMITS.totalMs at most. A caller that does not say so (an
+ * older panel, the command line) gets its answer within one request (RUN_LIMITS.budgetMs).
+ */
+export async function enhanceRequest(orca: OrcaWorkerApi, input: EnhanceInput, signal: AbortSignal, panelId: string): Promise<EnhanceAnswer> {
+  const id = typeof input.runId === 'string' ? input.runId.slice(0, 64) : ''
+  const keepsWaiting = id !== '' && (input.resumable === true || input.resume === true)
+  let run: LiveRun | undefined
+  if (input.resume === true) {
+    run = liveRuns.get(id)
+    // The worker was restarted meanwhile, or the run was given up: there is nothing to wait for.
+    if (!run) throw hostError(msg('error.run_gone'), 'unavailable')
+  } else {
+    run = startRun(orca, input, panelId, keepsWaiting ? RUN_LIMITS.totalMs : RUN_LIMITS.budgetMs)
+  }
+  const answer = await waitForRun(orca, run, signal, keepsWaiting ? RUN_LIMITS.sliceMs : null)
+  // Still going: the same fields, empty, so a caller reads one shape.
+  return answer ?? { pending: true, enhanced: '', model: '', profileName: '', ms: Date.now() - run.started, attempts: [], context: [], notes: [] }
 }
 
 /** Enhance, Preview context, Send, Copy and the list of terminals to send to. */

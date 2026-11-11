@@ -69,11 +69,15 @@ The test suite usually finishes in seconds, but some tests start real processes 
   project is null: nothing of one project is used in another. A scope without `project:` was saved
   before 2.6.5 and still means a workspace's name; it is not converted, since nothing says which
   project it was meant for.
-- **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
-  `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`). The per-model timeout
-  keeps time for the model that comes next; the last model of a chain has no next and may use the
-  rest of the run (`runChain` in `src/models.ts`): cutting the only model at 60 s turned a slow
-  answer into an error.
+- **One request of a panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`: Orca's limit), but a
+  run is not tied to one request. The panel says it keeps waiting (`resumable`); a run that
+  outlasts `RUN_LIMITS.sliceMs` is answered `pending` and goes on in the worker, and the panel asks
+  again (`resume`) until it is done, `RUN_LIMITS.totalMs` at most (`enhanceRequest` in
+  `src/worker.ts`). A run lives only while a panel waits for it: cancelled, or not asked about for
+  `RUN_LIMITS.orphanMs`, it is stopped and nothing is saved. A caller that does not say it keeps
+  waiting gets its answer within one request (`RUN_LIMITS.budgetMs`). The auto-enhance hook has 2 s
+  (`HOOK_BUDGET_MS`). The per-model timeout keeps time for the model that comes next; the last
+  model of a chain has no next and may use the rest of the run (`runChain` in `src/models.ts`).
 - **A thrown error reaches the panel as its code and its text, nothing else**: Orca passes no other
   field of the error on (the test host does, which hid this). A worker error for the panel is made
   with `hostError`, whose text carries the message after the English sentence (`withMessage` in

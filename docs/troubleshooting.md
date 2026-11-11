@@ -43,7 +43,7 @@ Open the **Models** tab and add a model: click a CLI under **Use your subscripti
 
 ## "… did not answer within … s"
 
-The model took longer than the run could wait. A run in the panel has about 110 s in all; a model with another one after it gets **Timeout per model** (60 s by default, in [Settings](settings.md#models)) so the next still has time, and the last one to try gets what is left.
+The model took longer than the run could wait. A run in the panel may take up to 5 minutes in all (it is not held to the 2 minutes Orca gives one request: the panel keeps asking until the prompt is there, and **Cancel** stops it at any time). A model with another one after it gets **Timeout per model** (60 s by default, in [Settings](settings.md#models)) so the next still has time, and the last one to try gets what is left.
 
 - Press **Try again**: a model that usually answers in half a minute can be slow for one run.
 - Pick a lower context level (the Max level sends the most), or a faster model for this prompt.

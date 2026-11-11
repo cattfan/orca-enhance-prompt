@@ -56,6 +56,7 @@ export const MESSAGES = {
   'error.timeout': 'The request was cancelled or timed out.',
   'error.model_timeout': '{model} did not answer within {seconds} s.',
   'error.too_slow': '{reason} A lower context level or a faster model answers sooner.',
+  'error.run_gone': 'That run is no longer going (the plugin was restarted). Try again.',
   'error.stopped': '{url} stopped answering: {detail}',
   'error.not_json': '{url} did not answer with JSON ({what}). A proxy or sign-in page may be in the way.',
   'error.empty_body': 'an empty answer',

@@ -379,6 +379,111 @@ test('when the panel stops waiting, a late answer is dropped and not saved to hi
   await worker.deactivate()
 })
 
+// A run is not tied to one request: Orca ends a panel's request after 120 s, and a slow model on a
+// large context can take longer. The limits are shortened here; the model answers after `delay`.
+async function longRuns(delay: number, body: (ctx: { ask: (input: Record<string, unknown>, signal?: AbortSignal) => Promise<Awaited<ReturnType<typeof main.enhanceRequest>>>; calls: () => number; stopped: () => number; host: ReturnType<typeof mockHost> }) => Promise<void>) {
+  const saved = { ...main.RUN_LIMITS }
+  Object.assign(main.RUN_LIMITS, { sliceMs: 150, totalMs: 1200, orphanMs: 200 })
+  let calls = 0
+  let stopped = 0
+  globalThis.fetch = ((_url: RequestInfo | URL, init?: RequestInit) =>
+    new Promise((resolve, reject) => {
+      calls += 1
+      const timer = setTimeout(() => resolve(new Response(JSON.stringify(openaiAnswer('the enhanced prompt')), { status: 200 })), delay)
+      init?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        stopped += 1
+        reject(new DOMException('aborted', 'AbortError'))
+      })
+    })) as typeof fetch
+  const host = mockHost({ storage: { models: { profiles: [profile('one', 'openai')] } }, secrets: { 'apiKey.one': 'k1' }, results: { 'workspace.readContext': null } })
+  let orca: Parameters<typeof main.default>[0] | null = null
+  const worker = await mountWorker({ default: (api: Parameters<typeof main.default>[0]) => { orca = api; main.default(api) } }, { host })
+  try {
+    await body({ ask: (input, signal) => main.enhanceRequest(orca!, input as never, signal ?? new AbortController().signal, 'enhance'), calls: () => calls, stopped: () => stopped, host })
+  } finally {
+    Object.assign(main.RUN_LIMITS, saved)
+    await worker.deactivate()
+  }
+}
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+test('a run slower than one request is answered "pending", goes on, and gives its prompt when the panel asks again', () =>
+  longRuns(400, async ({ ask, calls, stopped, host }) => {
+    const first = await ask({ prompt: 'fix it', level: 'off', runId: 'r1', resumable: true })
+    // 150 ms in: the model needs 400. Still going, and nothing is saved yet.
+    assert.deepEqual([first.pending, first.enhanced], [true, ''])
+    assert.equal(host.data().storage.history, undefined)
+    const second = await ask({ prompt: 'fix it', runId: 'r1', resume: true })
+    assert.equal(second.pending, true)
+    const third = await ask({ prompt: 'fix it', runId: 'r1', resume: true })
+    assert.deepEqual([third.pending, third.enhanced], [undefined, 'the enhanced prompt'])
+    // One run, one model call, the time of the whole run, one history entry.
+    assert.equal(calls(), 1)
+    assert.equal(stopped(), 0)
+    assert.ok(third.ms >= 380, `ms ${third.ms}`)
+    assert.equal((host.data().storage.history as unknown[]).length, 1)
+    // The run was fetched: asking for it again finds nothing (the same after a restart of the worker).
+    await assert.rejects(ask({ prompt: 'fix it', runId: 'r1', resume: true }), /no longer going/)
+    await assert.rejects(ask({ prompt: 'fix it', runId: 'never-started', resume: true }), /no longer going/)
+  }))
+
+test('a caller that does not say it keeps waiting gets its answer in one request, as before', () =>
+  longRuns(400, async ({ ask, calls }) => {
+    // No `resumable` (an older panel, the command line): the request waits for the run itself.
+    const answer = await ask({ prompt: 'fix it', level: 'off', runId: 'old-panel' })
+    assert.deepEqual([answer.pending, answer.enhanced], [undefined, 'the enhanced prompt'])
+    // Without a run id there is nothing to ask again for, so it is not resumable either.
+    const unnamed = await ask({ prompt: 'fix it', level: 'off', resumable: true })
+    assert.equal(unnamed.enhanced, 'the enhanced prompt')
+    assert.equal(calls(), 2)
+  }))
+
+test('a long run has its own limit, and says which model was too slow', () =>
+  longRuns(60_000, async ({ ask, stopped }) => {
+    const started = Date.now()
+    let answer = await ask({ prompt: 'fix it', level: 'off', runId: 'r2', resumable: true })
+    let failure: Error | null = null
+    while (answer.pending && !failure) {
+      answer = await ask({ prompt: 'fix it', runId: 'r2', resume: true }).catch((error: Error) => {
+        failure = error
+        return answer
+      })
+    }
+    // The model never answers: the run ends at its limit (1.2 s here, 5 minutes for real), not at
+    // the end of one request, and the model is stopped.
+    assert.ok(failure && Date.now() - started >= 1100 && Date.now() - started < 4000, `took ${Date.now() - started} ms`)
+    assert.match((failure as Error).message, /did not answer within 1 s\. A lower context level or a faster model answers sooner\./)
+    assert.equal(stopped(), 1)
+  }))
+
+test('a run lives only while the panel waits for it: cancelled, or nobody asking again, it stops and nothing is saved', () =>
+  longRuns(60_000, async ({ ask, stopped, host }) => {
+    // Cancelled while the panel waits (the first request, or a later one): stopped at once.
+    const cancel = new AbortController()
+    setTimeout(() => cancel.abort(), 40)
+    await assert.rejects(ask({ prompt: 'fix it', level: 'off', runId: 'c1', resumable: true }, cancel.signal), /Cancelled/)
+    assert.equal(stopped(), 1)
+    const later = new AbortController()
+    assert.equal((await ask({ prompt: 'fix it', level: 'off', runId: 'c2', resumable: true })).pending, true)
+    setTimeout(() => later.abort(), 40)
+    await assert.rejects(ask({ prompt: 'fix it', runId: 'c2', resume: true }, later.signal), /Cancelled/)
+    assert.equal(stopped(), 2)
+    await assert.rejects(ask({ prompt: 'fix it', runId: 'c2', resume: true }), /no longer going/)
+    // The panel is gone (closed between two requests): the run is not left running for nobody.
+    assert.equal((await ask({ prompt: 'fix it', level: 'off', runId: 'c3', resumable: true })).pending, true)
+    assert.equal(stopped(), 2)
+    await pause(320)
+    assert.equal(stopped(), 3)
+    await assert.rejects(ask({ prompt: 'fix it', runId: 'c3', resume: true }), /no longer going/)
+    // A panel that asks again in time keeps it going.
+    assert.equal((await ask({ prompt: 'fix it', level: 'off', runId: 'c4', resumable: true })).pending, true)
+    await pause(100)
+    assert.equal((await ask({ prompt: 'fix it', runId: 'c4', resume: true })).pending, true)
+    assert.equal(stopped(), 3)
+    assert.equal(host.data().storage.history, undefined)
+  }))
+
 test("a workspace on this machine is read even when Orca names its host 'local' (Orca 1.4.25x)", async () => {
   const root = project()
   stubFetch(() => openaiAnswer('ok'))

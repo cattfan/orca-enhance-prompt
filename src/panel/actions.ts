@@ -259,25 +259,27 @@ export async function enhanceNow(): Promise<void> {
   set(feedbackShown, false)
   try {
     const choice = read(profileChoice)
-    const answer = await plugin.request(
-      'prompt.enhance',
-      {
-        prompt,
-        runId,
-        style: read(effectiveStyle),
-        ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
-        ...(read(files).length > 0 ? { files: read(files).map((file) => file.path) } : {}),
-        ...knownWorkspaceId(),
-        level: read(effectiveLevel),
-        terminalId: read(target),
-        profileId: choice === 'auto' ? null : choice,
-        ...(choice !== 'auto' && read(modelChoice) ? { model: read(modelChoice) } : {}),
-        // Leave the key out (not undefined): request inputs must be plain JSON.
-        ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
-        exclude: read(excluded)
-      },
-      { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
-    )
+    const input = {
+      prompt,
+      runId,
+      // Orca ends a request after 120 s; a slower run goes on in the worker and is asked about again.
+      resumable: true,
+      style: read(effectiveStyle),
+      ...(read(structureChoice) ? { structureId: read(structureChoice) } : {}),
+      ...(read(files).length > 0 ? { files: read(files).map((file) => file.path) } : {}),
+      ...knownWorkspaceId(),
+      level: read(effectiveLevel),
+      terminalId: read(target),
+      profileId: choice === 'auto' ? null : choice,
+      ...(choice !== 'auto' && read(modelChoice) ? { model: read(modelChoice) } : {}),
+      // Leave the key out (not undefined): request inputs must be plain JSON.
+      ...(read(outputChoice) === 'default' ? {} : { language: read(outputChoice) }),
+      exclude: read(excluded)
+    }
+    const waiting = { timeoutMs: PANEL_REQUEST_LIMIT_MS, signal: controller.signal }
+    let answer = await plugin.request('prompt.enhance', input, waiting)
+    // Still going when the request had to answer: wait for it again, until it is done or cancelled.
+    while (answer.pending) answer = await plugin.request('prompt.enhance', { prompt, runId, resume: true }, waiting)
     const ran = { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts }
     if (origin.key === read(workspaceKey)) {
       put(result, answer.enhanced)

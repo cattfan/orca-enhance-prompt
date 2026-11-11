@@ -7,8 +7,8 @@ import { join } from 'node:path'
 import { read, set } from 'orca'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { messageIn, msg, plainText, withMessage } from './messages.ts'
-import { applyProgress, beginRun, enhanceNow, finishRun } from './panel/actions.ts'
-import { draft, lastRun, put, run, tick } from './panel/state.ts'
+import { applyProgress, beginRun, cancel, enhanceNow, finishRun } from './panel/actions.ts'
+import { draft, lastRun, put, result, run, tick } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
 import { runSeconds, seconds, stepShare, stepText } from './panel/view.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
@@ -232,6 +232,60 @@ test('a failed run says why in the panel\'s language, although Orca passes on on
   thrown = 'The plugin worker could not start.'
   await enhanceNow()
   assert.equal(read(run)?.error, 'The plugin worker could not start.')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('a run that outlasts one request: the panel keeps asking until the prompt is there, and Cancel still stops it', async () => {
+  // Orca ends a panel's request after 120 s. The worker answers "pending" before that, and the run
+  // goes on there; here it does so twice, then answers.
+  const inputs: Record<string, unknown>[] = []
+  let pendingAnswers = 2
+  let holding = false
+  let stopWaiting: ((error: Error) => void) | null = null
+  const still = { pending: true, enhanced: '', model: '', profileName: '', ms: 100_000, attempts: [], context: [], notes: [] }
+  const host = mockHost({
+    requests: {
+      'models.get': models,
+      'targets.list': { targets: [] },
+      'models.detect': { found: [] },
+      'prompt.enhance': async (input) => {
+        inputs.push({ ...input })
+        if (holding) await new Promise<void>((_resolve, reject) => (stopWaiting = reject))
+        if (pendingAnswers > 0) {
+          pendingAnswers -= 1
+          return still
+        }
+        return { enhanced: `Better: ${input.prompt}`, model: 'claude-fable-5-2', profileName: 'Claude Code', ms: 215_000, attempts: [], context: [], notes: [] }
+      }
+    }
+  })
+  const view = await mountPanel(host)
+  put(draft, 'fix it')
+  await enhanceNow()
+  assert.equal(read(run)?.status, 'done')
+  assert.equal(read(result), 'Better: fix it')
+  assert.equal(seconds(read(lastRun)!.ms), '215.0 s')
+  // The first request starts the run and says the panel keeps waiting; the next ones only ask again.
+  assert.equal(inputs.length, 3)
+  assert.equal(inputs[0].resumable, true)
+  assert.equal(inputs[0].resume, undefined)
+  assert.deepEqual(inputs.slice(1).map((input) => [input.resume, input.runId === inputs[0].runId]), [[true, true], [true, true]])
+
+  // Cancel while the panel waits: Orca ends the waiting request (and stops the worker's side with
+  // it, which stops the run); the run card says cancelled and nothing is shown.
+  put(result, '')
+  inputs.length = 0
+  pendingAnswers = 5
+  holding = true
+  const enhancing = enhanceNow()
+  for (let i = 0; i < 200 && !stopWaiting; i++) await new Promise((resolve) => setTimeout(resolve, 5))
+  cancel()
+  stopWaiting!(Object.assign(new Error('Cancelled.'), { code: 'cancelled' }))
+  await enhancing
+  assert.equal(inputs.length, 1)
+  assert.equal(read(run)?.status, 'cancelled')
+  assert.equal(read(result), '')
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

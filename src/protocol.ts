@@ -55,8 +55,17 @@ declare module 'orca' {
         workspaceId?: string
         /** Attached files of any kind, by the paths attachments.put answered (the worker reads no other path). */
         files?: string[]
+        /**
+         * The panel keeps waiting (needs `runId`): Orca ends a request after 120 s, so a run that
+         * takes longer answers `pending`, and the panel asks again with `resume`, as often as it takes.
+         */
+        resumable?: boolean
+        /** Asks again for the run `runId` that answered `pending`; nothing else of the input is read. */
+        resume?: boolean
       }
       output: {
+        /** The run is still going: ask again with `resume`. Every other field is empty then. */
+        pending?: boolean
         enhanced: string
         model: string
         profileName: string
