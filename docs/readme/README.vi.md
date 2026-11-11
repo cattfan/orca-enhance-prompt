@@ -38,7 +38,7 @@ Gõ một câu mô tả việc cần làm. Enhance viết lại thành prompt c�
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/enhance-and-send.jpg" alt="Prompt đã cải thiện với nút Gửi cho agent, Sao chép và Tinh chỉnh tiếp" width="100%" />
+  <img src="../assets/readme-features/enhance-and-send.jpg" alt="Một yêu cầu một dòng và prompt đã cải thiện từ nó, cùng terminal để gửi tới" width="100%" />
 </td>
 </tr>
 <tr>
@@ -52,7 +52,7 @@ Năm mức ngữ cảnh, từ chỉ prompt tới luật agent, stack, thay đổ
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/project-context.jpg" alt="Danh sách ngữ cảnh đã dùng" width="100%" />
+  <img src="../assets/readme-features/project-context.jpg" alt="Phần tùy chọn: kiểu, mức ngữ cảnh, ngôn ngữ đầu ra và cấu trúc, rồi từng mục ngữ cảnh được gửi, từ workspace và AGENTS.md tới thay đổi git và hai file liên quan" width="100%" />
 </td>
 </tr>
 <tr>
@@ -66,7 +66,7 @@ Claude Code, Codex và Gemini CLI trên máy được tự phát hiện, bấm m
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/subscription.jpg" alt="Thêm Claude Code và Codex CLI không cần API key" width="100%" />
+  <img src="../assets/readme-features/subscription.jpg" alt="Tab Model: Claude Code dùng gói đăng ký của bạn, một key OpenAI, và Codex tìm thấy trên máy, thêm vào không cần API key" width="100%" />
 </td>
 </tr>
 <tr>
@@ -80,7 +80,7 @@ OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studi
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/models-fallback.jpg" alt="Cài đặt fallback và chế độ tự cải thiện" width="100%" />
+  <img src="../assets/readme-features/models-fallback.jpg" alt="Một kết quả ở giao diện tối, đã chuyển sang model kế tiếp sau khi model đầu bị lỗi" width="100%" />
 </td>
 </tr>
 <tr>
@@ -108,7 +108,7 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/history.jpg" alt="Tab lịch sử" width="100%" />
+  <img src="../assets/readme-features/history.jpg" alt="Tab Lịch sử với năm prompt đã dùng" width="100%" />
 </td>
 </tr>
 </table>

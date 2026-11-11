@@ -51,7 +51,7 @@ The files are kept on this machine, in a temporary folder that is cleaned after 
 
 ## 3. Follow the progress
 
-![A run at 44%: four steps done, the model writing the prompt](assets/guide/3-progress.png)
+![A run at 43%: four steps done, with what each one found, and Claude Code's sonnet writing the prompt](assets/guide/3-progress.png)
 
 While a prompt is written, the card shows the **total percentage** and every step with its own:
 
@@ -62,7 +62,7 @@ While a prompt is written, the card shows the **total percentage** and every ste
   has run, marked **≈**, and reaches 100% only when the answer arrives;
 - `–` marks a step this run skips (for example git outside a repository).
 
-![Early in a run: reading the project](assets/guide/4-progress-early.png)
+![Early in a run: the workspace and the project are read, git changes are being read](assets/guide/4-progress-early.png)
 
 The square button stops the run; the card keeps the percentage it had reached.
 
@@ -80,7 +80,7 @@ without calling a model). Untick what you do not want; after a run, the list sho
 
 ## 5. Your rules and prompt structures
 
-![The Rules tab with a rule and the two built-in structures](assets/guide/6-rules-and-structures.png)
+![The Rules tab: a rule for every project, a rule for this project only, the two built-in structures and one of your own](assets/guide/6-rules-and-structures.png)
 
 - **Your rules** are followed in every enhanced prompt and by AI auto-enhance, in the project you
   add them in. The switch pauses one.

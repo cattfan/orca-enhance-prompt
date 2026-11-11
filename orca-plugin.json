@@ -504,16 +504,21 @@
   "screenshots": [
     {
       "path": "assets/screenshots/1-enhance.jpg",
-      "alt": "The Enhance tab with the list of project context sent to the model: rules, stack, relevant files, git status and repo tree",
-      "caption": "Grounded in your repo: 5 context levels, see and untick what is sent"
+      "alt": "The options with every item of context sent: workspace, rules, stack, tree, git changes and two relevant files, next to the enhanced prompt",
+      "caption": "Grounded in your project: 5 context levels, see and untick what is sent"
     },
     {
       "path": "assets/screenshots/2-models.jpg",
-      "alt": "The Models tab with Claude Code subscription, OpenAI, Groq and Ollama models, fallback switch and one-click subscription CLI",
+      "alt": "The Models tab with a Claude Code subscription, an OpenAI key and the fallback switch, next to a dark-theme result that fell back to the next model",
       "caption": "Your subscription or API keys, with fallback between models"
     },
     {
-      "path": "assets/screenshots/3-languages.jpg",
+      "path": "assets/screenshots/3-rules.jpg",
+      "alt": "The Rules tab with a rule for every project, a rule for one project and prompt structures, next to the Settings tab with a switch for each kind of access",
+      "caption": "A rule for one project or all of them, and a switch for everything the plugin may read or do"
+    },
+    {
+      "path": "assets/screenshots/4-languages.jpg",
       "alt": "The panel in Vietnamese and the history tab in Chinese",
       "caption": "English, Tiếng Việt and 中文"
     }

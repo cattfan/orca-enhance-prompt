@@ -38,7 +38,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/enhance-and-send.jpg" alt="优化后的提示词与发送、复制、继续优化按钮" width="100%" />
+  <img src="../assets/readme-features/enhance-and-send.jpg" alt="一句话的请求和由它优化出的提示词，以及要发送到的终端" width="100%" />
 </td>
 </tr>
 <tr>
@@ -52,7 +52,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/project-context.jpg" alt="已用上下文列表" width="100%" />
+  <img src="../assets/readme-features/project-context.jpg" alt="选项：风格、上下文级别、输出语言和结构，以及发送的每一项上下文，从工作区和 AGENTS.md 到 git 更改和两个相关文件" width="100%" />
 </td>
 </tr>
 <tr>
@@ -66,7 +66,7 @@
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/subscription.jpg" alt="无需 API key 添加 Claude Code 和 Codex CLI" width="100%" />
+  <img src="../assets/readme-features/subscription.jpg" alt="模型标签页：使用你的订阅的 Claude Code、一个 OpenAI key，以及在本机找到的 Codex，无需 API key 即可添加" width="100%" />
 </td>
 </tr>
 <tr>
@@ -80,7 +80,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/models-fallback.jpg" alt="回退设置和自动优化模式" width="100%" />
+  <img src="../assets/readme-features/models-fallback.jpg" alt="深色主题下的一次结果：第一个模型失败后回退到了下一个模型" width="100%" />
 </td>
 </tr>
 <tr>
@@ -108,7 +108,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 </td>
 <td width="50%">
-  <img src="../assets/readme-features/history.jpg" alt="历史标签" width="100%" />
+  <img src="../assets/readme-features/history.jpg" alt="历史标签页，包含五条用过的提示词" width="100%" />
 </td>
 </tr>
 </table>

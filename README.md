@@ -40,7 +40,7 @@ Write what you want in a sentence. Enhance rewrites it into a prompt with a goal
 
 </td>
 <td width="50%">
-  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.jpg" alt="A screenshot and a log attached to a request, and the enhanced prompt with Send" width="100%" /></a>
+  <a href="docs/getting-started.md"><img src="docs/assets/readme-features/enhance-and-send.jpg" alt="A one-line request and the enhanced prompt it became, with the terminal to send it to" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -54,7 +54,7 @@ Five context levels, from the prompt alone to your agent rules, stack, git chang
 
 </td>
 <td width="50%">
-  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.jpg" alt="The options with the context list: workspace, AGENTS.md, stack and commands, a relevant file" width="100%" /></a>
+  <a href="docs/context-levels.md"><img src="docs/assets/readme-features/project-context.jpg" alt="The options: style, context level, output language and structure, then every item of context sent, from the workspace and AGENTS.md to git changes and two relevant files" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -68,7 +68,7 @@ Claude Code, Codex and Gemini CLI are detected on your machine and added in one 
 
 </td>
 <td width="50%">
-  <a href="docs/models.md#subscription-clis"><img src="docs/assets/readme-features/subscription.jpg" alt="Use your subscription: Claude Code and Codex CLI added without an API key" width="100%" /></a>
+  <a href="docs/models.md#subscription-clis"><img src="docs/assets/readme-features/subscription.jpg" alt="The Models tab: Claude Code on your subscription, an OpenAI key, and Codex found on this machine, to add without an API key" width="100%" /></a>
 </td>
 </tr>
 <tr>
@@ -82,7 +82,7 @@ Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM S
 
 </td>
 <td width="50%">
-  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="The Models section with fallback, in the dark theme" width="100%" /></a>
+  <a href="docs/models.md"><img src="docs/assets/readme-features/models-fallback.jpg" alt="A result in the dark theme that fell back to the next model after the first one failed" width="100%" /></a>
 </td>
 </tr>
 <tr>
