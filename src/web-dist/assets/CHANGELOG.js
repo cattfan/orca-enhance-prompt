@@ -3,6 +3,18 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.6.4] - 2026-11-11
+
+### Fixed
+
+- The panel recognises which project you are in when several of your projects have the same name in Orca. Orca names a project's first checkout after its branch, so each of those projects is "main" on "main", and the panel kept asking **Which folder is this project?**, also after you had picked one. Orca does say which workspace an agent's terminal is in, but by another id than its list of workspaces uses, and the plugin could not match the two. Now the project is known as soon as an agent has run in one of its terminals, it is remembered, and the folder you picked is no longer forgotten. When it still has to ask (no agent has run there yet), the list shows each project's name before its folder.
+- With several projects of one name, the rewriter and the progress card name the project ("Reup: main") instead of only "main".
+- **Watch what agents do** and **Notice files you save** found nothing in a Git worktree, for the same reason: what Orca reported was kept under one id and looked up by the other. Both are off by default.
+
+### Notes
+
+- To tell projects apart, the plugin keeps which workspace each agent's terminal is in (two ids per terminal, the newest 500) in its own storage. **Delete everything** removes it, and the Privacy page of the docs lists it under "What is stored".
+
 ## [2.6.3] - 2026-11-11
 
 ### Fixed
@@ -507,6 +519,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.4
 [2.6.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.3
 [2.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.2
 [2.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.1

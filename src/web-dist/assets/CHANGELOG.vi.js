@@ -2,6 +2,18 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.4] - 2026-11-11
+
+### Sửa lỗi
+
+- Panel nhận ra bạn đang ở dự án nào khi nhiều dự án của bạn trùng tên trong Orca. Orca đặt tên bản checkout đầu tiên của mỗi dự án theo nhánh, nên các dự án đó đều là "main" trên nhánh "main", và panel cứ hỏi **Dự án này ở thư mục nào?**, kể cả sau khi bạn đã chọn. Orca có cho biết terminal của agent thuộc workspace nào, nhưng bằng một id khác với id trong danh sách workspace, và plugin không khớp được hai id đó. Giờ plugin biết dự án ngay khi có một agent chạy ở một terminal của nó, ghi nhớ điều đó, và không còn quên thư mục bạn đã chọn. Khi vẫn phải hỏi (chưa agent nào chạy ở đó), danh sách hiện tên dự án trước thư mục.
+- Khi nhiều dự án trùng tên, bộ viết lại prompt và thẻ tiến trình gọi tên dự án ("Reup: main") thay vì chỉ "main".
+- **Theo dõi việc các agent làm** và **Ghi nhận tệp bạn lưu** không tìm thấy gì trong một Git worktree, cũng vì lý do trên: những gì Orca báo được lưu dưới id này và tra bằng id kia. Cả hai đều tắt theo mặc định.
+
+### Ghi chú
+
+- Để phân biệt các dự án, plugin lưu terminal của mỗi agent thuộc workspace nào (hai id cho mỗi terminal, 500 mục mới nhất) trong bộ nhớ riêng của nó. **Xoá toàn bộ** sẽ xoá phần này, và trang Privacy của tài liệu có ghi nó ở mục "What is stored".
+
 ## [2.6.3] - 2026-11-11
 
 ### Sửa lỗi
