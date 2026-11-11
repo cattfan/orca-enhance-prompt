@@ -79,6 +79,13 @@ async function loadChangelog(lang: UiLanguage): Promise<Release[]> {
   return english.map((release) => translated.get(release.version) ?? release)
 }
 
+/**
+ * `?version=0` on the dev server leaves the version out of the header: the listing's and the
+ * README's pictures are drawn that way, since a number in them is out of date with the next
+ * release. Never in the built panel.
+ */
+const versionHidden = import.meta.env.DEV && new URLSearchParams(location.search).get('version') === '0'
+
 export function WhatsNew() {
   const lang = currentLanguage()
   const [loaded, setLoaded] = useState<{ lang: string; releases: Release[] } | null>(null)
@@ -97,9 +104,11 @@ export function WhatsNew() {
   const latest = releases.find((release) => release.version === VERSION) ?? releases[0]
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <button type="button" onClick={() => setOpen(true)} title={t("What's new")} className="text-muted-foreground hover:text-foreground text-xs">
-        {`v${VERSION}`}
-      </button>
+      {versionHidden ? null : (
+        <button type="button" onClick={() => setOpen(true)} title={t("What's new")} className="text-muted-foreground hover:text-foreground text-xs">
+          {`v${VERSION}`}
+        </button>
+      )}
       <DialogContent className="flex max-h-[85vh] max-w-[calc(100vw-24px)] flex-col gap-3 p-4">
         <DialogHeader>
           <DialogTitle>{view === 'new' ? t("What's new in {version}", { version: latest?.version ?? VERSION }) : t('Changelog')}</DialogTitle>

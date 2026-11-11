@@ -119,10 +119,22 @@ told in `src/cli.ts`.
 redrawn on every save, with no worker, model or network. The address sets what to look at:
 `?lang=vi&theme=dark&width=360` (language, theme, a sidebar's width), `?tab=models` (a section),
 `?demo=<prompt>` (types the prompt and runs it: the run card plays its steps; `&run=0` only types it),
-`?options=1`, `?attach=1`, `?ask=allowAgentLaunch` (a confirmation dialog), and `?mock=1` keeps the
-sample data even while Orca has the development plugin loaded (without it the page talks to that
-plugin's real worker). `node scripts/shot-web.mjs [out.png] [width] [height] [query]` saves a picture
-of it; `node scripts/make-listing.mjs` redraws every listing, README and guide picture from it.
+`?options=1`, `?attach=1`, `?fallback=1` (the first model fails, the next one answers),
+`?ask=allowAgentLaunch` (a confirmation dialog), and `?mock=1` keeps the sample data even while Orca
+has the development plugin loaded (without it the page talks to that plugin's real worker).
+`node scripts/shot-web.mjs [out.png] [width] [height] [query]` saves a picture of it;
+`node scripts/make-listing.mjs` redraws every listing, README and guide picture from it
+(`LISTING_ONLY=cover,guide/7` only those).
+
+The sample data is one project, the same in every picture: a Next.js storefront asked to fix its
+login page on phones. It answers in the shapes the real worker does (context items with their
+messages, a step's detail, `project` in `targets.list`), so keep it in step when those change: a
+picture must show what a person will see. For pictures, `?fresh` starts from an empty saved state
+(the shots share one browser profile), `?edge=0` leaves out the dashed line at the sidebar's edge,
+and `?version=0` leaves the version out of the header: the listing's and the README's pictures are
+drawn without it, since a number there is out of date with the next release (the guide's keep it).
+A headless window lays out no narrower than 500 px, so a panel is drawn at `?width=380` in a wider
+window and cut out, and a dialog, which centres in its window, is shot at 500 px.
 
 ## Releases
 

@@ -149,11 +149,14 @@ async function start(): Promise<void> {
       if (query.get('run') !== '0') setTimeout(go, 300)
     }
     // The drawn content's height, in the title: scripts/make-listing.mjs crops its shots with it.
+    // With the options open, also where they are (left,top,right,bottom): a picture of them alone.
     setInterval(() => {
       const page = document.querySelector('#root > div')
       if (!page) return
       const bottom = Math.max(0, ...Array.from(page.children).map((child) => child.getBoundingClientRect().bottom))
-      document.title = `height:${Math.ceil(bottom + 12)}`
+      const options = read(optionsOpen) ? document.querySelector('#root .grid.grid-cols-2')?.parentElement?.getBoundingClientRect() : undefined
+      const where = options ? ` options:${[options.left, options.top, options.right, options.bottom].map(Math.round).join(',')}` : ''
+      document.title = `height:${Math.ceil(bottom + 12)}${where}`
     }, 250)
   }
   createRoot(document.getElementById('root')!).render(

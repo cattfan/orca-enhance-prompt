@@ -1,6 +1,16 @@
 // A fake `window.orca` for `npm run dev` in a browser: sample models, terminals, history and a run
 // with progress, so the web panel can be designed without Orca. Never part of the built panel.
+//
+// The sample data is one believable project, the same in every picture (scripts/make-listing.mjs):
+// a Next.js storefront on its first checkout, asked to fix its login page on phones. It has the
+// shapes the real worker answers with (src/worker.ts), so a picture shows what a person will see.
+import { english, msg, raw, type Message } from '../../src/messages.ts'
+
 type Handler = (payload: unknown) => void
+
+/** The project's name in Orca (its repository), and its first checkout, which Orca calls by its branch. */
+const PROJECT = 'storefront'
+const CHECKOUT = 'main'
 
 const events = new Map<string, Set<Handler>>()
 const emit = (event: string, payload: unknown) => events.get(event)?.forEach((handler) => handler(payload))
@@ -25,7 +35,8 @@ const store = new Map<string, unknown>([
 const settingsValues: Record<string, unknown> = {
   uiLanguage: 'auto',
   defaultStyle: 'balanced',
-  contextLevel: 'standard',
+  // Deep: the level whose steps (git, relevant code) the sample run below goes through.
+  contextLevel: 'deep',
   outputLanguage: 'auto',
   autoEnhanceMode: 'off',
   fallbackEnabled: true,
@@ -87,31 +98,68 @@ const SAMPLE_PROMPT_VI = `Sửa bố cục trang đăng nhập trên màn hình 
 - Không có thanh cuộn ngang từ 320 px trở lên; nút hiện đầy đủ.
 - pnpm test và pnpm lint đều qua.`
 
+/**
+ * A context item as the worker lists it: an English label (the model reads it) and the same as a
+ * message, for the panel's language; `why` says how a file was found.
+ */
+const contextItem = (id: string, kind: string, title: Message, chars: number, why?: Message) => ({
+  id,
+  kind,
+  label: english(title),
+  chars,
+  title,
+  ...(why ? { note: english(why), why } : {})
+})
+
+/** What the Deep level gathers for the sample request, in the worker's order. */
+const SAMPLE_CONTEXT = [
+  contextItem('workspace', 'workspace', msg('label.workspace'), 30),
+  contextItem('agent', 'agent', msg('label.agent'), 16),
+  contextItem('rules:AGENTS.md', 'rules', raw('AGENTS.md'), 2140),
+  contextItem('stack', 'stack', msg('label.stack'), 610),
+  contextItem('tree', 'tree', msg('label.tree', { count: 214 }), 3890),
+  contextItem('git:status', 'git', msg('label.status', { count: 3 }), 120),
+  contextItem('git:log', 'git', msg('label.log'), 540),
+  contextItem('git:diff', 'git', msg('label.diff'), 2310),
+  contextItem('file:app/(auth)/login/page.tsx', 'file', raw('app/(auth)/login/page.tsx'), 1480, msg('why.keyword')),
+  contextItem('file:components/LoginForm.tsx', 'file', raw('components/LoginForm.tsx'), 2650, msg('why.keyword'))
+]
+
+/** `?fallback=1`: the first model fails and the next one answers (a picture of the fallback at work). */
+let fallbackDemo = false
+
 async function enhance(input: Record<string, unknown>, signal?: AbortSignal) {
   const runId = String(input.runId)
   const startedAt = Date.now()
   const keys = ['workspace', 'project', 'git', 'search', 'model'] as const
+  const first = { profileId: 'claude', name: 'Claude Code', model: 'sonnet' }
+  const answered = fallbackDemo ? { profileId: 'gpt', name: 'OpenAI', model: 'gpt-5-mini' } : first
+  // What each step says once it is done, as the worker reports it: a name, or a count the panel words.
+  const done: Record<(typeof keys)[number], string> = { workspace: `${PROJECT}: ${CHECKOUT}`, project: '214', git: '3', search: '2', model: `${answered.name} · ${answered.model}` }
   const steps: { key: string; status: string; detail?: string; startedAt?: number; fraction?: number }[] = keys.map((key) => ({ key, status: 'pending' }))
+  const post = (): void => emit('enhance.progress', { runId, startedAt, steps: steps.map((step) => ({ ...step })) })
   for (const [index, key] of keys.entries()) {
-    steps[index] = { key, status: 'running', startedAt: Date.now() }
-    emit('enhance.progress', { runId, startedAt, steps: steps.map((step) => ({ ...step })) })
+    // The model step names the model being tried, and counts the tries from the second one on.
+    steps[index] = { key, status: 'running', startedAt: Date.now(), ...(key === 'model' ? { detail: `${first.name} · ${first.model}` } : {}) }
+    post()
+    if (key === 'model' && fallbackDemo) {
+      await wait(800, signal)
+      steps[index] = { ...steps[index], detail: `${answered.name} · ${answered.model} · 2/2` }
+      post()
+    }
     await wait(key === 'model' ? 2500 : 500, signal)
-    steps[index] = { key, status: 'done', detail: key === 'search' ? '6' : key === 'git' ? '3' : key === 'workspace' ? 'orca-plugin · main' : undefined }
+    steps[index] = { key, status: 'done', detail: done[key] }
   }
-  emit('enhance.progress', { runId, startedAt, steps })
+  post()
   const files = (input.files as string[] | undefined) ?? []
+  const ms = Date.now() - startedAt
   return {
     enhanced: `${/[à-ỹ]/i.test(String(input.prompt)) ? SAMPLE_PROMPT_VI : SAMPLE_PROMPT}${files.length ? `\n\nAttached files:\n${files.map((file) => `- ${file}`).join('\n')}` : ''}`,
-    model: 'sonnet',
-    profileName: 'Claude Code',
-    ms: Date.now() - startedAt,
-    attempts: [{ name: 'Claude Code', ok: true, ms: Date.now() - startedAt }],
-    context: [
-      { id: 'workspace', kind: 'workspace', label: 'Workspace', chars: 120 },
-      { id: 'rules:AGENTS.md', kind: 'rules', label: 'AGENTS.md', chars: 4200 },
-      { id: 'stack', kind: 'stack', label: 'Stack & commands', chars: 900 },
-      { id: 'file:src/panel/actions.ts', kind: 'file', label: 'src/panel/actions.ts', chars: 3000, note: 'matches “panel”' }
-    ],
+    model: answered.model,
+    profileName: answered.name,
+    ms,
+    attempts: [...(fallbackDemo ? [{ ...first, ok: false, error: 'usage limit reached', ms: 800 }] : []), { ...answered, ok: true, ms: fallbackDemo ? ms - 800 : ms }],
+    context: SAMPLE_CONTEXT,
     notes: []
   }
 }
@@ -137,23 +185,39 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
   'models.move': () => models,
   'models.roles': (input) => (models = { ...models, ...input } as never),
   'models.test': () => ({ ok: true, ms: 840, message: 'OK' }),
+  // An agent's terminal reads "<its title> · <its state>", any other terminal by its title.
   'targets.list': () => ({
     targets: [
-      { terminalId: 't1', label: 'Claude Code · main', agent: 'claude' },
-      { terminalId: 't2', label: 'pnpm dev', agent: null }
+      { terminalId: 't1', label: 'Claude Code · waiting', agent: 'claude' },
+      { terminalId: 't2', label: 'Codex · working', agent: 'codex' },
+      { terminalId: 't3', label: 'pnpm dev', agent: null }
     ],
-    workspace: 'orca-plugin',
-    workspaceId: 'identity:wt2:local:mock'
+    workspace: CHECKOUT,
+    project: PROJECT,
+    workspaceId: 'identity:wt2:local:mock',
+    workspacePath: `C:/dev/${PROJECT}`
   }),
-  'rules.get': () => ({ rules: [{ id: 'r1', text: 'Always run the tests before finishing.', enabled: true, scope: '' }], structures: [] }),
+  // One rule for every project, one for this project only (a rule's scope is `project:<name>`),
+  // and a structure of the person's own next to the built-in ones.
+  'rules.get': () => ({
+    rules: [
+      { id: 'r1', text: 'Always run the tests before finishing.', enabled: true, scope: '' },
+      { id: 'r2', text: 'Use pnpm, never npm.', enabled: true, scope: `project:${PROJECT}` }
+    ],
+    structures: [{ id: 's1', name: 'Bug report', sections: ['Symptom', 'Steps to reproduce', 'Expected', 'Actual', 'Fix and verify'] }]
+  }),
   'rules.save': (input) => (input as { config: unknown }).config,
   'prompt.enhance': (input, signal) => enhance(input, signal),
-  'context.preview': async () => ({ ...(await enhance({ prompt: '', runId: 'preview' })), enhanced: '' }),
+  // The same list a run sends, without a run.
+  'context.preview': async () => {
+    await wait(300)
+    return { context: SAMPLE_CONTEXT, notes: [], chars: SAMPLE_CONTEXT.reduce((sum, entry) => sum + entry.chars, 0) }
+  },
   'prompt.send': () => ({ accepted: true }),
   'prompt.copy': () => ({ copied: true }),
   'history.remove': (input) => store.set('history', (store.get('history') as { id: string }[]).filter((entry) => entry.id !== input.id)),
   'history.clear': () => store.set('history', []),
-  'data.summary': () => ({ history: 2, profiles: 2, keys: 1, catalogs: 2 }),
+  'data.summary': () => ({ history: (store.get('history') as unknown[]).length, profiles: models.profiles.length, keys: 1, catalogs: 2 }),
   'data.clear': () => null,
   'consents.get': () => ({ granted: [...granted], needed: ['allowOtherAgents', 'allowAgentActivity', 'allowAgentLaunch'] }),
   'consent.set': (input) => {
@@ -231,9 +295,11 @@ export async function installMockOrca(): Promise<void> {
     settingsValues[key] = value === 'true' ? true : value === 'false' ? false : Number.isFinite(Number(value)) ? Number(value) : value
   }
   for (const key of (query.get('consent') ?? '').split(',').filter(Boolean)) granted.add(key)
+  fallbackDemo = query.get('fallback') === '1'
   if (query.get('theme') === 'dark') root.classList.add('dark')
-  // ?width=360: a sidebar's width (headless browsers cannot make a window that narrow).
-  if (query.get('width')) document.body.style.cssText = `max-width:${Number(query.get('width'))}px;border-right:1px dashed #8884`
+  // ?width=360: a sidebar's width (headless browsers cannot make a window that narrow), with a
+  // dashed line where the sidebar would end; ?edge=0 leaves the line out (pictures).
+  if (query.get('width')) document.body.style.cssText = `max-width:${Number(query.get('width'))}px${query.get('edge') === '0' ? '' : ';border-right:1px dashed #8884'}`
   const api = {
     api: { major: 1, minor: 99 },
     locale: navigator.language,
