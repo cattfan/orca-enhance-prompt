@@ -7,6 +7,7 @@ Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mụ
 ### Thay đổi
 
 - Một lượt chạy có thể kéo dài tới 5 phút thay vì khoảng 2 phút. Orca kết thúc một yêu cầu của panel sau 120 giây, và trước đây đó cũng là điểm kết thúc của lượt chạy. Giờ lượt chạy nào lâu hơn sẽ tiếp tục trong plugin, còn panel hỏi lại cho tới khi có prompt; thẻ tiến trình vẫn đếm thời gian, và **Huỷ** dừng nó bất cứ lúc nào. Một model chậm với ngữ cảnh lớn (mức Max) không còn bị lỗi chỉ vì cần hơn hai phút.
+- Thanh tiến trình tiếp tục nhích trong suốt một lượt chạy dài. Phần của bước viết prompt là ước lượng theo thời gian chạy; trước đây nó lên 95% sau khoảng nửa phút rồi đứng yên. Giờ nó tăng nhanh lúc đầu rồi chậm dần cho tới hết thời gian một lượt chạy có thể kéo dài.
 
 ### Ghi chú
 

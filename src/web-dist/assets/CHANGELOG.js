@@ -8,6 +8,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 ### Changed
 
 - A run can take up to 5 minutes instead of about 2. Orca ends one request of the panel after 120 seconds, and that was also the end of a run. Now a run that takes longer goes on in the plugin and the panel keeps asking for it until the prompt is there; the progress card keeps counting, and **Cancel** stops it at any time. A slow model on a large context (the Max level) no longer fails only because it needed more than two minutes.
+- The progress bar keeps moving through a long run. The share of the step that writes the prompt is an estimate from its running time; it reached 95% after about half a minute and stayed there. It now rises quickly at first and then slowly for as long as a run may take.
 
 ### Notes
 
