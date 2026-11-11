@@ -87,8 +87,14 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **The manifest asks for nothing new without a decision**: when an update's manifest has a new
   capability, command, panel, hook, event, status bar item or setting, Orca asks every user to
   approve again and installs nothing until they do ("Update needs review"), so they miss the
-  version's fixes too. A preference of the panel lives in the panel's state (a `persist: 'plugin'`
-  atom), not in `contributes.settings`. `src/manifest.test.ts` holds the approved lists; when one
+  version's fixes too. "New" includes "changed": Orca tells a setting, a status bar item, a hook or
+  an event apart by its whole JSON, so rewording a setting's description, changing its default, or
+  giving the status bar item another text or icon asks again as well (a panel goes by its id, a
+  command by its id, action and scope: their titles may change). So those entries are frozen:
+  what the status bar shows is set at run time (`statusBar.update` in `src/worker.ts`; the
+  manifest's own text shows only until the worker's first update), and a preference of the panel
+  lives in the panel's state (a `persist: 'plugin'` atom), not in `contributes.settings`.
+  `src/manifest.test.ts` holds a fingerprint of every entry; when one must change or the manifest
   must grow, say in the changelog that Orca will ask (as 2.5.0 did).
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
   scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
