@@ -3,6 +3,16 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.6.6] - 2026-11-11
+
+### Changed
+
+- A run can take up to 5 minutes instead of about 2. Orca ends one request of the panel after 120 seconds, and that was also the end of a run. Now a run that takes longer goes on in the plugin and the panel keeps asking for it until the prompt is there; the progress card keeps counting, and **Cancel** stops it at any time. A slow model on a large context (the Max level) no longer fails only because it needed more than two minutes.
+
+### Notes
+
+- A run still lives only while the panel waits for it: cancel it, close the panel or quit Orca, and it is stopped within 10 seconds and nothing is saved.
+
 ## [2.6.5] - 2026-11-11
 
 ### Changed
@@ -538,6 +548,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.6]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.6
 [2.6.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.5
 [2.6.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.4
 [2.6.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.3
