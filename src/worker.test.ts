@@ -272,6 +272,45 @@ test('auto-enhance hook: off passes, rules appends, AI rewrites with the hook mo
   await ai.deactivate()
 })
 
+test('the status bar says Enhance: On or Off under the plugin\'s lightbulb; which kind of auto-enhance is on is in the tooltip', async () => {
+  type Shown = { id: string; text: string; icon: string; tone: string; tooltip: string; visible: boolean }
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 30))
+  const host = mockHost({ settings: { uiLanguage: 'vi' }, results: { 'statusBar.update': { ok: true } } })
+  const shown = () => host.callsOf('statusBar.update').at(-1) as Shown
+  const worker = await mountWorker(main, { host })
+  await settled()
+  // Auto-enhance is off: the same words in every language, like the brand; the lightbulb, not coloured.
+  assert.deepEqual([shown().id, shown().text, shown().icon, shown().tone, shown().visible], ['auto-enhance', 'Enhance: Off', 'lightbulb', 'neutral', true])
+  assert.match(shown().tooltip, /Tự cải thiện đang tắt\. Đổi ở biểu tượng bánh răng của panel/)
+  // On, with rules or with AI: "On" either way, still the lightbulb (no lightning), now coloured.
+  await worker.command('auto-enhance.rules')
+  assert.deepEqual([shown().text, shown().icon, shown().tone], ['Enhance: On', 'lightbulb', 'accent'])
+  assert.match(shown().tooltip, /Tự cải thiện đang bật \(quy tắc\)\./)
+  await worker.command('auto-enhance.ai')
+  assert.deepEqual([shown().text, shown().icon, shown().tone], ['Enhance: On', 'lightbulb', 'accent'])
+  assert.match(shown().tooltip, /Tự cải thiện đang bật \(AI\)\./)
+  await worker.command('auto-enhance.off')
+  assert.deepEqual([shown().text, shown().icon, shown().tone], ['Enhance: Off', 'lightbulb', 'neutral'])
+  // Hidden with the command, and back.
+  await worker.command('status-bar.toggle')
+  assert.equal(shown().visible, false)
+  await worker.command('status-bar.toggle')
+  assert.equal(shown().visible, true)
+  await worker.deactivate()
+
+  // Icon only: no text. An English panel: the same words, an English tooltip.
+  const iconOnly = mockHost({ settings: { statusBarItem: 'icon', autoEnhanceMode: 'ai' }, results: { 'statusBar.update': { ok: true } } })
+  const second = await mountWorker(main, { host: iconOnly })
+  await settled()
+  const last = iconOnly.callsOf('statusBar.update').at(-1) as Shown
+  assert.deepEqual([last.text, last.icon, last.tone], ['', 'lightbulb', 'accent'])
+  assert.match(last.tooltip, /Auto-enhance is on \(AI\)\. Change it under the panel's gear icon or in the command palette\./)
+  assert.equal(main.statusBarText('off'), 'Enhance: Off')
+  assert.equal(main.statusBarText('rules'), 'Enhance: On')
+  assert.equal(main.statusBarText('ai'), 'Enhance: On')
+  await second.deactivate()
+})
+
 test('cycle command switches auto-enhance mode', async () => {
   const host = mockHost({ results: { 'statusBar.update': { ok: true } } })
   const worker = await mountWorker(main, { host })

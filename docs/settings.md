@@ -50,7 +50,7 @@ Code, identifiers, paths and error messages are always kept as they are.
 | --- | --- | --- |
 | Status bar item | Icon and text | Icon and text, icon only, or hidden |
 
-Clicking the item opens the right sidebar, where the panel lives. Orca's status bar right-click menu lists only Orca's own items, so use this setting, or the command **Enhance Prompt: Show / hide status bar item**, to hide it.
+The item reads **Enhance: On** or **Enhance: Off**: whether [auto-enhance](auto-enhance.md) is at work (its tooltip says with rules or with AI). Clicking it opens the right sidebar, where the panel lives. Orca's status bar right-click menu lists only Orca's own items, so use this setting, or the command **Enhance Prompt: Show / hide status bar item**, to hide it.
 
 ## Auto-enhance
 

@@ -6,7 +6,7 @@ From a fresh install to a prompt in your agent's terminal in about two minutes.
 
 Enhance Prompt lives in Orca's **right sidebar**.
 
-- Press `Ctrl+L` (`⌘L` on macOS), or click **Enhance: off** in the status bar.
+- Press `Ctrl+L` (`⌘L` on macOS), or click **Enhance** in the status bar.
 - Click the **lightbulb** tab.
 
 If you don't see the lightbulb, check that the plugin is enabled under **Settings → Plugins → Enhance Prompt**.

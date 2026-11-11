@@ -415,24 +415,32 @@ const MODE_LABEL: Record<AutoMode, string> = { off: 'off', rules: 'rules', ai: '
 /** Orca's default shortcut for the right sidebar (`sidebar.right.toggle`, Mod+L). */
 const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
 
-/** Status bar wording per panel language ('auto' stays English: the worker cannot see Orca's locale). */
-const STATUS_TEXT: Record<string, { prefix: string; modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
+/**
+ * The status bar item says whether auto-enhance is at work: "Enhance: On" or "Enhance: Off", the
+ * same short words in every language, like the brand. Which kind is on (rules or AI) is in the
+ * tooltip. Its icon is the plugin's own lightbulb, the one on the panel's tab, coloured while on.
+ *
+ * All of this is set here, at run time. The manifest's entry stays exactly as it was approved:
+ * Orca tells one status bar item from another by its whole declaration, so a new text or icon
+ * there would make every user approve the update again (src/manifest.test.ts).
+ */
+export const statusBarText = (mode: AutoMode): string => `${BRAND_SHORT}: ${mode === 'off' ? 'Off' : 'On'}`
+
+/** The tooltip per panel language ('auto' stays English: the worker cannot see Orca's locale). */
+const STATUS_TOOLTIP: Record<string, { modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
   en: {
-    prefix: BRAND_SHORT,
-    modes: { off: 'off', rules: 'rules', ai: 'AI' },
+    modes: { off: 'off', rules: 'on (rules)', ai: 'on (AI)' },
     tooltip: (mode) =>
-      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "${BRAND}".\nAuto-enhance: ${mode} (change it in the panel's Models tab or the command palette).\nSettings and updates: Settings → Plugins → Enhance Prompt.`
+      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "${BRAND}".\nAuto-enhance is ${mode}. Change it under the panel's gear icon or in the command palette.\nSettings and updates: Settings → Plugins → Enhance Prompt.`
   },
   vi: {
-    prefix: BRAND_SHORT,
-    modes: { off: 'tắt', rules: 'luật', ai: 'AI' },
+    modes: { off: 'tắt', rules: 'bật (quy tắc)', ai: 'bật (AI)' },
     tooltip: (mode) =>
-      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "${BRAND}".\nTự cải thiện: ${mode} (đổi trong tab Model của panel hoặc command palette).\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
+      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "${BRAND}".\nTự cải thiện đang ${mode}. Đổi ở biểu tượng bánh răng của panel hoặc trong command palette.\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
   },
   zh: {
-    prefix: BRAND_SHORT,
-    modes: { off: '关', rules: '规则', ai: 'AI' },
-    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “${BRAND}”。\n自动优化：${mode}（在面板的“模型”标签或命令面板中更改）。\n设置与更新：Settings → Plugins → Enhance Prompt。`
+    modes: { off: '关', rules: '开（规则）', ai: '开（AI）' },
+    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “${BRAND}”。\n自动优化：${mode}。可在面板的齿轮图标下或命令面板中更改。\n设置与更新：Settings → Plugins → Enhance Prompt。`
   }
 }
 
@@ -441,16 +449,15 @@ async function refreshStatusBar(orca: OrcaWorkerApi): Promise<void> {
   const all = await orca.settings.get()
   const { autoEnhanceMode } = await readSettings(orca)
   const display = typeof all.statusBarItem === 'string' ? all.statusBarItem : 'full'
-  const words = STATUS_TEXT[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? STATUS_TEXT.en
-  const mode = words.modes[autoEnhanceMode]
+  const words = STATUS_TOOLTIP[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? STATUS_TOOLTIP.en
   await orca.host
     .call('statusBar.update', {
       id: 'auto-enhance',
       visible: display !== 'hidden',
-      text: display === 'icon' ? '' : `${words.prefix}: ${mode}`,
-      icon: autoEnhanceMode === 'off' ? 'lightbulb' : 'zap',
+      text: display === 'icon' ? '' : statusBarText(autoEnhanceMode),
+      icon: 'lightbulb',
       tone: autoEnhanceMode === 'off' ? 'neutral' : 'accent',
-      tooltip: words.tooltip(mode)
+      tooltip: words.tooltip(words.modes[autoEnhanceMode])
     })
     .catch(() => undefined)
 }

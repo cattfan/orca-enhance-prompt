@@ -159,7 +159,7 @@ Works with **your subscription CLI** or **any API key**.
 1. Open **Settings → Plugins**. Once, add the community catalog with **Add marketplace**: URL `https://github.com/stablyai/orca-community-plugins.git`, ref `main`. Turn on the setting that allows full-access plugins.
 2. Search for **Enhance Prompt** and click **Install**.
 3. Review what it asks for and approve it.
-4. Open the right sidebar with `Ctrl+L` (`⌘L` on macOS) and click the **lightbulb** tab. Clicking **Enhance: off** in the status bar does the same.
+4. Open the right sidebar with `Ctrl+L` (`⌘L` on macOS) and click the **lightbulb** tab. Clicking **Enhance** in the status bar does the same.
 
 ### From the CLI
 
