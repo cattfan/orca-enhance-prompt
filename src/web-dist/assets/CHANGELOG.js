@@ -3,6 +3,17 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.6.7] - 2026-11-11
+
+### Changed
+
+- The status bar item reads **Enhance: On** or **Enhance: Off**. It used to show the mode's own word ("Enhance: rules", "Enhance: AI", translated with the panel), which told less at a glance. On means auto-enhance is at work, with rules or with AI; the tooltip says which.
+- Its icon is always the plugin's lightbulb, coloured while auto-enhance is on. The lightning bolt it switched to is gone.
+
+### Fixed
+
+- The tooltip of the status bar item pointed to the Models tab for changing auto-enhance; it is under the panel's gear icon.
+
 ## [2.6.6] - 2026-11-11
 
 ### Changed
@@ -549,6 +560,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.7]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.7
 [2.6.6]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.6
 [2.6.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.5
 [2.6.4]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.4

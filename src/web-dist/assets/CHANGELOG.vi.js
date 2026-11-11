@@ -2,6 +2,17 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.7] - 2026-11-11
+
+### Thay đổi
+
+- Mục trên thanh trạng thái hiện **Enhance: On** hoặc **Enhance: Off**. Trước đây nó hiện tên của chế độ ("Enhance: rules", "Enhance: AI", dịch theo ngôn ngữ panel), nhìn lướt qua khó hiểu hơn. On nghĩa là tự cải thiện đang hoạt động, theo quy tắc hoặc bằng AI; tooltip cho biết là loại nào.
+- Biểu tượng của nó luôn là bóng đèn của plugin, có màu khi tự cải thiện đang bật. Biểu tượng tia sét trước đây không còn nữa.
+
+### Sửa lỗi
+
+- Tooltip của mục trên thanh trạng thái chỉ tới tab Models để đổi chế độ tự cải thiện; thực ra nó nằm ở biểu tượng bánh răng của panel.
+
 ## [2.6.6] - 2026-11-11
 
 ### Thay đổi
