@@ -53,6 +53,7 @@ Rules:
 - Keep every concrete detail the user gave: names, paths, error messages, code, URLs, numbers.
 - Write as instructions addressed to the agent ("Add...", "Investigate..."), not as a conversation.
 - Use the project context only to make the prompt more precise; do not summarize it back.
+- The agent has the whole project in front of it; you see only what was gathered for you, which can be little or nothing. Write nothing about what you were or were not given, not even as a reason ("no project context was provided, so locate...", "no files were attached"): the agent would take it as a statement about its own project. When a detail is missing, just tell the agent what to find first ("Find the login button and its handler"), or put it under "Assumptions / questions" when only the user can answer; leave out a section that would say nothing else.
 - The agent reads the project's own rule files (AGENTS.md, CLAUDE.md, GEMINI.md) by itself. Do not restate them; mention a rule from them only when it changes how this particular task must be done.
 - Verification: name only the one or two commands that check this change (from the context), not every check the project has, also for a larger task: the agent finds the rest in the project's rule files.
 - Do not decide things the user left open (exact UI wording, translations, names, numbers, design choices): leave them to the agent or list them as questions.

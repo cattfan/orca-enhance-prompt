@@ -71,10 +71,12 @@ const INSTRUCTION = 'Follow the instructions in the input exactly and output onl
  * runCli), "not a git repository", on this platform. None of that is the person's project, and a
  * rewriter that takes it for the project writes it into the prompt ("the directory is not a git
  * repository, so first confirm which files make up the app"). The instructions of every CLI end
- * with this.
+ * with this. Its last sentence is about the agent, not about how little the rewriter knows: ending
+ * on "all you know about the project is the input below" made one prompt in four tell the agent
+ * that "no project files were provided" (measured on Claude Code with no project context).
  */
 export const NOT_THE_PROJECT =
-  "You are running in an empty temporary folder that is not the user's project. What you know about your own working directory, whether it is a git repository, your platform, your shell or your tools says nothing about that project: never mention it and never rely on it. All you know about the project is what the input below gives you."
+  "You are running in an empty temporary folder that is not the user's project. What you know about your own working directory, whether it is a git repository, your platform, your shell or your tools says nothing about that project: never mention it and never rely on it. The agent that receives your prompt works inside the user's project and can read all of it."
 
 /** The arguments for each CLI; `outFile` is where Codex writes its last message. */
 export function cliArgs(kind: CliKind, model: string, outFile: string, customArgs: string, images: readonly string[] = []): string[] {

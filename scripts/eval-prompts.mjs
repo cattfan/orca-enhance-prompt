@@ -3,7 +3,8 @@
 //   node scripts/eval-prompts.mjs --model sonnet  # another model
 //   node scripts/eval-prompts.mjs --show          # also print every prompt it wrote
 // It checks what can be checked mechanically: no preamble or fence, the right language, no file
-// paths that are not in the context or the request, the user's details kept, sane length.
+// paths that are not in the context or the request, the user's details kept, sane length, and
+// nothing about what the rewriter itself was or was not given.
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
@@ -41,15 +42,35 @@ const CASES = [
   { name: 'several steps: finish it, recap', style: 'detailed', prompt: 'move every scripts/*.test.mjs to TypeScript, update scripts/release.mjs to match, and get the whole test suite passing again', language: 'en', keep: ['scripts/release.mjs'], finish: true },
   // ...while a small change gets none of that.
   { name: 'small change stays small', style: 'balanced', prompt: 'fix the typo "recieve" in README.md', language: 'en', keep: ['recieve', 'README.md'], maxChars: 1100, small: true },
+  // The Off level, a remote workspace, project files switched off: the rewriter gets the request alone.
+  // The agent has the whole project, so the prompt says what to find, not what the rewriter lacked.
+  { name: 'no project context', style: 'balanced', prompt: 'add dark mode to the settings page', language: 'en', keep: ['dark mode'], bare: true },
   // An action the person already approved is written as approved, not asked about again.
   { name: 'approved action', style: 'balanced', prompt: 'delete the unused scripts/shots.sh and commit it. I confirm the deletion, no need to ask me', language: 'en', keep: ['scripts/shots.sh'], approved: /(ask|confirm|check with)[^.\n]{0,40}before[^.\n]{0,30}delet|wait for (my |the user'?s? )?(confirmation|approval)/i }
 ]
 
+/**
+ * The rewriter speaking about its own input ("no project context was provided", "I can't see the
+ * files"): to the agent, which has the whole project, that reads as a statement about its project.
+ */
+const GIVEN = new RegExp(
+  [
+    /\b(no|without)\b[^.\n]{0,30}\b(project |repo(sitory)? |code(base)? )?(context|files?)\b[^.\n]{0,40}\b(provided|given|supplied|attached|shared|included)\b/,
+    /\bcontext\b[^.\n]{0,40}\b(was|were|is|are) not (provided|given|supplied|shared|included)\b/,
+    /\b(not|nothing) in the (provided|given|supplied) (project )?context\b/,
+    /\bI (can't|cannot|do not|don't) (see|have access to)\b/,
+    /(không|chưa)[^.\n]{0,25}(ngữ cảnh|bối cảnh)[^.\n]{0,25}(cung cấp|đưa|gửi)/,
+    /(ngữ cảnh|bối cảnh)[^.\n]{0,30}(không|chưa) được (cung cấp|đưa|gửi)/
+  ]
+    .map((pattern) => pattern.source)
+    .join('|'),
+  'i'
+)
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
 let failures = 0
 for (const item of CASES) {
   const system = buildSystemPrompt({ style: item.style, language: 'auto', agent: 'claude', structure: item.structure ?? null })
-  const user = buildUserMessage(item.prompt, context)
+  const user = buildUserMessage(item.prompt, item.bare ? [] : context)
   const started = Date.now()
   let text
   try {
@@ -62,6 +83,8 @@ for (const item of CASES) {
   const problems = []
   if (/^(here|sure|below|dưới đây|đây là)\b/i.test(text)) problems.push('starts with a preamble')
   if (/^```/.test(text)) problems.push('wrapped in a code fence')
+  const given = GIVEN.exec(text)
+  if (given) problems.push(`talks about what the rewriter was given ("${given[0].trim().slice(0, 80)}")`)
   // Vietnamese if a fair share of its letters carry Vietnamese marks (a quoted word or two does not count).
   const marked = (text.match(new RegExp(VIETNAMESE.source, 'gi')) ?? []).length
   const isVi = marked / Math.max(1, (text.match(/\p{L}/gu) ?? []).length) > 0.03

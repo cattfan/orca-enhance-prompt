@@ -58,6 +58,10 @@ test('a CLI is told that the folder it runs in is not the project (its model kno
   assert.equal(out, `<instructions>\nSYSTEM\n\n${NOT_THE_PROJECT}\n</instructions>\n\n<request>\nfix login\n</request>`)
   assert.match(NOT_THE_PROJECT, /temporary folder that is not the user's project/)
   assert.match(NOT_THE_PROJECT, /working directory.*git repository.*never mention it and never rely on it/)
+  // ...and it does not end on how little the rewriter knows ("all you know about the project is the
+  // input"): measured live, that sentence made one prompt in four say "no project files were provided".
+  assert.match(NOT_THE_PROJECT, /The agent that receives your prompt works inside the user's project and can read all of it\.$/)
+  assert.ok(!/all you know/i.test(NOT_THE_PROJECT))
 })
 
 test('runCli reports a sign-in failure and a missing binary', async () => {

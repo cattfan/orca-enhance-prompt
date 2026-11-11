@@ -48,6 +48,11 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **A CLI model runs in an empty temporary folder** and knows that folder (its path, "not a git
   repository", the platform): `runCli` ends the instructions with `NOT_THE_PROJECT` (`src/cli.ts`),
   so none of it is taken for the person's project and written into a prompt.
+- **The rewriter writes for an agent that has the whole project.** With little or no context (the
+  Off level, a remote workspace, project files switched off) a model likes to say so in the prompt
+  ("no project context was provided, so locate…"), and the agent reads that as a statement about
+  its own project. A rule in `BASE` (`src/prompts.ts`) and the last sentence of `NOT_THE_PROJECT`
+  forbid it; `scripts/eval-prompts.mjs` has a case with no context and checks every case for it.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **The manifest asks for nothing new without a decision**: when an update's manifest has a new

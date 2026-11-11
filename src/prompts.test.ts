@@ -91,6 +91,21 @@ test('the rewriter is told not to copy rule files, to keep checks and length in 
   assert.match(system, /Markdown headings \(do not mix in XML tags\)/)
 })
 
+test('the rewriter writes nothing about what it was or was not given: the agent has the whole project', async () => {
+  const { buildSystemPrompt, buildUserMessage } = await import('./prompts.ts')
+  // In every style, also the ones with no Context heading, and whatever the language.
+  for (const style of ['balanced', 'concise', 'detailed', 'bugfix', 'custom'] as const) {
+    const system = buildSystemPrompt({ style, language: 'vi' })
+    assert.match(system, /The agent has the whole project in front of it; you see only what was gathered for you, which can be little or nothing/)
+    assert.match(system, /Write nothing about what you were or were not given, not even as a reason/)
+    assert.match(system, /just tell the agent what to find first/)
+  }
+  // With the context level Off the rewriter gets the request alone: no empty context block to remark on.
+  const bare = buildUserMessage('add dark mode', [])
+  assert.ok(!bare.includes('project_context'))
+  assert.match(bare, /^<request>\nadd dark mode\n<\/request>/)
+})
+
 test('the rewriter follows the vendors\' prompting guidance: reasons kept, positive phrasing, plain tone, when to ask, evidence, no contradictions', async () => {
   const { buildSystemPrompt } = await import('./prompts.ts')
   const system = buildSystemPrompt({ style: 'balanced', language: 'auto' })
