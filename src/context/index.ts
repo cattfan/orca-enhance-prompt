@@ -155,6 +155,27 @@ export async function findFocusedWorkspace(
   }
 }
 
+/**
+ * The name a project's rules are kept under (rules.ts): its repository's name in Orca, since the
+ * workspace's own name is "main" for every project's first checkout. Null when Orca cannot tell
+ * which of several workspaces of that name is open: a rule of one project is then followed in none
+ * of them. Where Orca lists no workspaces (an older Orca), the workspace's name is all there is.
+ */
+export async function projectNameOf(orca: OrcaWorkerApi, focused: Focused, workspace: Workspace | null): Promise<string | null> {
+  if (workspace) return workspace.project?.trim() || workspace.name
+  if (!orca.host.has('workspace.list')) return focused.displayName
+  const list = await orca.host.call('workspace.list', {}).catch(() => null)
+  const alike = (list?.workspaces ?? []).filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch)
+  return alike.length > 1 ? null : focused.displayName
+}
+
+/** Where a run's rules apply: the focused workspace's name, and its project's. */
+export async function focusedProject(orca: OrcaWorkerApi, hint?: string | readonly string[] | null): Promise<{ workspace: string | null; project: string | null }> {
+  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
+  if (!focused) return { workspace: null, project: null }
+  return { workspace: focused.displayName, project: await projectNameOf(orca, focused, await findFocusedWorkspace(orca, focused, hint)) }
+}
+
 // ---- prompt-independent parts, cached per workspace root (also what the hook uses) ----
 
 type StaticParts = { at: number; files: string[]; isGit: boolean; items: ContextItem[] }

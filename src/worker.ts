@@ -8,7 +8,7 @@ import { copyToClipboard } from './clipboard.ts'
 import { forgetActivity, recordSave, recordStatus, recordTool } from './context/activity.ts'
 import { isSensitive } from './context/files.ts'
 import { resolveLanguage, translate } from './i18n-dict.ts'
-import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
+import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, focusedProject, gatherContext, isLocalWorkspace, projectNameOf, staticParts, type ContextItem } from './context/index.ts'
 import { forgetTerminals, learnTerminal, loadTerminals } from './context/terminals.ts'
 import { workspaceTitle } from './workspaces.ts'
 import { imagesBlock, imageSupport, withImagePaths } from './images.ts'
@@ -191,12 +191,16 @@ async function pickFilesWithModel(
   return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string').slice(0, 8) : []
 }
 
-/** The Rules tab: the saved rules and structures, and the rules that apply in the focused workspace. */
-async function ownRules(orca: OrcaWorkerApi): Promise<{ config: RulesConfig; rules: string[] }> {
+/**
+ * The Rules tab: the saved rules and structures, and the rules that are followed in the focused
+ * project. `hint` is what the panel knows this workspace as (several can share a name).
+ */
+async function ownRules(orca: OrcaWorkerApi, hint?: string | null): Promise<{ config: RulesConfig; rules: string[] }> {
   const config = parseRulesConfig(await orca.storage.get(RULES_KEY).catch(() => null))
   if (config.rules.length === 0) return { config, rules: [] }
-  const focused = config.rules.some((rule) => rule.scope) ? await orca.host.call('workspace.readContext', {}).catch(() => null) : null
-  return { config, rules: rulesFor(config, focused?.displayName ?? null) }
+  // Only a rule kept for one project needs to know which project this is.
+  const where = config.rules.some((rule) => rule.scope) ? await focusedProject(orca, hint) : { workspace: null, project: null }
+  return { config, rules: rulesFor(config, where) }
 }
 
 /** Makes sure the prompt names every attached file the rewriter left out. */
@@ -288,7 +292,7 @@ export async function enhance(
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
-  const own = await ownRules(orca)
+  const own = await ownRules(orca, typeof input.workspaceId === 'string' ? input.workspaceId : null)
   const system = buildSystemPrompt({
     style,
     language,
@@ -617,6 +621,8 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     return {
       targets,
       workspace: context?.displayName ?? null,
+      // The name this project's rules are kept under; null while Orca cannot tell which project it is.
+      project: context ? await projectNameOf(orca, context, workspace) : null,
       workspaceId: workspace?.id ?? null,
       // Its folder, so the panel can tell which project Orca removed (that event names it another way).
       ...(workspace ? { workspacePath: workspace.path } : {}),

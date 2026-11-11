@@ -96,12 +96,14 @@ declare module 'orca' {
       input: { known?: Record<string, string> }
       /** `choices`: the folders the focused workspace could be when several share its name and branch
        *  (`project`: its repository's name, where Orca gives one). */
-      /** `workspace`: the focused workspace's name (rules can apply to one workspace). */
+      /** `workspace`: the focused workspace's name. `project`: the name its project's rules are kept
+       *  under (the repository's name in Orca), null while it is not known which project this is. */
       /** `workspaceId`: Orca's id of the focused workspace (null when it cannot tell): the panel keeps each
        *  project's draft and result apart by it. `workspacePath`: its folder. */
       output: {
         targets: { terminalId: string; label: string; agent: string | null }[]
         workspace?: string | null
+        project?: string | null
         workspaceId?: string | null
         workspacePath?: string
         choices?: { id: string; path: string; project?: string }[]

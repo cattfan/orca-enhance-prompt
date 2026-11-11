@@ -58,8 +58,13 @@ export const structureChoice = atom('structureChoice', '', { persist: 'plugin' }
 export const terminalWorkspaces = atom<Record<string, string>>('terminalWorkspaces', {}, { persist: 'plugin' })
 /** The folders the focused workspace could be, when Orca cannot tell (the person picks one). */
 export const workspaceChoices = atom<{ id: string; path: string; project?: string }[]>([])
-/** The focused workspace's name, for rules that apply to one workspace. */
+/** The focused workspace's name as Orca gives it; several projects can share it ("main"). */
 export const workspaceName = atom<string | null>(null)
+/**
+ * The focused project's own name (its repository's name in Orca): what its rules are kept under,
+ * and what the panel calls it. Null while it is not known which of several same-named projects this is.
+ */
+export const projectName = atom<string | null>(null)
 export const historyFilter = atom('historyFilter', '')
 /** History entries drawn at once; "Show more" adds a page. */
 export const HISTORY_PAGE = 50

@@ -1,4 +1,4 @@
-// Your own rules for the rewriter (for every workspace or one), and prompt structures: the sections a
+// Your own rules for the rewriter (for every project or one), and prompt structures: the sections a
 // prompt is written in. Kept in the plugin's storage under RULES_KEY; the panel edits them, the worker
 // reads them for every run and for auto-enhance. No Node imports: both sides load this file.
 import type { JsonValue } from 'orca'
@@ -10,8 +10,25 @@ export const MAX_RULE_CHARS = 500
 export const MAX_STRUCTURES = 20
 export const MAX_SECTIONS = 12
 
-/** `scope` is '' for every workspace, or a workspace's name. */
+/**
+ * `scope` says where a rule is followed: '' in every project, `project:<name>` in one project, or
+ * (saved before 2.6.5) a workspace's name. A project is named by its repository's name in Orca: the
+ * workspace's own name is "main" for the first checkout of every project, so a rule kept under it
+ * was followed in all of them.
+ */
 export type Rule = { id: string; text: string; enabled: boolean; scope: string }
+const SCOPE_CHARS = 200
+export const PROJECT_SCOPE = 'project:'
+/** The scope of a rule for one project. */
+export const projectScope = (project: string) => `${PROJECT_SCOPE}${project.trim()}`.slice(0, SCOPE_CHARS)
+/** The name a scope shows: the project's, or the workspace's for a rule saved before 2.6.5. */
+export const scopeName = (scope: string) => (scope.startsWith(PROJECT_SCOPE) ? scope.slice(PROJECT_SCOPE.length) : scope)
+/**
+ * Where a run happens: the focused workspace's name and its project's name. The project is null
+ * when it is not known which project this is (several share the workspace's name and Orca has not
+ * said which is open): a rule of one project is then followed in none.
+ */
+export type RuleWhere = { workspace: string | null; project: string | null }
 export type Structure = { id: string; name: string; sections: string[] }
 export type RulesConfig = { rules: Rule[]; structures: Structure[] }
 
@@ -41,7 +58,7 @@ export function parseRulesConfig(value: JsonValue | null | undefined): RulesConf
   const rules: Rule[] = []
   for (const item of Array.isArray(raw.rules) ? raw.rules : []) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-    const rule = { id: id(item.id), text: str(item.text, MAX_RULE_CHARS), enabled: item.enabled !== false, scope: str(item.scope, 200) }
+    const rule = { id: id(item.id), text: str(item.text, MAX_RULE_CHARS), enabled: item.enabled !== false, scope: str(item.scope, SCOPE_CHARS) }
     if (rule.id && rule.text && rules.length < MAX_RULES) rules.push(rule)
   }
   const structures: Structure[] = []
@@ -61,9 +78,16 @@ export function rulesToJson(config: RulesConfig): JsonValue {
   }
 }
 
-/** The enabled rules that apply in a workspace (by its name), in their saved order. */
-export function rulesFor(config: RulesConfig, workspace: string | null): string[] {
-  return config.rules.filter((rule) => rule.enabled && (!rule.scope || rule.scope === workspace)).map((rule) => rule.text)
+/** Whether a rule is followed there: everywhere, in its project, or (an older rule) in workspaces of its name. */
+export function ruleApplies(rule: Pick<Rule, 'scope'>, where: RuleWhere): boolean {
+  if (!rule.scope) return true
+  if (rule.scope.startsWith(PROJECT_SCOPE)) return where.project !== null && rule.scope === projectScope(where.project)
+  return rule.scope === where.workspace
+}
+
+/** The enabled rules that are followed there, in their saved order. */
+export function rulesFor(config: RulesConfig, where: RuleWhere): string[] {
+  return config.rules.filter((rule) => rule.enabled && ruleApplies(rule, where)).map((rule) => rule.text)
 }
 
 /** A built-in or saved structure by id; null for none or an unknown id. A saved one with a built-in's id is that built-in, edited. */

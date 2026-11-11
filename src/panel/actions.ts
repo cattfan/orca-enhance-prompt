@@ -1,7 +1,7 @@
 // actions.ts: what the panel does (what its buttons call): requests to the worker, and the changes
 // to the state (state.ts) that follow. No UI here; the web panel (web/src) and the tests call these.
 import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
-import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, type RulesConfig } from '../rules.ts'
+import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, projectScope, type RulesConfig } from '../rules.ts'
 import { feedbackDue, ISSUES_URL } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { attachmentItemId } from '../image-limits.ts'
@@ -13,7 +13,7 @@ import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
 import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
-import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -25,10 +25,13 @@ const keyByFolder = new Map<string, string>()
 
 // ---------------------------------------------------------------- projects
 
+/** What the focused project is called in the panel's messages: its own name, else the workspace's. */
+const projectTitle = () => read(projectName) ?? read(workspaceName)
+
 /** The composer as it is now, to park under its project. */
 function snapshot(): Slot {
   return {
-    name: read(workspaceName),
+    name: projectTitle(),
     draft: read(draft),
     result: read(result),
     lastRun: read(lastRun),
@@ -211,7 +214,7 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list, workspace, workspaceId, workspacePath, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
+    const { targets: list, workspace, project, workspaceId, workspacePath, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
     set(workspaceChoices, choices ?? [])
     // Once known, the workspace of these terminals stays known (the next lookup needs no guess).
     if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
@@ -220,6 +223,8 @@ export async function refreshTargets(): Promise<void> {
     // project is never shown next to a prompt of the old one.
     const shown = new Set(read(targets).map((item) => item.terminalId))
     switchWorkspace(workspaceId ?? (workspace ? `name:${workspace}` : ''), workspace ?? null, list.some((item) => shown.has(item.terminalId)))
+    // After the switch: what was parked just now carries the name of the project it was written in.
+    set(projectName, project ?? null)
     set(targets, list)
     const current = read(target)
     if (!current || !list.some((item) => item.terminalId === current)) {
@@ -244,7 +249,7 @@ export async function enhanceNow(): Promise<void> {
   if (!prompt || read(busy)) return
   const controller = new AbortController()
   inFlight = controller
-  const origin = { key: read(workspaceKey), name: read(workspaceName) }
+  const origin = { key: read(workspaceKey), name: projectTitle() }
   runOrigin = origin
   const runId = beginRun(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, origin)
   set(busy, 'enhance')
@@ -692,7 +697,10 @@ export function saveRules(change: (config: RulesConfig) => RulesConfig): void {
 export function addRule(): void {
   const text = read(ruleDraft).trim().slice(0, MAX_RULE_CHARS)
   if (!text) return
-  const scope = read(ruleScope) === 'workspace' ? (read(workspaceName) ?? '') : ''
+  // For this project when the panel knows which project this is, else for every project (the
+  // workspace's own name is shared by projects: a rule kept under it was followed in all of them).
+  const project = read(projectName)
+  const scope = read(ruleScope) === 'workspace' && project ? projectScope(project) : ''
   saveRules((config) => ({ ...config, rules: [...config.rules, { id: newId('rule'), text, enabled: true, scope }].slice(0, MAX_RULES) }))
   set(ruleDraft, '')
 }

@@ -7,12 +7,14 @@ import { mountPanel } from './panel/testing.ts'
 import { rulesConfig, structureOptions } from './panel/view.ts'
 import { PRESETS } from './presets.ts'
 import { buildSystemPrompt } from './prompts.ts'
-import { parseRulesConfig, rulesFor, structureById, type RulesConfig } from './rules.ts'
+import { forgetTerminals } from './context/terminals.ts'
+import { parseRulesConfig, projectScope, ruleApplies, rulesFor, scopeName, structureById, type RulesConfig } from './rules.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = realFetch
+  await forgetTerminals()
 })
 
 const stored = {
@@ -20,16 +22,33 @@ const stored = {
     { id: 'r1', text: 'Always run pnpm test.', enabled: true, scope: '' },
     { id: 'r2', text: 'Use the design tokens in src/theme.', enabled: true, scope: 'web-app' },
     { id: 'r3', text: 'Disabled rule.', enabled: false, scope: '' },
+    { id: 'r4', text: 'Keep the uploader idempotent.', enabled: true, scope: 'project:Reup' },
     { id: 'BAD ID', text: 'dropped', enabled: true, scope: '' }
   ],
   structures: [{ id: 'mine', name: 'Mine', sections: ['Mục tiêu', '', 'Tiêu chí hoàn thành'] }]
 }
 
-test('rules apply by workspace and switch; structures are cleaned; unknown ids give none', () => {
+test('a rule is followed everywhere, in its own project, or (saved before 2.6.5) in workspaces of its name', () => {
   const config = parseRulesConfig(stored)
-  assert.deepEqual(config.rules.map((rule) => rule.id), ['r1', 'r2', 'r3'])
-  assert.deepEqual(rulesFor(config, 'web-app'), ['Always run pnpm test.', 'Use the design tokens in src/theme.'])
-  assert.deepEqual(rulesFor(config, 'other'), ['Always run pnpm test.'])
+  assert.deepEqual(config.rules.map((rule) => rule.id), ['r1', 'r2', 'r3', 'r4'])
+  // The project Reup, whatever Orca calls its workspace: its own rule, and the one for every project.
+  assert.deepEqual(rulesFor(config, { workspace: 'main', project: 'Reup' }), ['Always run pnpm test.', 'Keep the uploader idempotent.'])
+  assert.deepEqual(rulesFor(config, { workspace: 'feature-x', project: 'Reup' }), ['Always run pnpm test.', 'Keep the uploader idempotent.'])
+  // Another project whose workspace is "main" as well: Reup's rule stays out of it.
+  assert.deepEqual(rulesFor(config, { workspace: 'main', project: 'Shop' }), ['Always run pnpm test.'])
+  // Not known which of the "main" projects this is: no project's own rule is followed.
+  assert.deepEqual(rulesFor(config, { workspace: 'main', project: null }), ['Always run pnpm test.'])
+  assert.deepEqual(rulesFor(config, { workspace: null, project: null }), ['Always run pnpm test.'])
+  // A rule saved before 2.6.5 is kept under a workspace's name: followed there as it always was,
+  // and not in a project that merely has that name.
+  assert.deepEqual(rulesFor(config, { workspace: 'web-app', project: 'Web' }), ['Always run pnpm test.', 'Use the design tokens in src/theme.'])
+  assert.deepEqual(rulesFor(config, { workspace: 'main', project: 'web-app' }), ['Always run pnpm test.'])
+  assert.ok(!ruleApplies({ scope: 'project:Reup' }, { workspace: 'Reup', project: 'Shop' }))
+  // How a scope is written and shown.
+  assert.equal(projectScope(' Reup '), 'project:Reup')
+  assert.equal(scopeName('project:Reup'), 'Reup')
+  assert.equal(scopeName('web-app'), 'web-app')
+  assert.equal(projectScope('x'.repeat(400)).length, 200)
   assert.deepEqual(structureById(config, 'mine')?.sections, ['Mục tiêu', 'Tiêu chí hoàn thành'])
   assert.equal(structureById(config, 'brief')?.name, 'Task brief')
   assert.equal(structureById(config, 'gone'), null)
@@ -74,10 +93,67 @@ test('a run uses the rules of the focused workspace and the picked structure; au
   await other.deactivate()
 })
 
+test('two projects whose workspaces are both "main": a run follows the rules of its own project only', async () => {
+  const systems: string[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    systems.push(JSON.parse(String(init?.body)).messages[0].content)
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+  }) as typeof fetch
+  const rules = {
+    rules: [
+      { id: 'all', text: 'Rule for every project.', enabled: true, scope: '' },
+      { id: 'reup', text: 'Rule of Reup.', enabled: true, scope: 'project:Reup' },
+      { id: 'shop', text: 'Rule of Shop.', enabled: true, scope: 'project:Shop' },
+      // Saved before 2.6.5 in one of the "main" projects: kept under the workspace's name.
+      { id: 'old', text: 'Older rule kept under main.', enabled: true, scope: 'main' }
+    ],
+    structures: []
+  }
+  // As the real Orca answers: the focus has a name and a branch only; the list names each worktree
+  // "identity:…" with its project; an agent event names its workspace "<repository id>::<path>".
+  const host = mockHost({
+    storage: { models: { profiles: [{ id: 'gpt', name: 'gpt', preset: 'openai', provider: 'openai', baseUrl: '', model: '', maxTokens: 2000, enabled: true }] }, rules },
+    secrets: { 'apiKey.gpt': 'k' },
+    settings: { autoEnhanceMode: 'ai' },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'main', terminals: [{ id: 'term_a', title: 'Claude' }] },
+      'workspace.list': {
+        workspaces: [
+          { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'main', project: 'Shop', path: 'C:/work/shop', branch: 'main', hostId: 'local' },
+          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'main', project: 'Reup', path: 'C:/work/reup', branch: 'main', hostId: 'local' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host })
+  const followed = (system: string) => rules.rules.map((rule) => rule.text).filter((text) => system.includes(text))
+  const EVERY = 'Rule for every project.'
+  const OLD = 'Older rule kept under main.'
+  // Not known which "main" this is: no project's own rule is followed (the older one still is).
+  assert.equal((await worker.request('targets.list', {})).project, null)
+  await worker.request('prompt.enhance', { prompt: 'add a page', level: 'off' })
+  assert.deepEqual(followed(systems[0]), [EVERY, OLD])
+  // The panel knows it (the folder the person picked): that project's rule.
+  await worker.request('prompt.enhance', { prompt: 'add a page', level: 'off', workspaceId: 'identity:wt2:local:1111' })
+  assert.deepEqual(followed(systems[1]), [EVERY, 'Rule of Shop.', OLD])
+  // Orca says the agent's terminal is in the other one: its rule, in a run and in auto-enhance.
+  await worker.emit('agent.status.changed', { workspaceId: 'repo-reup::C:\\work\\reup', paneKey: 'p', terminalId: 'term_a', state: 'done', receivedAt: Date.now() })
+  assert.equal((await worker.request('targets.list', {})).project, 'Reup')
+  await worker.request('prompt.enhance', { prompt: 'add a page', level: 'off' })
+  assert.deepEqual(followed(systems[2]), [EVERY, 'Rule of Reup.', OLD])
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_a', prompt: 'add a login page please', inputKind: 'launch' })
+  assert.deepEqual(followed(systems[3]), [EVERY, 'Rule of Reup.', OLD])
+  await worker.deactivate()
+})
+
 let savedConfig: RulesConfig = { rules: [], structures: [] }
+/** What the worker says about the focused workspace: its name, and its project's (null: not known which project). */
+let focus: { workspace: string; project: string | null } = { workspace: 'main', project: 'Web' }
 const requests: MockRequests = {
   'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
-  'targets.list': { targets: [], workspace: 'web-app' },
+  'targets.list': () => ({ targets: [], workspace: focus.workspace, project: focus.project }),
   'models.detect': { found: [] },
   'rules.get': () => savedConfig,
   // Slow on purpose: quick edits in a row must still all land.
@@ -89,7 +165,9 @@ const requests: MockRequests = {
 }
 
 
-test('the Rules tab adds rules (for all or this workspace) and structures; the composer offers them', async () => {
+test('the Rules tab adds rules (for every project or this one) and structures; the composer offers them', async () => {
+  savedConfig = { rules: [], structures: [] }
+  focus = { workspace: 'main', project: 'Web' }
   const host = mockHost({ requests })
   const view = await mountPanel(host)
   // Three quick edits in a row: each is shown at once and all of them land.
@@ -103,7 +181,8 @@ test('the Rules tab adds rules (for all or this workspace) and structures; the c
   assert.equal(read(ruleDraft), '')
   await new Promise((resolve) => setTimeout(resolve, 100))
   const saved = savedConfig
-  assert.deepEqual(saved.rules.map((rule) => [rule.text, rule.scope]), [['Always run pnpm test.', ''], ['Use the design tokens.', 'web-app']])
+  // The second one is kept under the project's name, not under the workspace's ("main" in every project).
+  assert.deepEqual(saved.rules.map((rule) => [rule.text, rule.scope]), [['Always run pnpm test.', ''], ['Use the design tokens.', 'project:Web']])
   assert.deepEqual(saved.structures[0].sections, ['Mục tiêu', 'Tiêu chí hoàn thành'])
   // Turning a rule off keeps it.
   saveRules((current) => ({ ...current, rules: current.rules.map((rule) => (rule.text === 'Always run pnpm test.' ? { ...rule, enabled: false } : rule)) }))

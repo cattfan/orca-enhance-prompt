@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { currentLanguage, t } from '../../src/i18n.ts'
 import { presetById, type ProfileView } from '../../src/presets.ts'
 import { isStyle, STYLE_LABELS } from '../../src/prompts.ts'
-import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES } from '../../src/rules.ts'
+import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES, ruleApplies, scopeName } from '../../src/rules.ts'
 import {
   busy,
   catalogLoading,
@@ -30,6 +30,7 @@ import {
   historyShown,
   models,
   privacy,
+  projectName,
   ruleDraft,
   ruleScope,
   structureDraft,
@@ -78,6 +79,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { Field, Group, Hint, IconAction, Pick, Row, Section, Segmented } from './common'
+import { WorkspacePicker } from './enhance'
 
 const ago = (at: number) => {
   const minutes = Math.round((Date.now() - at) / 60_000)
@@ -429,13 +431,13 @@ export function ModelsSection() {
 
 // ---------------------------------------------------------------- Rules
 
-/** Adds a rule for this project only (every project when Orca names none). */
-function addProjectRule(workspace: string | null): void {
-  set(ruleScope, workspace ? 'workspace' : 'all')
+/** Adds a rule for this project only (for every project while it is not known which project this is). */
+function addProjectRule(project: string | null): void {
+  set(ruleScope, project ? 'workspace' : 'all')
   addRule()
 }
 
-function RuleComposer({ workspace, full }: { workspace: string | null; full: boolean }) {
+function RuleComposer({ project, full }: { project: string | null; full: boolean }) {
   return (
     <Row>
       <Textarea
@@ -447,14 +449,14 @@ function RuleComposer({ workspace, full }: { workspace: string | null; full: boo
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault()
-            addProjectRule(workspace)
+            addProjectRule(project)
           }
         }}
         className="min-h-12 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground min-w-0 truncate text-xs">{workspace ? t('Only {name}', { name: workspace }) : t('All workspaces')}</span>
-        <Button size="sm" onClick={() => addProjectRule(workspace)} disabled={!read(ruleDraft).trim() || full}>
+        <span className="text-muted-foreground min-w-0 truncate text-xs">{project ? t('Only {name}', { name: project }) : t('Every project')}</span>
+        <Button size="sm" onClick={() => addProjectRule(project)} disabled={!read(ruleDraft).trim() || full}>
           <PlusIcon />
           {t('Add rule')}
         </Button>
@@ -500,9 +502,10 @@ function StructureForm({ id, onDone }: { id?: string; onDone: () => void }) {
 
 export function RulesSection() {
   const config = rulesConfig()
-  const workspace = read(workspaceName)
-  // Rules of this project (and older ones saved for every project); other projects' rules stay hidden.
-  const shownRules = config.rules.filter((rule) => !rule.scope || rule.scope === workspace)
+  const project = read(projectName)
+  // The rules followed here: this project's, the ones for every project, and older ones kept under
+  // the workspace's name. Other projects' rules stay hidden.
+  const shownRules = config.rules.filter((rule) => ruleApplies(rule, { workspace: read(workspaceName), project }))
   // The structure being edited: 'new', an id, or none.
   const [editing, setEditing] = useState<string | null>(null)
   const startEditing = (value: string) => {
@@ -511,9 +514,11 @@ export function RulesSection() {
   }
   return (
     <div className="flex flex-col gap-4">
+      {/* Not known which of several same-named projects this is: a new rule would be for every project. */}
+      <WorkspacePicker />
       <Group
         title={t('Your rules')}
-        hint={t('Followed in every enhanced prompt and by auto-enhance, on top of the style. A rule can apply to every workspace or only to this one.')}
+        hint={t('Followed in every enhanced prompt and by auto-enhance, on top of the style. A rule you add is for the project you are in.')}
       >
         {shownRules.length === 0 ? (
           <Row>
@@ -525,7 +530,7 @@ export function RulesSection() {
             key={rule.id}
             className={cn(!rule.enabled && 'opacity-60')}
             title={<span className="font-normal break-words">{rule.text}</span>}
-            description={rule.scope ? t('Only {name}', { name: rule.scope }) : t('everywhere')}
+            description={rule.scope ? t('Only {name}', { name: scopeName(rule.scope) }) : t('everywhere')}
             control={
               <div className="flex items-center gap-1">
                 <Switch
@@ -540,7 +545,7 @@ export function RulesSection() {
             }
           />
         ))}
-        <RuleComposer workspace={workspace} full={config.rules.length >= MAX_RULES} />
+        <RuleComposer project={project} full={config.rules.length >= MAX_RULES} />
       </Group>
       <Group
         title={t('Prompt structures')}

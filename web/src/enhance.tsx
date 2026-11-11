@@ -551,15 +551,18 @@ function FeedbackNote() {
   )
 }
 
-/** Several workspaces share this one's name and branch: the person picks its folder once. */
-function WorkspacePicker() {
+/**
+ * Several workspaces share this one's name and branch: the person picks its folder once. Shown above
+ * the composer, and in the Rules section (a rule is kept for one project).
+ */
+export function WorkspacePicker() {
   const choices = read(workspaceChoices)
   if (choices.length === 0) return null
   return (
     <Alert variant="warning">
       <AlertTitle>{t('Which folder is this project?')}</AlertTitle>
       <AlertDescription className="flex flex-col gap-2">
-        <span>{t('Several projects are named {name} on the same branch. Pick its folder so the right files are read.', { name: read(workspaceName) ?? '?' })}</span>
+        <span>{t('Several projects are named {name} on the same branch. Pick its folder so its files are read and its rules are followed.', { name: read(workspaceName) ?? '?' })}</span>
         <Pick
           label={t('Project folder')}
           value={undefined}
