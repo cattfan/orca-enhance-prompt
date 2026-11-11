@@ -2,6 +2,17 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.8] - 2026-11-11
+
+### Thay đổi
+
+- Tab bánh răng của panel có tên **Cài đặt**. Trước đây nó vẫn mang tên Quyền riêng tư, từ thời chỉ chứa các công tắc quyền truy cập; giờ nó còn chứa tự cải thiện, dữ liệu đã lưu và góp ý, và tài liệu hướng dẫn vốn đã gọi nó là Settings.
+- Thông báo về một công tắc đang tắt chỉ tới đó bằng đúng tên này: "Gửi vào terminal đang tắt trong Cài đặt." Tương tự với file dự án, output terminal, mở agent mới, mở tệp và danh sách model trực tuyến.
+
+### Ghi chú
+
+- Trong **Settings → Plugins → Enhance Prompt** của Orca, các công tắc này giữ nguyên tên ("Privacy: …"): đổi tên ở đó sẽ khiến Orca yêu cầu mọi người duyệt lại bản cập nhật.
+
 ## [2.6.7] - 2026-11-11
 
 ### Thay đổi

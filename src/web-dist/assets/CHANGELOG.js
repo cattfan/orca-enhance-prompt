@@ -3,6 +3,17 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.6.8] - 2026-11-11
+
+### Changed
+
+- The gear tab of the panel is named **Settings**. It was still called Privacy, from when it held only the access switches; it also holds auto-enhance, stored data and feedback, and the guide already called it Settings.
+- A message about a switch that is off points there by that name: "Sending to terminals is off in Settings." The same goes for project files, terminal output, starting agents, opening files and online model lists.
+
+### Notes
+
+- In Orca's own **Settings → Plugins → Enhance Prompt**, these switches keep their names ("Privacy: …"): renaming them there would make Orca ask everyone to approve the update again.
+
 ## [2.6.7] - 2026-11-11
 
 ### Changed
@@ -560,6 +571,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.8]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.8
 [2.6.7]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.7
 [2.6.6]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.6
 [2.6.5]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.5
