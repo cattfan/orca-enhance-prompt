@@ -149,6 +149,24 @@ test('worker notes, context labels and errors arrive as codes and show in the pa
   await view.unmount()
 })
 
+test('a message about a switch that is off sends the person to the gear tab by the name on that tab, in every language', () => {
+  // The gear's section holds the switches (and auto-enhance, stored data, feedback): it is named Settings.
+  const tab = SECTION_LABELS.privacy
+  assert.equal(tab, 'Settings')
+  const sent = Object.entries(MESSAGES).filter(([, text]) => /\b(?:is|are) off in /.test(text))
+  // Project files, terminal output, sending to terminals, starting agents, opening files.
+  assert.ok(sent.length >= 5, `only ${sent.length} such messages found`)
+  for (const [code, text] of sent) {
+    assert.match(text, new RegExp(`\\b(?:is|are) off in ${tab}[.:,]`), code)
+    for (const [lang, dict] of Object.entries(dictionaries)) {
+      const named = (dict as Record<string, string>)[tab] ?? ''
+      assert.ok(named !== '' && ((dict as Record<string, string>)[text] ?? '').includes(named), `${lang}: ${code} does not say "${named}"`)
+    }
+  }
+  // The model list's own reason is shown as it is, inside "Could not load the list (…)".
+  assert.match(readFileSync(new URL('./worker.ts', import.meta.url), 'utf8'), new RegExp(`online model lists are off in ${tab}'`))
+})
+
 test('the brand "Enhance Prompt" is the same in every language', async () => {
   const { BRAND } = await import('./brand.ts')
   assert.equal(BRAND, 'Enhance Prompt')

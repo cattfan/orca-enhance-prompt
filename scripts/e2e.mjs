@@ -68,6 +68,16 @@ try {
     const empty = orca(['dev', 'request', KEY, 'prompt.enhance', '--data', JSON.stringify({ prompt: '   ' })])
     check('an empty prompt is refused with a coded error', empty.code !== 0 && /Write a prompt first/.test(empty.text), empty.text.slice(0, 160))
 
+    // An action that is switched off is refused with its code, and its text sends the person to the
+    // panel's Settings. Nothing can start here: starting agents is off until the person confirms it
+    // (a development plugin begins with nothing confirmed), and "not a kind" is no agent at all.
+    const launch = orca(['dev', 'request', KEY, 'agent.launch', '--data', JSON.stringify({ agent: 'not a kind', prompt: 'e2e check' })])
+    check(
+      'a switched-off action is refused: its code and a text that names Settings',
+      launch.code !== 0 && /not_permitted/.test(launch.text) && /Starting new agents is off in Settings/.test(launch.text),
+      launch.text.replace(/\s+/g, ' ').slice(0, 200)
+    )
+
     // A prompt shorter than the minimum length passes the hook unchanged, whatever the mode.
     const hook = orca(['dev', 'hook', KEY, 'agent.prompt.before', '--data', JSON.stringify({ agent: 'claude', terminalId: 'e2e', prompt: 'hi', inputKind: 'launch' })])
     check('the auto-enhance hook passes a short prompt unchanged', hook.code === 0 && call(hook)?.decision?.kind === 'continue', hook.text.slice(0, 200))

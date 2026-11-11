@@ -99,7 +99,7 @@ export type Run = {
 export const tick = atom(Date.now())
 export const run = atom<Run | null>(null)
 
-/** What the Privacy tab shows: stored data counts and the switches. */
+/** What the Settings tab shows: stored data counts and the switches. */
 export const dataSummary = atom<{ history: number; profiles: number; keys: number; catalogs: number } | null>(null)
 export const privacy = atom<Record<string, boolean>>({})
 /** "Delete everything" asks for a second press. */

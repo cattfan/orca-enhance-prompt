@@ -9,8 +9,13 @@ import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
 import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, projectName, rulesState, structureChoice, say, workspaceName } from './state.ts'
 
-/** The names of the panel's sections, on its header icons (the Enhance section shows the brand instead). */
-export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Privacy' }
+/**
+ * The names of the panel's sections, on its header icons (the Enhance section shows the brand instead).
+ * The gear's section is still `privacy` inside (people's panels remember the open section by that id),
+ * but it is named Settings: besides the access switches it holds auto-enhance, stored data and
+ * feedback. A message that sends the person there says "in Settings" (src/messages.ts).
+ */
+export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Settings' }
 
 /** What each auto-enhance mode does, said under its switch. */
 export const AUTO_MODE_HINTS: Record<string, string> = {

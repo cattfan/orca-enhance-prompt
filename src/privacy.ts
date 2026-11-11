@@ -1,5 +1,5 @@
 // What the plugin may actually do. Orca approves a plugin's capabilities as a whole; these switches
-// (Settings and the panel's Privacy tab) narrow what the worker uses, and the worker checks them
+// (Orca's Settings and the panel's own Settings tab) narrow what the worker uses, and the worker checks them
 // before every read, send, save or download.
 import type { JsonValue } from 'orca'
 

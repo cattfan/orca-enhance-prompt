@@ -63,7 +63,7 @@ test('project files off: Standard falls back to workspace and agent only', async
 test('sending off: the worker refuses to type into terminals', async () => {
   const host = hostWith({ allowTerminalSend: false })
   const worker = await mountWorker(main, { host })
-  await assert.rejects(worker.request('prompt.send', { terminalId: 't1', text: 'hi' }), /off in Privacy/)
+  await assert.rejects(worker.request('prompt.send', { terminalId: 't1', text: 'hi' }), /off in Settings/)
   assert.equal(host.callsOf('terminal.sendText').length, 0)
   await worker.deactivate()
 })
@@ -102,7 +102,7 @@ test('online lists off: no request to the provider', async () => {
   const worker = await mountWorker(main, { host: hostWith({ allowOnlineModelLists: false }) })
   const catalog = await worker.request('models.catalog', { preset: 'openai', profileId: 'oa' })
   assert.equal(calls, 0)
-  assert.match(catalog.error ?? '', /off in Privacy/)
+  assert.match(catalog.error ?? '', /off in Settings/)
   await worker.deactivate()
 })
 

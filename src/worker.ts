@@ -501,7 +501,7 @@ async function fetchCatalog(
   if (source.presetId === 'codex') return codexCatalog(source.command)
   if (source.presetId === 'gemini-cli') return geminiCatalog(source.command, online)
   if (source.provider === 'cli') return { models: [], source: 'custom CLI', fetchedAt: Date.now() }
-  if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Privacy' }
+  if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Settings' }
   // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
   const envKey = privacy.allowEnvKeys && source.env ? (process.env[source.env] ?? null) : null
   const savedKey = source.profile ? (await resolveKey(orca, source.profile)).key : null
@@ -892,7 +892,7 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
   })
 }
 
-/** Privacy section: what is stored, and wiping it. Also the Rules tab's rules and structures. */
+/** The panel's Settings section: what is stored, and wiping it. Also the Rules tab's rules and structures. */
 function registerDataHandlers(orca: OrcaWorkerApi): void {
   // Saves land in the order they were asked for; the panel sends the whole list each time.
   let rulesQueue: Promise<unknown> = Promise.resolve()

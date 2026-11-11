@@ -153,7 +153,7 @@ test('opening a file: relative paths inside the workspace only, and only while a
   }
   await on.deactivate()
   const off = await mountWorker(main, { host: host({ allowOpenFiles: false }) })
-  await assert.rejects(off.request('editor.open', { path: 'src/login.ts' }), /off in Privacy/)
+  await assert.rejects(off.request('editor.open', { path: 'src/login.ts' }), /off in Settings/)
   await off.deactivate()
 })
 
