@@ -2,6 +2,16 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.6.3] - 2026-11-11
+
+### Sửa lỗi
+
+- Ở mức ngữ cảnh **Tắt**, prompt đã cải thiện không còn nói với agent rằng không có ngữ cảnh dự án nào được cung cấp. Trước đây model viết luôn vào prompt những gì nó không được đưa, thường dưới dạng lý do ("không có file dự án nào được cung cấp, nên hãy tự tìm nút đăng nhập"), trong khi agent của bạn có cả dự án trước mặt và chỉ có thể hiểu sai câu đó. Giờ prompt chỉ nói cần tìm gì trước. Đo với model thật ở mức Tắt: khoảng một nửa số prompt từng mắc lỗi này, cả từ Claude Code lẫn các model Claude hiện tại qua API; giờ còn dưới một phần mười. Quy tắc này cũng áp dụng mỗi khi plugin đọc được rất ít về dự án (workspace từ xa, hoặc đã tắt **Đọc file dự án**).
+
+### Ghi chú
+
+- Bản cài bằng link GitHub (\`orca plugin install cattfan/orca-enhance-prompt\`) không được Orca tự cập nhật: hãy chạy \`orca plugin update cattfan.enhance-prompt\`. Chỉ bản cài từ catalog mới tự cập nhật, khoảng 12 giờ sau mỗi bản phát hành. README và trang xử lý sự cố giờ đã ghi rõ điều này.
+
 ## [2.6.2] - 2026-11-10
 
 ### Sửa lỗi

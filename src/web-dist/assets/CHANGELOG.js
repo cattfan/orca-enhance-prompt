@@ -3,6 +3,16 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.6.3] - 2026-11-11
+
+### Fixed
+
+- With the context level **Off**, the enhanced prompt no longer tells your agent that no project context was provided. The model wrote what it had not been given into the prompt, often as a reason ("no project files were provided, so locate the login button yourself"), and your agent, which has the whole project in front of it, could only misread that. The prompt now simply says what to find first. Measured live at the level Off, about half of the prompts had it, from Claude Code and from current Claude models over an API; now fewer than one in ten. The same rule applies whenever the plugin can read little of the project (a remote workspace, **Read project files** switched off).
+
+### Notes
+
+- A copy installed from the GitHub link (\`orca plugin install cattfan/orca-enhance-prompt\`) is not updated by Orca on its own: run \`orca plugin update cattfan.enhance-prompt\`. Only a copy installed from the catalog updates automatically, about 12 hours after a release. The README and the troubleshooting page now say so.
+
 ## [2.6.2] - 2026-11-10
 
 ### Fixed
@@ -497,6 +507,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.6.3]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.3
 [2.6.2]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.2
 [2.6.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.1
 [2.6.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.0
