@@ -94,15 +94,17 @@ declare module 'orca' {
     'targets.list': {
       /** `known`: the workspace id of terminals the panel has seen (Orca's agent events, or the person's pick). */
       input: { known?: Record<string, string> }
-      /** `choices`: the folders the focused workspace could be when several share its name and branch. */
+      /** `choices`: the folders the focused workspace could be when several share its name and branch
+       *  (`project`: its repository's name, where Orca gives one). */
       /** `workspace`: the focused workspace's name (rules can apply to one workspace). */
       /** `workspaceId`: Orca's id of the focused workspace (null when it cannot tell): the panel keeps each
-       *  project's draft and result apart by it. */
+       *  project's draft and result apart by it. `workspacePath`: its folder. */
       output: {
         targets: { terminalId: string; label: string; agent: string | null }[]
         workspace?: string | null
         workspaceId?: string | null
-        choices?: { id: string; path: string }[]
+        workspacePath?: string
+        choices?: { id: string; path: string; project?: string }[]
       }
     }
     'models.get': { output: ModelsView }

@@ -88,6 +88,7 @@ import {
   structureValue,
   styleOptions
 } from '../../src/panel/view.ts'
+import { projectLabel } from '../../src/workspaces.ts'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
 import { Badge } from '@/components/reui/badge'
 import { Button } from '@/components/ui/button'
@@ -563,7 +564,7 @@ function WorkspacePicker() {
           label={t('Project folder')}
           value={undefined}
           placeholder={t('Choose a folder')}
-          options={choices.map((choice) => ({ value: choice.id, label: choice.path }))}
+          options={choices.map((choice) => ({ value: choice.id, label: projectLabel(choice) }))}
           onChange={(value) => void pickWorkspace(value)}
         />
       </AlertDescription>

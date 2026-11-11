@@ -29,7 +29,7 @@ export function wirePanel(): () => void {
   const subscriptions = [
     settings.onDidChange(() => void refreshDefaults()),
     on('workspace.changed', () => void refreshTargets()),
-    on('workspace.removed', ({ workspaceId }) => workspaceRemoved(workspaceId)),
+    on('workspace.removed', ({ workspaceId, path }) => workspaceRemoved(workspaceId, path)),
     on('agent.status.changed', ({ terminalId, workspaceId }) => {
       // Orca says which workspace this agent's terminal is in: keep it for telling workspaces apart.
       if (terminalId && workspaceId) learnTerminals([terminalId], workspaceId)

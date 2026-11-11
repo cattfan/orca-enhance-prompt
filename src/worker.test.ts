@@ -4,6 +4,7 @@ import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { forgetTerminals, terminalsSaved } from './context/terminals.ts'
 import * as main from './worker.ts'
 
 // Every temporary folder a test makes is removed when the file's tests are done.
@@ -45,8 +46,10 @@ const httpError = (status: number, message: string) =>
   new Response(JSON.stringify({ error: { message } }), { status, headers: { 'content-type': 'application/json' } })
 const openaiAnswer = (text: string) => ({ choices: [{ message: { content: text } }] })
 
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = realFetch
+  // What one test's worker learnt about terminals is not the next test's (one process runs them all).
+  await forgetTerminals()
 })
 
 function profile(id: string, preset: string, extra: Record<string, unknown> = {}) {
@@ -451,5 +454,101 @@ test('several workspaces named "main" on branch main: the panel\'s hint or the p
   // A hint that no longer fits the focused workspace is not trusted.
   const stale = await worker.request('context.preview', { prompt: 'x', level: 'standard', workspaceId: 'ws-gone' })
   assert.ok(stale.notes.some((note) => note.code === 'note.workspace_unknown'))
+  await worker.deactivate()
+})
+
+// What the real Orca answers (host API 1.5, seen on Windows): workspace.list names a Git worktree
+// "identity:…" and writes its path with forward slashes; agent events and tool hooks carry the
+// worktree's own id, "<repository id>::<path>", with the platform's slashes. Every project's first
+// checkout is named after its branch, so seven projects were "main" on "main".
+const listedPath = (path: string) => path.replace(/\\/g, '/')
+function twoMains(one: string, two: string, terminals: { id: string; title: string }[]) {
+  return mockHost({
+    storage: { models: { profiles: [profile('one', 'openai')] } },
+    secrets: { 'apiKey.one': 'k' },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'main', terminals },
+      'workspace.list': {
+        workspaces: [
+          { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'main', project: 'Shop', path: listedPath(one), branch: 'main', hostId: 'local' },
+          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'main', project: 'Reup', path: listedPath(two), branch: 'main', hostId: 'local' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+}
+
+test('several projects named "main": Orca\'s agent event tells which one is open, with nothing to pick', async () => {
+  const one = project()
+  const two = project()
+  writeFileSync(join(two, 'AGENTS.md'), '# Rules\nThis is the second checkout.')
+  const calls = stubFetch(() => openaiAnswer('ok'))
+  const host = twoMains(one, two, [
+    { id: 'term_agent', title: 'Claude' },
+    { id: 'term_shell', title: 'pwsh' }
+  ])
+  const worker = await mountWorker(main, { host })
+  // Orca has said nothing yet: the folders to pick from, each with its project's name.
+  const before = await worker.request('targets.list', {})
+  assert.equal(before.workspaceId, null)
+  assert.deepEqual(before.choices, [
+    { id: 'identity:wt2:local:1111', path: listedPath(one), project: 'Shop' },
+    { id: 'identity:wt2:local:2222', path: listedPath(two), project: 'Reup' }
+  ])
+  // The agent of the second project changes state. Its workspace comes as the worktree's own id.
+  await worker.emit('agent.status.changed', { workspaceId: `repo-two::${two}`, paneKey: 'p', terminalId: 'term_agent', state: 'done', receivedAt: Date.now() })
+  const after = await worker.request('targets.list', {})
+  assert.equal(after.workspaceId, 'identity:wt2:local:2222')
+  assert.equal(after.workspacePath, listedPath(two))
+  assert.equal(after.choices, undefined)
+  // A run reads that project, and the rewriter is told its name: "main" alone names nothing.
+  const answer = await worker.request('prompt.enhance', { prompt: 'fix it', level: 'standard' })
+  assert.match(JSON.stringify(calls.at(-1)?.body), /second checkout/)
+  assert.match(JSON.stringify(calls.at(-1)?.body), /Reup: main \(branch main\)/)
+  assert.ok(!answer.notes.some((note) => note.code === 'note.workspace_unknown'))
+  // The folder the person once picked by mistake does not win over what Orca said.
+  const mistaken = await worker.request('targets.list', { known: { term_agent: 'identity:wt2:local:1111', term_shell: 'identity:wt2:local:1111' } })
+  assert.equal(mistaken.workspaceId, 'identity:wt2:local:2222')
+  // The pairing is kept (two ids per terminal, nothing else), the plain shell of that project too.
+  await terminalsSaved()
+  assert.deepEqual(host.data().storage.terminalWorkspaces, { term_agent: `repo-two::${two}`, term_shell: `repo-two::${two}` })
+  await worker.deactivate()
+
+  // A new worker (Orca restarted, or the plugin was updated) with only the shell left open: known.
+  await forgetTerminals()
+  host.respond('workspace.readContext', { branch: 'main', displayName: 'main', terminals: [{ id: 'term_shell', title: 'pwsh' }] })
+  const restarted = await mountWorker(main, { host })
+  assert.equal((await restarted.request('targets.list', {})).workspaceId, 'identity:wt2:local:2222')
+  // "Delete everything" forgets it, here and in storage.
+  await restarted.request('data.clear', { what: 'all' })
+  assert.equal(host.data().storage.terminalWorkspaces, undefined)
+  assert.equal((await restarted.request('targets.list', {})).workspaceId, null)
+  await restarted.deactivate()
+})
+
+test('several projects named "main": a tool hook says it too, and the panel\'s own note of an event is understood', async () => {
+  const one = project()
+  const two = project()
+  stubFetch(() => openaiAnswer('ok'))
+  const host = twoMains(one, two, [{ id: 'term_agent', title: 'Claude' }])
+  const worker = await mountWorker(main, { host })
+  // The panel heard the event itself and kept the id as it came (not the list's id): understood.
+  const fromPanel = await worker.request('targets.list', { known: { term_agent: `repo-one::${one}` } })
+  assert.equal(fromPanel.workspaceId, 'identity:wt2:local:1111')
+  // An agent runs a tool in this terminal: the hook names the workspace. The switch for what agents
+  // do is off, so nothing of the call is kept: only which workspace the terminal is in.
+  await worker.hooks.fire('agent.tool.after', { agent: 'claude', workspaceId: `repo-two::${two}`, terminalId: 'term_agent', tool: 'Bash', input: { command: 'pnpm test' }, output: 'SECRET OUTPUT' })
+  assert.equal((await worker.request('targets.list', {})).workspaceId, 'identity:wt2:local:2222')
+  await terminalsSaved()
+  assert.deepEqual(host.data().storage.terminalWorkspaces, { term_agent: `repo-two::${two}` })
+  assert.ok(!JSON.stringify(host.data().storage).includes('pnpm test') && !JSON.stringify(host.data().storage).includes('SECRET OUTPUT'))
+  const deep = await worker.request('context.preview', { prompt: 'fix it', level: 'deep' })
+  assert.ok(!deep.context.some((item) => item.id === 'activity'))
+  // An event for a folder that is not listed (or without a terminal) changes nothing.
+  await worker.emit('agent.status.changed', { workspaceId: 'repo-x::/nowhere/else', paneKey: 'p', terminalId: 'term_other', state: 'working', receivedAt: Date.now() })
+  await worker.emit('agent.status.changed', { workspaceId: null, paneKey: 'p', state: 'working', receivedAt: Date.now() })
+  assert.equal((await worker.request('targets.list', {})).workspaceId, 'identity:wt2:local:2222')
   await worker.deactivate()
 })

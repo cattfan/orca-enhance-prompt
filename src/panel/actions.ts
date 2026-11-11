@@ -12,6 +12,7 @@ import { t, uiLanguageSetting } from '../i18n.ts'
 import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.ts'
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
+import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
 import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
 
 let inFlight: AbortController | null = null
@@ -19,6 +20,8 @@ let inFlight: AbortController | null = null
 let runOrigin: { key: string | null; name: string | null } | null = null
 /** Projects Orca has removed: an answer for one of them is dropped, never shown elsewhere. */
 const removedWorkspaces = new Set<string>()
+/** The key each project was shown under, by its folder (see workspaceRemoved). */
+const keyByFolder = new Map<string, string>()
 
 // ---------------------------------------------------------------- projects
 
@@ -121,14 +124,22 @@ export function knownWorkspaceId(): Record<string, string> {
   return key && !key.startsWith('name:') ? { workspaceId: key } : {}
 }
 
-/** Orca removed a project: forget what was parked for it. */
-export function workspaceRemoved(workspaceId: string): void {
-  removedWorkspaces.add(workspaceId)
-  if (read(parked)[workspaceId]) {
-    const next = { ...read(parked) }
-    delete next[workspaceId]
-    put(parked, next)
+/**
+ * Orca removed a project: forget what was parked for it. The event names it by another id than the
+ * one the panel knows it by (workspaces.ts), so the project is also looked up by its folder.
+ */
+export function workspaceRemoved(workspaceId: string, path?: string): void {
+  const folder = path ?? pathInWorkspaceId(workspaceId)
+  const shownAs = folder ? keyByFolder.get(pathKey(folder)) : undefined
+  let next = read(parked)
+  for (const key of new Set([workspaceId, ...(shownAs ? [shownAs] : [])])) {
+    removedWorkspaces.add(key)
+    if (next[key]) {
+      next = { ...next }
+      delete next[key]
+    }
   }
+  if (next !== read(parked)) put(parked, next)
 }
 
 // ---------------------------------------------------------------- data
@@ -200,10 +211,11 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list, workspace, workspaceId, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
+    const { targets: list, workspace, workspaceId, workspacePath, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
     set(workspaceChoices, choices ?? [])
     // Once known, the workspace of these terminals stays known (the next lookup needs no guess).
     if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
+    if (workspaceId && workspacePath) keyByFolder.set(pathKey(workspacePath), workspaceId)
     // Before the terminals: the composer must follow the project first, so that a target of the new
     // project is never shown next to a prompt of the old one.
     const shown = new Set(read(targets).map((item) => item.terminalId))

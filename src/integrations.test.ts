@@ -6,19 +6,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { forgetActivity, recordTool, toolTarget, agentActivity } from './context/activity.ts'
+import { forgetTerminals } from './context/terminals.ts'
 import { relativeTo } from './context/index.ts'
 import * as main from './worker.ts'
 
 const realFetch = globalThis.fetch
-afterEach(() => {
+afterEach(async () => {
   globalThis.fetch = realFetch
   forgetActivity()
+  await forgetTerminals()
 })
 const root = mkdtempSync(join(tmpdir(), 'integrations-'))
 writeFileSync(join(root, 'login.ts'), 'export function login() {}\n')
 after(() => rmSync(root, { recursive: true, force: true }))
 
+// The two names Orca has for one workspace (workspaces.ts): the id workspace.list answers and takes
+// (agent.launch, editor.open), and the id its hooks and events carry, "<repository id>::<path>".
 const WS = 'identity:wt2:local:test'
+const EVENT_WS = `repo-demo::${root}`
+const LISTED = { id: WS, path: root.replace(/\\/g, '/') }
 const profile = { id: 'oa', name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, command: '', args: '' }
 
 function host(settings: Record<string, boolean | string>, consents: Record<string, boolean> = {}) {
@@ -28,7 +34,7 @@ function host(settings: Record<string, boolean | string>, consents: Record<strin
     secrets: { 'apiKey.oa': 'k' },
     results: {
       'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [] },
-      'workspace.list': { workspaces: [{ id: WS, kind: 'folder', name: 'demo', path: root, branch: 'main', hostId: 'local' }], truncated: false },
+      'workspace.list': { workspaces: [{ id: WS, kind: 'worktree', name: 'demo', project: 'demo', path: LISTED.path, branch: 'main', hostId: 'local' }], truncated: false },
       'agents.list': { agents: [] },
       'agent.launch': { terminalId: 'new-1' },
       'editor.open': { opened: true },
@@ -38,14 +44,18 @@ function host(settings: Record<string, boolean | string>, consents: Record<strin
 }
 /** Lets the worker read its switches after mounting (they are refreshed in the background). */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30))
-const tool = { agent: 'claude', workspaceId: WS, terminalId: 't1', tool: 'Bash', input: { command: 'pnpm test --filter auth API_KEY=abcdef123456' }, output: 'SECRET OUTPUT' }
+const tool = { agent: 'claude', workspaceId: EVENT_WS, terminalId: 't1', tool: 'Bash', input: { command: 'pnpm test --filter auth API_KEY=abcdef123456' }, output: 'SECRET OUTPUT' }
 
 test('tool targets: a path or a command, masked; never the output', () => {
   assert.equal(toolTarget({ file_path: 'src/login.ts', content: 'x' }), 'src/login.ts')
   assert.equal(toolTarget({ command: 'export TOKEN=abcdef123456 && pnpm build' }), 'export TOKEN=[redacted] && pnpm build')
-  recordTool({ agent: 'codex', workspaceId: WS, tool: 'Edit', input: { path: 'a.ts' } }, 1000)
-  assert.match(agentActivity(WS, 1000), /codex · Edit: a\.ts/)
-  assert.equal(agentActivity('other', 1000), '')
+  // Kept under the id of the hook, read for the workspace as the list names it: the same folder.
+  recordTool({ agent: 'codex', workspaceId: EVENT_WS, tool: 'Edit', input: { path: 'a.ts' } }, 1000)
+  assert.match(agentActivity(LISTED, 1000), /codex · Edit: a\.ts/)
+  assert.equal(agentActivity({ id: 'identity:wt2:local:other', path: join(root, 'other') }, 1000), '')
+  // An Orca whose hooks carry the list's id (a folder workspace, an older version) is found as well.
+  recordTool({ agent: 'claude', workspaceId: WS, tool: 'Read', input: { path: 'b.ts' } }, 2000)
+  assert.match(agentActivity(LISTED, 2000), /codex · Edit: a\.ts[^]*claude · Read: b\.ts/)
 })
 
 test('paths saved in the editor become relative to the workspace; outside ones are dropped', () => {
@@ -70,7 +80,7 @@ test('agent activity: not kept while off or unconfirmed; kept and sent at Deep o
   const worker = await mountWorker(main, { host: host({ allowAgentActivity: true }, { allowAgentActivity: true }) })
   await settle()
   await worker.hooks.fire('agent.tool.after', tool)
-  await worker.emit('agent.status.changed', { workspaceId: WS, paneKey: 'p', terminalId: 't1', title: 'Auth', state: 'done', receivedAt: Date.now(), mainAgent: { state: 'done', outcome: 'failure', stateStartedAt: Date.now() } })
+  await worker.emit('agent.status.changed', { workspaceId: EVENT_WS, paneKey: 'p', terminalId: 't1', title: 'Auth', state: 'done', receivedAt: Date.now(), mainAgent: { state: 'done', outcome: 'failure', stateStartedAt: Date.now() } })
   const deep = await worker.request('context.preview', { prompt: 'fix auth', level: 'deep' })
   const activity = deep.context.find((item) => item.id === 'activity')
   assert.ok(activity, deep.context.map((item) => item.id).join(','))
@@ -100,14 +110,14 @@ test('the model sees the tool and its masked target, never its output', async ()
 test('editor saves: only the path, only while on; ranked into the context at Deep', async () => {
   const off = await mountWorker(main, { host: host({}) })
   await settle()
-  const passed = await off.hooks.fire('editor.save.before', { workspaceId: WS, path: join(root, 'login.ts'), text: 'secret text' })
+  const passed = await off.hooks.fire('editor.save.before', { workspaceId: EVENT_WS, path: join(root, 'login.ts'), text: 'secret text' })
   assert.equal(passed.kind, 'continue')
   assert.ok(!(await off.request('context.preview', { prompt: 'x', level: 'deep' })).context.some((item) => item.id === 'saved'))
   await off.deactivate()
 
   const on = await mountWorker(main, { host: host({ allowEditorSaves: true }) })
   await settle()
-  const decision = await on.hooks.fire('editor.save.before', { workspaceId: WS, path: join(root, 'login.ts'), text: 'secret text' })
+  const decision = await on.hooks.fire('editor.save.before', { workspaceId: EVENT_WS, path: join(root, 'login.ts'), text: 'secret text' })
   // The save goes on unchanged.
   assert.equal(decision.kind === 'continue' && decision.event.text, 'secret text')
   const deep = await on.request('context.preview', { prompt: 'x', level: 'deep' })

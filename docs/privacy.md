@@ -12,7 +12,7 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 | Run git | No `git` commands; files are listed by walking the folder |
 | Read terminal output | The Max level skips the terminal (and the other agents' sessions) |
 | Read other agents' sessions (**off by default, asks to confirm**) | At the Max level, the other agents in the workspace and the last lines of their terminals are left out. On: their kind, title and state, and the last lines of each terminal, with keys, tokens and passwords masked. You set how many agents (1 to 8, 4 by default) and lines (10 to 300, 80 by default) under the switch; the amounts do nothing while it is off |
-| Watch what agents do (**off by default, asks to confirm**) | Nothing is kept. On: each tool an agent runs in Orca (its name and target: a file path or a command, never its output) and how sessions end, kept in memory for 45 minutes and sent with prompts at Deep and Max |
+| Watch what agents do (**off by default, asks to confirm**) | Nothing of what agents do is kept (only which workspace each agent's terminal is in: see [What is stored](#what-is-stored)). On: each tool an agent runs in Orca (its name and target: a file path or a command, never its output) and how sessions end, kept in memory for 45 minutes and sent with prompts at Deep and Max |
 | Notice files you save (**off by default**) | Nothing is kept. On: the paths (never the text) of files you save in Orca's editor, in memory for 45 minutes; they rank first in the code search at Deep and Max |
 | Send to terminals | **Send** is refused; use **Copy** |
 | Start new agents (**off by default, asks to confirm**) | No button. On: a button that starts a new agent in the workspace with the enhanced prompt, only when you press it; the agent runs with your user account |
@@ -31,7 +31,7 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 
 **Notify when a long enhance finishes** (Settings section, off by default) shows a desktop notification after runs longer than 8 s; it names the model and the time, never your prompt.
 
-The same section shows what is stored and has **Clear history**, **Clear model lists** and **Delete everything** (history, model lists, saved models and their keys, your rules and structures, the confirmations, the saved drafts and results, and the files you attached; press twice).
+The same section shows what is stored and has **Clear history**, **Clear model lists** and **Delete everything** (history, model lists, saved models and their keys, your rules and structures, the confirmations, the saved drafts and results, which workspace each terminal is in, and the files you attached; press twice).
 
 ## Where your prompt goes
 
@@ -53,7 +53,7 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 | Where | What |
 | --- | --- |
 | Orca's encrypted secrets | API keys you paste |
-| The plugin's own storage | Model profiles, history, cached model lists, your rules and prompt structures, and which switches you confirmed |
+| The plugin's own storage | Model profiles, history, cached model lists, your rules and prompt structures, which switches you confirmed, and which workspace each agent's terminal is in (two ids per terminal, as Orca reports them; the newest 500): Orca names the open workspace only by its name and branch, and this is how projects that share both ("main" on "main") are told apart |
 | The panel's saved state (kept by Orca for the panel) | Your picks in the panel (section, style, context level, model, output language), which workspace each terminal belongs to, and for the feedback note: how many prompts you enhanced before it first showed (it stops counting at five), when it last showed, and whether you turned it off. While **Save history** is on, also each project's draft, last result and context list, so they are there when you open the panel again; with it off, they are gone when the panel closes |
 | Orca settings | The options on the [Settings](settings.md) page |
 | The system's temporary folder | The files you paste, drop or pick (removed after a day) |

@@ -17,6 +17,8 @@ import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
 import { detectStack } from './stack.ts'
 import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, SESSION_LINES } from './agents.ts'
 import { agentActivity, savedFiles } from './activity.ts'
+import { learnTerminal, loadTerminals, workspacesOfTerminals } from './terminals.ts'
+import { namesWorkspace, workspaceTitle } from '../workspaces.ts'
 
 export type ContextItem = ContextItemView & { content: string }
 
@@ -26,7 +28,10 @@ const RELEVANT_FILES: Record<ContextLevel, number> = { off: 0, basic: 0, standar
 
 export const atLeast = (level: ContextLevel, min: ContextLevel) => LEVEL_RANK[level] >= LEVEL_RANK[min]
 
-type Workspace = { id: string; name: string; path: string; branch: string | null; hostId: string | null }
+/** A workspace as workspace.list answers it; `project` is its repository's name (host API 1.5). */
+type Workspace = { id: string; name: string; project?: string | null; path: string; branch: string | null; hostId: string | null }
+/** What workspace.readContext answers: no id and no path, only a name, a branch and the terminals. */
+type Focused = { displayName: string; branch: string; terminals?: readonly { id: string }[] }
 
 /**
  * Whether a workspace's files are on this machine. Orca names this machine's host `local` (older
@@ -90,26 +95,55 @@ const item = (id: string, kind: string, label: Message, content: string, why?: M
  * The workspaces the focused one could be when several share its name and branch (several checkouts
  * on "main", say): the person picks one. Empty when it is clear.
  */
-export async function focusedCandidates(orca: OrcaWorkerApi, focused: { displayName: string; branch: string }): Promise<{ id: string; path: string }[]> {
+export async function focusedCandidates(orca: OrcaWorkerApi, focused: Focused): Promise<{ id: string; path: string; project?: string }[]> {
   if (!orca.host.has('workspace.list')) return []
   const list = await orca.host.call('workspace.list', {}).catch(() => null)
-  const exact = (list?.workspaces ?? []).filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch && isLocalWorkspace(ws))
-  return exact.length > 1 ? exact.map((ws) => ({ id: ws.id, path: ws.path })) : []
+  const exact: Workspace[] = (list?.workspaces ?? []).filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch && isLocalWorkspace(ws))
+  return exact.length > 1 ? exact.map((ws) => ({ id: ws.id, path: ws.path, ...(ws.project ? { project: ws.project } : {}) })) : []
 }
 
-/** The focused workspace's entry in workspace.list, matched by name and branch. */
+/**
+ * The one listed workspace an id names that still fits the focus (its name or its branch), or null.
+ * An id from an event names a workspace by its path, and a path can exist on two hosts: then the
+ * one that fits both name and branch, and nothing when that is still more than one.
+ */
+function fittingWorkspace(workspaces: readonly Workspace[], id: string, focused: Focused): Workspace | null {
+  const named = workspaces.filter((ws) => namesWorkspace(id, ws) && (ws.name === focused.displayName || (ws.branch ?? '') === focused.branch))
+  if (named.length === 1) return named[0]
+  const both = named.filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch)
+  return both.length === 1 ? both[0] : null
+}
+
+/**
+ * The focused workspace's entry in workspace.list. Orca gives the focus only a name and a branch,
+ * so it is found by its terminals first: Orca said which workspace each agent's terminal is in
+ * (terminals.ts). Then by what the panel knows, then by name and branch when only one fits.
+ */
 export async function findFocusedWorkspace(
   orca: OrcaWorkerApi,
-  focused: { displayName: string; branch: string },
-  /** Orca's id of the focused workspace when the panel knows it (from its terminals); checked here. */
-  hint?: string | null
+  focused: Focused,
+  /** What the panel knows this workspace as: ids it noted from Orca's events, or the folder the person picked. */
+  hint?: string | readonly string[] | null
 ): Promise<Workspace | null> {
   if (!orca.host.has('workspace.list')) return null
   try {
-    const { workspaces } = await orca.host.call('workspace.list', {})
-    // Orca tells the panel which workspace a terminal is in; trust it while it still fits the focus.
-    const hinted = hint ? workspaces.find((ws) => ws.id === hint) : undefined
-    if (hinted && (hinted.name === focused.displayName || (hinted.branch ?? '') === focused.branch)) return hinted
+    const workspaces: Workspace[] = (await orca.host.call('workspace.list', {})).workspaces
+    const terminals = (focused.terminals ?? []).map((terminal) => terminal.id)
+    // What an earlier run of the worker kept is read once; a lookup right after a start waits for it.
+    await loadTerminals(orca)
+    for (const id of workspacesOfTerminals(terminals)) {
+      const said = fittingWorkspace(workspaces, id, focused)
+      if (said) {
+        // A terminal is in one workspace only: the others of this workspace are in it too.
+        for (const terminal of terminals) learnTerminal(orca, terminal, id)
+        return said
+      }
+    }
+    // The panel's notes also hold the person's pick, which can be wrong: after what Orca said.
+    for (const id of typeof hint === 'string' ? [hint] : (hint ?? [])) {
+      const hinted = fittingWorkspace(workspaces, id, focused)
+      if (hinted) return hinted
+    }
     const exact = workspaces.filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch)
     if (exact.length === 1) return exact[0]
     const byBranch = focused.branch ? workspaces.filter((ws) => ws.branch === focused.branch) : []
@@ -178,8 +212,11 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
   stopIfCancelled(signal)
   step('workspace', 'running')
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
+  // Which of Orca's workspaces this is: its project's name for the label, its folder from Standard on.
+  const workspace = focused ? await findFocusedWorkspace(orca, focused, options.workspaceId) : null
+  const title = focused ? workspaceTitle(focused.displayName, workspace?.project) : undefined
   if (focused) {
-    items.push(item('workspace', 'workspace', msg('label.workspace'), `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`))
+    items.push(item('workspace', 'workspace', msg('label.workspace'), `${title}${focused.branch ? ` (branch ${focused.branch})` : ''}`))
   } else {
     notes.push(msg('note.no_workspace'))
   }
@@ -188,26 +225,23 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     const agent = agents?.agents.find((entry) => entry.terminalId === options.terminalId)
     if (agent?.agent) items.push(item('agent', 'agent', msg('label.agent'), `${agent.agent} (${agent.state})`))
   }
-  step('workspace', 'done', focused?.displayName)
+  step('workspace', 'done', title)
 
   let root: string | null = null
-  let workspaceId: string | null = null
   if (atLeast(level, 'standard')) step('project', 'running')
   if (focused && atLeast(level, 'standard')) {
-    const workspace = await findFocusedWorkspace(orca, focused, options.workspaceId)
     if (!workspace) {
       notes.push(msg('note.workspace_unknown'))
     } else if (!isLocalWorkspace(workspace)) {
       notes.push(msg('note.remote'))
     } else {
       root = workspace.path
-      workspaceId = workspace.id
     }
   }
   // Files saved lately in Orca's editor (paths inside this workspace, made relative to it).
   const saved =
-    root && workspaceId && options.allowEditorSaves === true && atLeast(level, 'deep')
-      ? savedFiles(workspaceId)
+    root && workspace && options.allowEditorSaves === true && atLeast(level, 'deep')
+      ? savedFiles(workspace)
           .map((path) => relativeTo(root as string, path))
           .filter((path): path is string => path !== null && !isSensitive(path))
       : []
@@ -220,7 +254,7 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     if (atLeast(level, 'deep')) {
       items.push(...(await dynamicParts(root, parts, options, notes, saved)))
       if (saved.length > 0 && !options.exclude.has('saved')) items.push(item('saved', 'saved', msg('label.saved'), saved.map((path) => `- ${path}`).join('\n')))
-      const activity = workspaceId && options.allowAgentActivity === true && !options.exclude.has('activity') ? agentActivity(workspaceId) : ''
+      const activity = workspace && options.allowAgentActivity === true && !options.exclude.has('activity') ? agentActivity(workspace) : ''
       if (activity) items.push(item('activity', 'activity', msg('label.activity'), activity))
     }
   } else if (atLeast(level, 'standard')) {

@@ -3,7 +3,7 @@
 import { read } from 'orca'
 import { assert, mockHost, test, type MockRequests, type TestPanel } from 'orca/testing'
 import { enhanceNow, pickWorkspace, send } from './panel/actions.ts'
-import { draft, lastRun, notice, put, result, run, target, workspaceChoices, workspaceKey } from './panel/state.ts'
+import { draft, lastRun, notice, parked, put, result, run, target, workspaceChoices, workspaceKey } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
 import { PRESETS, type ProfileView } from './presets.ts'
 
@@ -208,6 +208,41 @@ test('a project removed before its answer comes back: the answer goes nowhere el
     await pressSend()
     assert.deepEqual(w.sent, [])
   }))
+
+test('a project Orca removes is forgotten, although the event names it by another id than the panel knows it by', async () => {
+  // The panel knows a project by the id workspace.list answers ("identity:…"); workspace.removed
+  // carries the worktree's own id and its folder, written with the other kind of slash.
+  const one = { id: 'identity:wt2:local:1111', path: 'C:/work/one', terminal: 'term-1' }
+  const two = { id: 'identity:wt2:local:2222', path: 'C:/work/two', terminal: 'term-2' }
+  let focused = one
+  const host = mockHost({
+    requests: {
+      'models.get': { profiles: [], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+      'models.detect': { found: [] },
+      'rules.get': { rules: [], structures: [] },
+      'targets.list': () => ({ targets: [{ terminalId: focused.terminal, label: 'Claude · waiting', agent: 'claude' }], workspace: 'main', workspaceId: focused.id, workspacePath: focused.path })
+    }
+  })
+  const view = await mountPanel(host)
+  put(draft, 'a task for the first project')
+  focused = two
+  await view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [{ id: two.terminal, title: 'Claude' }] } })
+  await view.settled()
+  assert.equal(read(parked)[one.id]?.draft, 'a task for the first project')
+  await view.emit('workspace.removed', { workspaceId: 'repo-one::C:\\work\\one', kind: 'worktree', path: 'C:\\work\\one' })
+  await view.settled()
+  assert.equal(read(parked)[one.id], undefined)
+  // Another folder's removal leaves the rest alone.
+  put(draft, 'a task for the second project')
+  focused = one
+  await view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [{ id: one.terminal, title: 'Claude' }] } })
+  await view.settled()
+  await view.emit('workspace.removed', { workspaceId: 'repo-x::C:\\work\\elsewhere', kind: 'worktree', path: 'C:\\work\\elsewhere' })
+  await view.settled()
+  assert.equal(read(parked)[two.id]?.draft, 'a task for the second project')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
 
 test('the panel learns a terminal\'s workspace from Orca\'s agent events, and asks for the folder when it cannot tell', async () => {
   const known: Record<string, string>[] = []

@@ -5,6 +5,7 @@
 // MAX_ENTRIES per workspace and for KEEP_MS; nothing is written to disk. Each kind is recorded only
 // while its Privacy switch is on, and switching it off forgets what was kept.
 import type { JsonValue } from 'orca'
+import { workspaceKey, workspaceKeys } from '../workspaces.ts'
 import { redactSecrets } from './agents.ts'
 
 export const MAX_ENTRIES = 60
@@ -16,14 +17,19 @@ type StatusEntry = { kind: 'status'; at: number; title: string; state: string; o
 type SaveEntry = { kind: 'save'; at: number; path: string }
 type Entry = ToolEntry | StatusEntry | SaveEntry
 
+/**
+ * By workspace key (workspaces.ts), not by Orca's id: its hooks and events name a workspace by another
+ * id than workspace.list does, and both sides meet at the workspace's path.
+ */
 const byWorkspace = new Map<string, Entry[]>()
 
 function push(workspaceId: string | null, entry: Entry): void {
   if (!workspaceId) return
-  const list = byWorkspace.get(workspaceId) ?? []
+  const key = workspaceKey(workspaceId)
+  const list = byWorkspace.get(key) ?? []
   list.push(entry)
   const cutoff = entry.at - KEEP_MS
-  byWorkspace.set(workspaceId, list.filter((item) => item.at >= cutoff).slice(-MAX_ENTRIES))
+  byWorkspace.set(key, list.filter((item) => item.at >= cutoff).slice(-MAX_ENTRIES))
 }
 
 /** The part of a tool's input that says what it acted on: a path, a command, a pattern or a URL. */
@@ -67,9 +73,16 @@ const ago = (at: number, now: number) => {
   return minutes === 0 ? 'just now' : `${minutes} min ago`
 }
 
+/** What was kept for a listed workspace, under its id or under its path, oldest first. */
+function entriesOf(workspace: { id: string; path: string }): Entry[] {
+  return workspaceKeys(workspace)
+    .flatMap((key) => byWorkspace.get(key) ?? [])
+    .sort((a, b) => a.at - b.at)
+}
+
 /** The agents' recent actions in a workspace, newest last; '' when there are none. */
-export function agentActivity(workspaceId: string, now = Date.now()): string {
-  const list = (byWorkspace.get(workspaceId) ?? []).filter((item) => item.kind !== 'save' && now - item.at <= KEEP_MS)
+export function agentActivity(workspace: { id: string; path: string }, now = Date.now()): string {
+  const list = entriesOf(workspace).filter((item) => item.kind !== 'save' && now - item.at <= KEEP_MS)
   return list
     .map((item) =>
       item.kind === 'tool'
@@ -83,7 +96,7 @@ export function agentActivity(workspaceId: string, now = Date.now()): string {
 }
 
 /** The files the person saved lately in a workspace, newest first, each once. */
-export function savedFiles(workspaceId: string, now = Date.now()): string[] {
-  const list = (byWorkspace.get(workspaceId) ?? []).filter((item): item is SaveEntry => item.kind === 'save' && now - item.at <= KEEP_MS)
+export function savedFiles(workspace: { id: string; path: string }, now = Date.now()): string[] {
+  const list = entriesOf(workspace).filter((item): item is SaveEntry => item.kind === 'save' && now - item.at <= KEEP_MS)
   return [...new Set(list.reverse().map((item) => item.path))].slice(0, 20)
 }

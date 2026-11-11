@@ -9,6 +9,8 @@ import { forgetActivity, recordSave, recordStatus, recordTool } from './context/
 import { isSensitive } from './context/files.ts'
 import { resolveLanguage, translate } from './i18n-dict.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, gatherContext, isLocalWorkspace, staticParts, type ContextItem } from './context/index.ts'
+import { forgetTerminals, learnTerminal, loadTerminals } from './context/terminals.ts'
+import { workspaceTitle } from './workspaces.ts'
 import { imagesBlock, imageSupport, withImagePaths } from './images.ts'
 import { cleanAttachments, clearAttachments, loadFiles, putChunk } from './attachments.ts'
 import { attachmentItemId } from './image-limits.ts'
@@ -374,10 +376,10 @@ async function hookContext(orca: OrcaWorkerApi, allowProjectFiles: boolean): Pro
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (!focused) return []
   const items: ContextItem[] = []
-  const label = `${focused.displayName}${focused.branch ? ` (branch ${focused.branch})` : ''}`
+  const workspace = await findFocusedWorkspace(orca, focused)
+  const label = `${workspaceTitle(focused.displayName, workspace?.project)}${focused.branch ? ` (branch ${focused.branch})` : ''}`
   items.push({ id: 'workspace', kind: 'workspace', label: 'Workspace', content: label, chars: label.length })
   if (!allowProjectFiles) return items
-  const workspace = await findFocusedWorkspace(orca, focused)
   const cached = workspace && isLocalWorkspace(workspace) ? cachedStatic(workspace.path) : null
   if (cached) items.push(...cached.items.filter((entry) => entry.kind !== 'tree'))
   return items
@@ -604,14 +606,22 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
         targets.push({ terminalId: terminal.id, label: terminal.title ?? terminal.id, agent: null })
       }
     }
-    // Which workspace this is: the panel knows the workspace of terminals Orca reported (or that the
-    // person picked); several workspaces can share a name and branch.
+    // Which workspace this is: several can share a name and branch. Orca said which workspace each
+    // agent's terminal is in (the worker keeps that, see terminals.ts); the panel adds what it noted
+    // itself and the folder the person picked.
     const raw = (input ?? {}) as { known?: unknown }
     const known: Record<string, unknown> = raw.known && typeof raw.known === 'object' ? (raw.known as Record<string, unknown>) : {}
-    const hint = targets.map((target) => known[target.terminalId]).find((id) => typeof id === 'string') ?? null
-    const workspace = context ? await findFocusedWorkspace(orca, context, hint) : null
+    const hints = [...new Set(targets.map((target) => known[target.terminalId]).filter((id): id is string => typeof id === 'string' && id.length > 0))]
+    const workspace = context ? await findFocusedWorkspace(orca, context, hints) : null
     const choices = context && !workspace ? await focusedCandidates(orca, context) : []
-    return { targets, workspace: context?.displayName ?? null, workspaceId: workspace?.id ?? null, ...(choices.length > 0 ? { choices } : {}) }
+    return {
+      targets,
+      workspace: context?.displayName ?? null,
+      workspaceId: workspace?.id ?? null,
+      // Its folder, so the panel can tell which project Orca removed (that event names it another way).
+      ...(workspace ? { workspacePath: workspace.path } : {}),
+      ...(choices.length > 0 ? { choices } : {})
+    }
   })
 }
 
@@ -808,6 +818,7 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       // Confirmations go too: a switch that needs one asks again; what Orca reported is forgotten.
       await orca.storage.delete(CONSENTS_KEY)
       forgetActivity()
+      await forgetTerminals(orca)
       // The copies of attached files (the panel forgets its list of them as well).
       await clearAttachments().catch((error) => orca.log(`attachments: ${(error as Error).message}`))
     }
@@ -969,10 +980,16 @@ function registerIntegrations(orca: OrcaWorkerApi): void {
   })
 
   // Observe only: Orca does not wait for agent.tool.after; editor.save.before passes at once.
+  // Both say which workspace the agent's terminal is in. That pairing of two ids is always kept: it
+  // is how the focused workspace is told from others of its name. What the agent did is kept only
+  // while its Privacy switch is on.
+  void loadTerminals(orca)
   orca.hooks.on('agent.tool.after', (event) => {
+    learnTerminal(orca, event.terminalId, event.workspaceId)
     if (live.allowAgentActivity) recordTool(event)
   })
   orca.events.on('agent.status.changed', (event) => {
+    learnTerminal(orca, event.terminalId, event.workspaceId)
     if (live.allowAgentActivity) recordStatus(event)
   })
   orca.hooks.on('editor.save.before', (event) => {

@@ -53,6 +53,15 @@ The test suite usually finishes in seconds, but some tests start real processes 
   ("no project context was provided, so locate…"), and the agent reads that as a statement about
   its own project. A rule in `BASE` (`src/prompts.ts`) and the last sentence of `NOT_THE_PROJECT`
   forbid it; `scripts/eval-prompts.mjs` has a case with no context and checks every case for it.
+- **Orca names a workspace two ways.** `workspace.list` answers `identity:…` for a Git worktree,
+  while events and hooks (`agent.status.changed`, `agent.tool.after`, `editor.save.before`,
+  `workspace.removed`) carry the worktree's own id, `<repository id>::<path>`, and the same folder
+  comes with either kind of slash. Never compare two workspace ids with `===`: `namesWorkspace` and
+  `workspaceKey` (`src/workspaces.ts`) meet at the path. `workspace.readContext` gives the focus no
+  id at all, only a name and a branch that several projects share ("main" on "main"), so the
+  focused workspace is found by its terminals (`src/context/terminals.ts`: what Orca's agent events
+  said, kept in storage), and only then by what the panel noted or the person picked. Tests use
+  both id shapes, as the real Orca does; a mock where they are equal hides this.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **The manifest asks for nothing new without a decision**: when an update's manifest has a new

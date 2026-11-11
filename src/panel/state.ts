@@ -57,7 +57,7 @@ export const structureChoice = atom('structureChoice', '', { persist: 'plugin' }
  */
 export const terminalWorkspaces = atom<Record<string, string>>('terminalWorkspaces', {}, { persist: 'plugin' })
 /** The folders the focused workspace could be, when Orca cannot tell (the person picks one). */
-export const workspaceChoices = atom<{ id: string; path: string }[]>([])
+export const workspaceChoices = atom<{ id: string; path: string; project?: string }[]>([])
 /** The focused workspace's name, for rules that apply to one workspace. */
 export const workspaceName = atom<string | null>(null)
 export const historyFilter = atom('historyFilter', '')

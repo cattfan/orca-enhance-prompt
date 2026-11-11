@@ -19,6 +19,14 @@ orca plugin update cattfan.enhance-prompt
 
 An update that asks for nothing new keeps your approval. One that adds commands or settings waits for you: Orca shows **Update needs review**, and the command above prints what it asks for instead of installing. Open the plugin and approve it.
 
+## It asks which folder the project is in
+
+Orca tells a plugin the open workspace's name and branch, not its folder. When several of your projects share both (every project's first checkout is "main" on "main"), that is not enough to tell them apart.
+
+- The plugin knows the folder as soon as an agent has run in one of that workspace's terminals: Orca reports which workspace an agent's terminal is in, and the plugin remembers it.
+- Until then it asks once. Pick the project in the list (each entry is the project's name and its folder); the answer is kept for that workspace's terminals.
+- Before 2.6.4 it kept asking, also in a project you had already picked: update the plugin.
+
 ## The status bar menu has no entry for Enhance Prompt
 
 Orca's status bar right-click menu lists only Orca's own items. Use **Status bar item** in [Settings](settings.md#status-bar), or the command **Enhance Prompt: Show / hide status bar item**.
