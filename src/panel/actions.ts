@@ -219,6 +219,8 @@ export async function refreshTargets(): Promise<void> {
     // Once known, the workspace of these terminals stays known (the next lookup needs no guess).
     if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
     if (workspaceId && workspacePath) keyByFolder.set(pathKey(workspacePath), workspaceId)
+    // A project that is open again is not a removed one (a folder added back keeps its id).
+    if (workspaceId) removedWorkspaces.delete(workspaceId)
     // Before the terminals: the composer must follow the project first, so that a target of the new
     // project is never shown next to a prompt of the old one.
     const shown = new Set(read(targets).map((item) => item.terminalId))

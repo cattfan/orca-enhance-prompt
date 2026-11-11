@@ -4,7 +4,7 @@ import { afterEach, assert, mockHost, mountWorker, test, type MockRequests } fro
 import { addRule, addStructure, saveRules } from './panel/actions.ts'
 import { ruleDraft, ruleScope, structureDraft } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { rulesConfig, structureOptions } from './panel/view.ts'
+import { newRuleLabel, rulesConfig, rulesHere, ruleScopeLabel, structureOptions } from './panel/view.ts'
 import { PRESETS } from './presets.ts'
 import { buildSystemPrompt } from './prompts.ts'
 import { forgetTerminals } from './context/terminals.ts'
@@ -194,6 +194,51 @@ test('the Rules tab adds rules (for every project or this one) and structures; t
   const values = structureOptions().map((option) => option.value)
   assert.deepEqual(values.slice(0, 3), ['style', 'brief', 'steps'])
   assert.ok(values.includes(saved.structures[0].id))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('the Rules tab shows the rules followed in this project, and says where a new one goes', async () => {
+  savedConfig = parseRulesConfig({
+    rules: [
+      { id: 'all', text: 'Rule for every project.', enabled: true, scope: '' },
+      { id: 'reup', text: 'Rule of Reup.', enabled: true, scope: 'project:Reup' },
+      { id: 'shop', text: 'Rule of Shop.', enabled: false, scope: 'project:Shop' },
+      { id: 'old', text: 'Older rule kept under main.', enabled: true, scope: 'main' }
+    ],
+    structures: []
+  })
+  // Several projects are "main" and nothing says which one is open yet.
+  focus = { workspace: 'main', project: null }
+  const host = mockHost({ requests })
+  const view = await mountPanel(host)
+  const shown = () => rulesHere().map((rule) => [rule.id, ruleScopeLabel(rule)])
+  // No project's own rule is listed; a rule added now is for every project, and the composer says so.
+  assert.deepEqual(shown(), [['all', 'everywhere'], ['old', 'Only main']])
+  assert.equal(newRuleLabel(), 'Every project')
+  set(ruleDraft, 'Added before the project was known.')
+  set(ruleScope, 'workspace')
+  addRule()
+  assert.equal(rulesConfig().rules.at(-1)?.scope, '')
+  // Orca (or the person's pick) says it is Reup: its rules, a paused one of another project stays hidden.
+  focus = { workspace: 'main', project: 'Reup' }
+  await view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [] } })
+  await view.settled()
+  assert.deepEqual(shown().map(([id]) => id), ['all', 'reup', 'old', rulesConfig().rules.at(-1)?.id])
+  assert.equal(ruleScopeLabel({ scope: 'project:Reup' }), 'Only Reup')
+  assert.equal(newRuleLabel(), 'Only Reup')
+  set(ruleDraft, 'Added in Reup.')
+  set(ruleScope, 'workspace')
+  addRule()
+  assert.equal(rulesConfig().rules.at(-1)?.scope, 'project:Reup')
+  // The same panel in the other "main" project: Reup's rules are not listed there.
+  focus = { workspace: 'main', project: 'Shop' }
+  await view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [] } })
+  await view.settled()
+  assert.ok(!shown().some(([id]) => id === 'reup') && !rulesHere().some((rule) => rule.text === 'Added in Reup.'))
+  assert.ok(shown().some(([id]) => id === 'shop'))
+  assert.equal(newRuleLabel(), 'Only Shop')
+  await new Promise((resolve) => setTimeout(resolve, 100))
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

@@ -5,8 +5,17 @@
 The **Rules** tab holds short rules the rewriter always follows, on top of the style: "Always tell
 the agent to run `pnpm test` before finishing", "Keep code identifiers in English".
 
-- A rule you add applies to **the project you are in**. Rules saved by older versions for every
-  project are still listed, marked "everywhere".
+- A rule you add applies to **the project you are in**. It is kept under the project's own name
+  (its repository's name in Orca), so it follows the project into each of its worktrees and stays
+  out of your other projects, also when Orca shows several of them as "main". The line under the
+  box says where the rule will go: "Only" and the project's name.
+- When several of your projects share a name and Orca has not yet said which one is open, the tab
+  asks for the project's folder. Until it is known, no project's own rule is followed, and a rule
+  you add is for every project (the line under the box says so).
+- A rule marked "everywhere" is followed in every project. A rule saved before 2.6.5 was kept
+  under the workspace's name and is still followed wherever a workspace has that name: "Only main"
+  there means every project whose workspace is called main. To tie such a rule to one project,
+  delete it and add it again in that project.
 - Type a rule and press Enter (Shift+Enter for a new line), or **Add rule**.
 - The switch pauses a rule; the trash icon deletes it.
 - Rules are used by every Enhance and by [AI auto-enhance](auto-enhance.md).

@@ -62,6 +62,13 @@ The test suite usually finishes in seconds, but some tests start real processes 
   focused workspace is found by its terminals (`src/context/terminals.ts`: what Orca's agent events
   said, kept in storage), and only then by what the panel noted or the person picked. Tests use
   both id shapes, as the real Orca does; a mock where they are equal hides this.
+- **What belongs to a project is kept under the project's name**, never under the workspace's:
+  the workspace of every project's first checkout is called "main". A rule is `project:<name>`
+  (`src/rules.ts`; `<name>` is the repository's name from `workspace.list`), and the panel calls a
+  project by that name. While it is not known which of several same-named projects is open, the
+  project is null: nothing of one project is used in another. A scope without `project:` was saved
+  before 2.6.5 and still means a workspace's name; it is not converted, since nothing says which
+  project it was meant for.
 - **A panel waits at most 120 s** (`PANEL_REQUEST_LIMIT_MS`); a run must answer within
   `RUN_LIMITS.budgetMs`. The auto-enhance hook has 2 s (`HOOK_BUDGET_MS`).
 - **The manifest asks for nothing new without a decision**: when an update's manifest has a new

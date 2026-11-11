@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { currentLanguage, t } from '../../src/i18n.ts'
 import { presetById, type ProfileView } from '../../src/presets.ts'
 import { isStyle, STYLE_LABELS } from '../../src/prompts.ts'
-import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES, ruleApplies, scopeName } from '../../src/rules.ts'
+import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES } from '../../src/rules.ts'
 import {
   busy,
   catalogLoading,
@@ -36,7 +36,6 @@ import {
   structureDraft,
   tab,
   toModel,
-  workspaceName,
   type Form
 } from '../../src/panel/state.ts'
 import {
@@ -67,7 +66,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, PRIVACY_ROWS, rulesConfig } from '../../src/panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, newRuleLabel, PRIVACY_ROWS, rulesConfig, rulesHere, ruleScopeLabel } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -455,7 +454,7 @@ function RuleComposer({ project, full }: { project: string | null; full: boolean
         className="min-h-12 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground min-w-0 truncate text-xs">{project ? t('Only {name}', { name: project }) : t('Every project')}</span>
+        <span className="text-muted-foreground min-w-0 truncate text-xs">{newRuleLabel()}</span>
         <Button size="sm" onClick={() => addProjectRule(project)} disabled={!read(ruleDraft).trim() || full}>
           <PlusIcon />
           {t('Add rule')}
@@ -503,9 +502,7 @@ function StructureForm({ id, onDone }: { id?: string; onDone: () => void }) {
 export function RulesSection() {
   const config = rulesConfig()
   const project = read(projectName)
-  // The rules followed here: this project's, the ones for every project, and older ones kept under
-  // the workspace's name. Other projects' rules stay hidden.
-  const shownRules = config.rules.filter((rule) => ruleApplies(rule, { workspace: read(workspaceName), project }))
+  const shownRules = rulesHere()
   // The structure being edited: 'new', an id, or none.
   const [editing, setEditing] = useState<string | null>(null)
   const startEditing = (value: string) => {
@@ -530,7 +527,7 @@ export function RulesSection() {
             key={rule.id}
             className={cn(!rule.enabled && 'opacity-60')}
             title={<span className="font-normal break-words">{rule.text}</span>}
-            description={rule.scope ? t('Only {name}', { name: scopeName(rule.scope) }) : t('everywhere')}
+            description={ruleScopeLabel(rule)}
             control={
               <div className="flex items-center gap-1">
                 <Switch

@@ -493,6 +493,8 @@ test('several projects named "main": Orca\'s agent event tells which one is open
   // Orca has said nothing yet: the folders to pick from, each with its project's name.
   const before = await worker.request('targets.list', {})
   assert.equal(before.workspaceId, null)
+  // Which project this is cannot be said yet: its rules are kept under its own name, not under "main".
+  assert.equal(before.project, null)
   assert.deepEqual(before.choices, [
     { id: 'identity:wt2:local:1111', path: listedPath(one), project: 'Shop' },
     { id: 'identity:wt2:local:2222', path: listedPath(two), project: 'Reup' }
@@ -502,6 +504,7 @@ test('several projects named "main": Orca\'s agent event tells which one is open
   const after = await worker.request('targets.list', {})
   assert.equal(after.workspaceId, 'identity:wt2:local:2222')
   assert.equal(after.workspacePath, listedPath(two))
+  assert.equal(after.project, 'Reup')
   assert.equal(after.choices, undefined)
   // A run reads that project, and the rewriter is told its name: "main" alone names nothing.
   const answer = await worker.request('prompt.enhance', { prompt: 'fix it', level: 'standard' })

@@ -209,6 +209,28 @@ test('a project removed before its answer comes back: the answer goes nowhere el
     assert.deepEqual(w.sent, [])
   }))
 
+test('a project that is open again after Orca removed it is not a closed one: its answer is kept for it', () =>
+  scenario(async (view, w) => {
+    // A folder taken out of Orca and added back keeps its id.
+    await view.emit('workspace.removed', { workspaceId: A.id, kind: 'folder', path: '/repo/a' })
+    await w.switchTo(view, B)
+    await view.settled()
+    await w.switchTo(view, A)
+    await view.settled()
+    put(draft, 'task for A')
+    const enhancing = enhanceNow()
+    await until(() => w.pending.length === 1)
+    const toB = w.switchTo(view, B)
+    await wait()
+    w.pending[0].resolve('Enhanced for A')
+    await Promise.all([enhancing, toB])
+    await view.settled()
+    assert.match(read(notice)?.text ?? '', /is kept for app-a: go back to that project to send it/)
+    await w.switchTo(view, A)
+    await view.settled()
+    assert.equal(shownResult(), 'Enhanced for A')
+  }))
+
 test('a project Orca removes is forgotten, although the event names it by another id than the panel knows it by', async () => {
   // The panel knows a project by the id workspace.list answers ("identity:…"); workspace.removed
   // carries the worktree's own id and its folder, written with the other kind of slash.
@@ -242,6 +264,45 @@ test('a project Orca removes is forgotten, although the event names it by anothe
   assert.equal(read(parked)[two.id]?.draft, 'a task for the second project')
   assert.deepEqual(view.errors, [])
   await view.unmount()
+})
+
+test('two projects named "main": a prompt that finishes after you moved on is kept for its project, called by the project\'s own name', async () => {
+  const shop = { id: 'identity:wt2:local:1111', project: 'Shop', terminal: 'term-1' }
+  const reup = { id: 'identity:wt2:local:2222', project: 'Reup', terminal: 'term-2' }
+  let focused = shop
+  const pending: ((text: string) => void)[] = []
+  const host = mockHost({
+    requests: {
+      'models.get': { profiles: [gpt], hookProfileId: null, selectorProfileId: null, fromEnv: false, presets: PRESETS },
+      'models.detect': { found: [] },
+      'models.catalog': { models: [], source: '', fetchedAt: 1 },
+      'rules.get': { rules: [], structures: [] },
+      // Both workspaces are "main" to Orca; the worker adds each one's project.
+      'targets.list': () => ({ targets: [{ terminalId: focused.terminal, label: 'Claude · waiting', agent: 'claude' }], workspace: 'main', project: focused.project, workspaceId: focused.id }),
+      'prompt.enhance': () => new Promise((resolve) => pending.push((text) => resolve({ enhanced: text, model: 'm', profileName: 'gpt', ms: 5, attempts: [], context: [], notes: [] })))
+    }
+  })
+  const view = await mountPanel(host)
+  try {
+    put(draft, 'a task for the shop')
+    const enhancing = enhanceNow()
+    await until(() => pending.length === 1)
+    focused = reup
+    const moving = view.emit('workspace.changed', { context: { branch: 'main', displayName: 'main', terminals: [{ id: reup.terminal, title: 'Claude' }] } })
+    await wait()
+    pending[0]('Enhanced for the shop')
+    await Promise.all([enhancing, moving])
+    await view.settled()
+    // "kept for main" would name both projects.
+    assert.match(read(notice)?.text ?? '', /is kept for Shop: go back to that project to send it/)
+    assert.equal(read(parked)[shop.id]?.name, 'Shop')
+    assert.equal(read(parked)[shop.id]?.result, 'Enhanced for the shop')
+    assert.equal(read(result), '')
+    assert.deepEqual(view.errors, [])
+  } finally {
+    for (const answer of pending) answer('')
+    await view.unmount()
+  }
 })
 
 test('the panel learns a terminal\'s workspace from Orca\'s agent events, and asks for the folder when it cannot tell', async () => {

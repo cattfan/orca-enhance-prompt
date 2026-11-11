@@ -4,10 +4,10 @@ import { read, set } from 'orca'
 import { CONTEXT_LEVEL_LABELS, CONTEXT_LEVELS, isContextLevel, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle, STYLE_LABELS, STYLES } from '../prompts.ts'
 import { t } from '../i18n.ts'
-import { allStructures, structureById, type RulesConfig } from '../rules.ts'
+import { allStructures, ruleApplies, scopeName, structureById, type Rule, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, rulesState, structureChoice, say } from './state.ts'
+import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, projectName, rulesState, structureChoice, say, workspaceName } from './state.ts'
 
 /** The names of the panel's sections, on its header icons (the Enhance section shows the brand instead). */
 export const SECTION_LABELS: Record<string, string> = { history: 'History', models: 'Models', rules: 'Rules', privacy: 'Privacy' }
@@ -183,6 +183,27 @@ export function optionsSummary(): string {
 
 /** The saved rules and structures, as the panel edits them. */
 export const rulesConfig = (): RulesConfig => read(rulesState)
+
+/**
+ * The rules followed in the focused project, in their saved order: its own, the ones for every
+ * project, and older ones kept under the workspace's name. Other projects' rules stay hidden.
+ */
+export function rulesHere(): Rule[] {
+  const where = { workspace: read(workspaceName), project: read(projectName) }
+  return rulesConfig().rules.filter((rule) => ruleApplies(rule, where))
+}
+
+/** Where a rule is followed, as its row says it. */
+export const ruleScopeLabel = (rule: Pick<Rule, 'scope'>): string => (rule.scope ? t('Only {name}', { name: scopeName(rule.scope) }) : t('everywhere'))
+
+/**
+ * Where a rule added now would go, as the composer says it: this project, or every project while
+ * it is not known which project this is.
+ */
+export function newRuleLabel(): string {
+  const project = read(projectName)
+  return project ? t('Only {name}', { name: project }) : t('Every project')
+}
 
 /** "By style" plus every built-in and saved structure. */
 export function structureOptions() {
