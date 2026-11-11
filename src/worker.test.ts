@@ -279,10 +279,10 @@ test('the status bar says Enhance: On or Off under the plugin\'s lightbulb; whic
   const shown = () => host.callsOf('statusBar.update').at(-1) as Shown
   const worker = await mountWorker(main, { host })
   await settled()
-  // Auto-enhance is off: the same words in every language, like the brand; the lightbulb, not coloured.
+  // Auto-enhance is off: the same words in every language, like the brand; the lightbulb, dimmed (neutral).
   assert.deepEqual([shown().id, shown().text, shown().icon, shown().tone, shown().visible], ['auto-enhance', 'Enhance: Off', 'lightbulb', 'neutral', true])
   assert.match(shown().tooltip, /Tự cải thiện đang tắt\. Đổi ở biểu tượng bánh răng của panel/)
-  // On, with rules or with AI: "On" either way, still the lightbulb (no lightning), now coloured.
+  // On, with rules or with AI: "On" either way, still the lightbulb (no lightning), now bright (accent).
   await worker.command('auto-enhance.rules')
   assert.deepEqual([shown().text, shown().icon, shown().tone], ['Enhance: On', 'lightbulb', 'accent'])
   assert.match(shown().tooltip, /Tự cải thiện đang bật \(quy tắc\)\./)

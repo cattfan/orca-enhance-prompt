@@ -19,7 +19,7 @@ Switch modes in any of these places:
 - The command palette: **Enhance Prompt: Auto-enhance off / with rules / with AI**, or **Cycle auto-enhance**.
 - **Settings → Plugins → Enhance Prompt → Auto-enhance**.
 
-The status bar item reads **Enhance: On** while auto-enhance is on (with rules or with AI) and **Enhance: Off** otherwise. Its lightbulb is coloured while it is on, and its tooltip says which of the two is on.
+The status bar item reads **Enhance: On** while auto-enhance is on (with rules or with AI) and **Enhance: Off** otherwise. It is bright while on and dimmed while off, and its tooltip says which of the two is on.
 
 ## The 2-second limit
 

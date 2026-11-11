@@ -418,7 +418,8 @@ const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
 /**
  * The status bar item says whether auto-enhance is at work: "Enhance: On" or "Enhance: Off", the
  * same short words in every language, like the brand. Which kind is on (rules or AI) is in the
- * tooltip. Its icon is the plugin's own lightbulb, the one on the panel's tab, coloured while on.
+ * tooltip. Its icon is the plugin's own lightbulb, the one on the panel's tab. While on, the item
+ * has the accent tone, which Orca draws bright; off, the neutral one, which it draws dimmed.
  *
  * All of this is set here, at run time. The manifest's entry stays exactly as it was approved:
  * Orca tells one status bar item from another by its whole declaration, so a new text or icon
