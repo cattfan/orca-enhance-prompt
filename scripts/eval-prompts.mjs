@@ -2,21 +2,37 @@
 //   node scripts/eval-prompts.mjs                 # Claude Code, model haiku (your subscription)
 //   node scripts/eval-prompts.mjs --model sonnet  # another model
 //   node scripts/eval-prompts.mjs --show          # also print every prompt it wrote
+//   node scripts/eval-prompts.mjs --only concise --runs 20 --parallel 4
+//                                                 # one case (by a part of its name) many times: counts, not one verdict
+//   node scripts/eval-prompts.mjs --root ../v2.6.8 --only concise --runs 20
+//                                                 # the same against another tree's src/ (an exported release)
+// A model answers differently each time: one failing run is not a regression and one clean run is
+// no proof. Compare counts over 20 runs or more before keeping or dropping a wording.
 // It checks what can be checked mechanically: no preamble or fence, the right language, no file
 // paths that are not in the context or the request, the user's details kept, sane length, and
 // nothing about what the rewriter itself was or was not given.
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const root = join(import.meta.dirname, '..')
-const load = (file) => import(pathToFileURL(join(root, file)).href)
+/** The value after a flag, or the fallback. */
+const flag = (name, fallback) => {
+  const at = process.argv.indexOf(name)
+  return at > 0 && process.argv[at + 1] ? process.argv[at + 1] : fallback
+}
+// The rewriter's instructions come from this tree, or from another one (--root: a release exported
+// with `git archive`), so two wordings are measured by the same checks.
+const source = resolve(flag('--root', root))
+const load = (file) => import(pathToFileURL(join(source, file)).href)
 const { buildSystemPrompt, buildUserMessage, cleanOutput } = await load('src/prompts.ts')
 const { runCli } = await load('src/cli.ts')
 
-const modelAt = process.argv.indexOf('--model')
-const model = modelAt > 0 ? process.argv[modelAt + 1] : 'haiku'
+const model = flag('--model', 'haiku')
 const show = process.argv.includes('--show')
+const only = flag('--only', '').toLowerCase()
+const runs = Math.max(1, Number(flag('--runs', '1')) || 1)
+const parallel = Math.max(1, Math.min(8, Number(flag('--parallel', '1')) || 1))
 
 const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8').slice(0, 2500)
 const tree = ['src/', '  src/panel/ (8)', '  src/context/ (7)', 'src/worker.ts', 'src/prompts.ts', 'src/llm.ts', 'src/cli.ts', 'scripts/ (9)', 'AGENTS.md', 'orca-plugin.json'].join('\n')
@@ -67,18 +83,16 @@ const GIVEN = new RegExp(
   'i'
 )
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
-let failures = 0
-for (const item of CASES) {
-  const system = buildSystemPrompt({ style: item.style, language: 'auto', agent: 'claude', structure: item.structure ?? null })
+/** One case through the model once: what is wrong with the prompt it wrote (nothing, when it is right). */
+async function runCase(item) {
+  const system =buildSystemPrompt({ style: item.style, language: 'auto', agent: 'claude', structure: item.structure ?? null })
   const user = buildUserMessage(item.prompt, item.bare ? [] : context)
   const started = Date.now()
   let text
   try {
     text = cleanOutput(await runCli({ kind: 'claude-code', command: '', model, customArgs: '' }, system, user, AbortSignal.timeout(120_000)))
   } catch (error) {
-    console.log(`FAIL ${item.name}: ${error.message}`)
-    failures++
-    continue
+    return { problems: [`model call failed: ${error.message}`], text: '', ms: Date.now() - started }
   }
   const problems = []
   if (/^(here|sure|below|dưới đây|đây là)\b/i.test(text)) problems.push('starts with a preamble')
@@ -124,9 +138,53 @@ for (const item of CASES) {
     const missing = item.structure.sections.filter((section) => !text.includes(section))
     if (missing.length) problems.push(`missing headings: ${missing.join(', ')}`)
   }
-  console.log(`${problems.length ? 'FAIL' : 'ok  '} ${item.name} (${((Date.now() - started) / 1000).toFixed(1)} s, ${text.length} chars)${problems.length ? ` — ${problems.join('; ')}` : ''}`)
-  if (problems.length) failures++
-  if (show || problems.length) console.log(`${'-'.repeat(60)}\n${text}\n${'-'.repeat(60)}`)
+  return { problems, text, ms: Date.now() - started }
+}
+
+/** Runs the jobs a few at a time; the results keep the jobs' order. */
+async function pooled(jobs, size) {
+  const results = []
+  let next = 0
+  const worker = async () => {
+    while (next < jobs.length) {
+      const at = next++
+      results[at] = await jobs[at]()
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(size, jobs.length) }, worker))
+  return results
+}
+
+const chosen = CASES.filter((item) => item.name.toLowerCase().includes(only))
+if (chosen.length === 0) {
+  console.log(`No case has "${only}" in its name. Cases: ${CASES.map((item) => item.name).join(' | ')}`)
+  process.exit(2)
+}
+const rule = '-'.repeat(60)
+let failures = 0
+for (const item of chosen) {
+  const results = await pooled(Array.from({ length: runs }, () => () => runCase(item)), parallel)
+  if (runs === 1) {
+    const [{ problems, text, ms }] = results
+    console.log(`${problems.length ? 'FAIL' : 'ok  '} ${item.name} (${(ms / 1000).toFixed(1)} s, ${text.length} chars)${problems.length ? ` — ${problems.join('; ')}` : ''}`)
+    if (problems.length) failures++
+    if (show || problems.length) console.log(`${rule}\n${text}\n${rule}`)
+    continue
+  }
+  // Many runs: how often it was right, how often each problem came (what a problem says in brackets
+  // is left out, so that "too long (812 chars)" and "too long (955 chars)" count as one), and the
+  // lengths, which say more than a pass mark does.
+  const clean = results.filter((entry) => entry.problems.length === 0).length
+  const counts = new Map()
+  for (const entry of results) {
+    for (const problem of new Set(entry.problems.map((said) => said.replace(/\s*\(.*\)$/, '')))) counts.set(problem, (counts.get(problem) ?? 0) + 1)
+  }
+  const lengths = results.map((entry) => entry.text.length).filter(Boolean).sort((a, b) => a - b)
+  const median = lengths.length ? lengths[Math.floor(lengths.length / 2)] : 0
+  console.log(`${clean === runs ? 'ok  ' : 'FAIL'} ${item.name}: right in ${clean} of ${runs} · chars min ${lengths[0] ?? 0}, median ${median}, max ${lengths.at(-1) ?? 0}`)
+  for (const [problem, count] of [...counts.entries()].sort((a, b) => b[1] - a[1])) console.log(`       ${count}× ${problem}`)
+  if (clean !== runs) failures++
+  if (show) for (const entry of results) console.log(`${rule}\n${entry.text}\n${rule}`)
 }
 console.log(failures ? `\n${failures} case(s) need work` : '\nAll cases look right')
 process.exit(failures ? 1 : 0)

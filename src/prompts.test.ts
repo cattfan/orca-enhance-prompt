@@ -87,7 +87,11 @@ test('the rewriter is told not to copy rule files, to keep checks and length in 
   assert.match(system, /reads the project's own rule files \(AGENTS\.md, CLAUDE\.md, GEMINI\.md\) by itself/)
   assert.match(system, /only the one or two commands that check this change/)
   assert.match(system, /Do not decide things the user left open/)
-  assert.match(system, /at most about five short lines/)
+  // Concise is said in lines and words, which a model can count, not only in characters, which it
+  // cannot: measured with `scripts/eval-prompts.mjs --only concise --runs 20`, a length in
+  // characters alone was kept in half the runs.
+  assert.match(system, /at most four lines, each a single sentence of at most about 25 words/)
+  assert.match(system, /names the one command that checks the change/)
   assert.match(system, /Markdown headings \(do not mix in XML tags\)/)
 })
 
@@ -124,6 +128,10 @@ test('the rewriter follows the Fable 5.2 guidance: finish the task, named approv
   const system = buildSystemPrompt({ style: 'balanced', language: 'auto', agent: 'claude' })
   assert.match(system, /Complete every part of this task before you end your turn/)
   assert.match(system, /find the cause and retry or try another way rather than stopping/)
+  // Where the two sentences go is said, and that the prompt is not finished without them: with
+  // "placed where they fit" alone, a model left them out of every second larger task.
+  assert.match(system, /as the last lines of the constraints/)
+  assert.match(system, /check that they are there before you answer/)
   assert.match(system, /works through ordinary obstacles/)
   assert.match(system, /stops early only for a deliberate blocker/)
   assert.match(system, /A small change \(one edit in one place, such as a typo or a rename in one file\) gets none of these three/)
