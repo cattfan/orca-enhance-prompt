@@ -33,10 +33,10 @@ Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mụ
 
 ### Bảo mật
 
-- Key bị dán vào một file mã nguồn sẽ được che trong diff và trong các dòng của file gửi cho model, ở những chỗ chắc chắn là key: một định dạng key đã biết, hoặc một giá trị trong ngoặc kép dài từ 12 ký tự gán cho một tên có nghĩa là key, token, secret hay password. Phần mã xung quanh giữ nguyên.
+- Key bị dán vào một file mã nguồn sẽ được che trong diff và trong các dòng của file gửi cho model, ở những chỗ chắc chắn là key: một định dạng key đã biết, hoặc một giá trị trong ngoặc kép dài từ 12 ký tự, có cả chữ và số, gán cho một cái tên cho thấy nó chứa bí mật (password, token, secret, credential, API key, private key, access key). Phần mã xung quanh giữ nguyên.
 - Output của terminal bạn chọn (mức Tối đa) được che key, token và mật khẩu, như phiên của các agent khác vốn đã được che.
 - Nhận ra thêm nhiều định dạng key ở mọi nơi có che: key của Stripe, GitLab, npm và Google API.
-- Cặp terminal–dự án đã ghi nhớ sẽ bị bỏ khi Orca hiện xếp terminal đó vào một dự án không khớp, nên tự cải thiện không thể làm theo quy tắc của dự án mà terminal từng thuộc về.
+- Cặp terminal–dự án đã ghi nhớ sẽ bị bỏ khi Orca hiện xếp terminal đó vào một dự án có tên hoặc nhánh khác, nên tự cải thiện không làm theo quy tắc của dự án mà terminal từng thuộc về. Giữa các dự án trùng cả tên lẫn nhánh thì không kiểm tra được điều này.
 
 ### Ghi chú
 

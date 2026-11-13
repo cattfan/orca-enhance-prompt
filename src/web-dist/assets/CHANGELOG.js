@@ -34,10 +34,10 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 
 ### Security
 
-- A key pasted into a source file is masked in the diff and in the file lines sent to the model, where it is certainly a key: a known key format, or a quoted value of 12 characters or more given to a name that says key, token, secret or password. The code around it stays as it is.
+- A key pasted into a source file is masked in the diff and in the file lines sent to the model, where it is certainly a key: a known key format, or a quoted value of 12 characters or more, with letters and digits, given to a name that says it holds a secret (password, token, secret, credential, API key, private key, access key). The code around it stays as it is.
 - The output of the terminal you picked (the Max level) is masked for keys, tokens and passwords, as other agents' sessions already were.
 - More key formats are recognised everywhere masking applies: Stripe, GitLab, npm and Google API keys.
-- A remembered pairing of a terminal with a project is dropped when Orca now lists that terminal in a project it does not fit, so auto-enhance cannot follow the rules of a project the terminal used to belong to.
+- A remembered pairing of a terminal with a project is dropped when Orca now lists that terminal in a project of another name or branch, so auto-enhance does not follow the rules of a project the terminal used to belong to. Among projects that share both name and branch this cannot be checked.
 
 ### Notes
 
