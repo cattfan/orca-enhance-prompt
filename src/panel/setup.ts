@@ -12,13 +12,14 @@ import {
   refreshConsents,
   refreshDataSummary,
   refreshDefaults,
+  refreshHookLast,
   refreshModels,
   refreshRules,
   refreshTargets,
   stopTicking,
   workspaceRemoved
 } from './actions.ts'
-import { notice, restoreSaved, tab } from './state.ts'
+import { notice, restoreSaved, say, tab } from './state.ts'
 
 /**
  * Brings back what the last panel run saved, follows the events and loads the models, terminals,
@@ -36,7 +37,7 @@ export function wirePanel(): () => void {
       void refreshTargets()
     }),
     plugin.on('enhance.progress', applyProgress),
-    plugin.on('hook.enhanced', ({ agent, mode, model }) =>
+    plugin.on('hook.enhanced', ({ agent, mode, model }) => {
       set(notice, {
         tone: 'neutral',
         text: t('Auto-enhanced ({mode}) a prompt for {agent}.', {
@@ -44,7 +45,13 @@ export function wirePanel(): () => void {
           agent: agent ?? t('an agent')
         })
       })
-    )
+      void refreshHookLast()
+    }),
+    // Auto-enhance (AI) let a prompt through as it was: say why, it used to be in the log only.
+    plugin.on('hook.skipped', ({ agent, reason }) => {
+      set(notice, { tone: 'warning', text: t('Auto-enhance left a prompt for {agent} unchanged: {reason}', { agent: agent ?? t('an agent'), reason: say(reason) }) })
+      void refreshHookLast()
+    })
   ]
   void refreshDefaults()
   void refreshModels()
@@ -53,7 +60,10 @@ export function wirePanel(): () => void {
   void detectClis()
   void refreshConsents()
   // The stored-data counts read every saved key; load them only for the section that shows them.
-  if (read(tab) === 'privacy') void refreshDataSummary()
+  if (read(tab) === 'privacy') {
+    void refreshDataSummary()
+    void refreshHookLast()
+  }
   return () => {
     for (const subscription of subscriptions) subscription.dispose()
   }

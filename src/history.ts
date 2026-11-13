@@ -9,6 +9,8 @@ export type HistoryEntry = {
   style: string
   model: string
   source: 'panel' | 'hook'
+  /** The project it was written in (its name in Orca), where that was known; older entries have none. */
+  project?: string
 }
 
 /** Storage key; the panel reads it as a `persist: 'storage'` atom. */
@@ -50,7 +52,7 @@ export function parseHistory(value: JsonValue | null): HistoryEntry[] {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
       continue
     }
-    const { id, at, original, enhanced, style, model, source } = item
+    const { id, at, original, enhanced, style, model, source, project } = item
     if (typeof id === 'string' && typeof at === 'number' && typeof original === 'string' && typeof enhanced === 'string') {
       out.push({
         id,
@@ -59,7 +61,8 @@ export function parseHistory(value: JsonValue | null): HistoryEntry[] {
         enhanced,
         style: typeof style === 'string' ? style : 'balanced',
         model: typeof model === 'string' ? model : '',
-        source: source === 'hook' ? 'hook' : 'panel'
+        source: source === 'hook' ? 'hook' : 'panel',
+        ...(typeof project === 'string' && project.trim() ? { project: project.trim().slice(0, 200) } : {})
       })
     }
   }

@@ -8,10 +8,13 @@ import { isMessage, messageIn, plainText, render, type Message } from '../messag
 import { type ContextItemView } from '../presets.ts'
 import { t } from '../i18n.ts'
 import { type Step } from '../progress.ts'
-import { type AttemptView, type ModelsView, type ProfileInput } from '../protocol.ts'
+import { type AttemptView, type HookRecord, type ModelsView, type ProfileInput } from '../protocol.ts'
 
-export type Target = { terminalId: string; label: string; agent: string | null }
-export type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string } | null
+/** `title` and `state` are an agent's own (working, blocked, waiting, done): view.ts words the label from them. */
+export type Target = { terminalId: string; label: string; agent: string | null; title?: string; state?: string }
+/** What a notice's button does, as plain data: actions.ts runs it (`runNoticeAction`), the web UI only draws the button. */
+export type NoticeAction = { kind: 'history.restore'; id: string } | { kind: 'composer.restore' } | { kind: 'send.anyway'; terminalId: string; text: string }
+export type Notice = { tone: 'success' | 'danger' | 'warning' | 'neutral'; text: string; action?: { label: string; run: NoticeAction } } | null
 export type Defaults = {
   style: string
   level: string
@@ -72,7 +75,7 @@ export const historyShown = atom(HISTORY_PAGE)
 export const confirmClearHistory = atom(false)
 export const form = atom<Form | null>('form', null)
 export const detected = atom<{ preset: string; label: string; path: string; added: boolean }[]>([])
-export type Catalog = { models: { id: string; label: string; description?: string; isDefault?: boolean }[]; source: string; fetchedAt: number; error?: string }
+export type Catalog = { models: { id: string; label: string; description?: string; isDefault?: boolean }[]; source: string; fetchedAt: number; error?: string; errorText?: Message }
 /** Model lists by profile id, or 'form' for the add/edit form. */
 export const catalogs = atom<Record<string, Catalog>>({})
 export const catalogLoading = atom<Record<string, boolean>>({})
@@ -197,6 +200,10 @@ export function restoreSaved(): void {
   for (const [now, saved] of KEPT) set(now, read(saved))
 }
 export const targets = atom<Target[]>([])
+/** The draft the shown result was made from: while the composer still holds it, Ctrl+Enter sends the result. */
+export const resultFor = atom<string | null>(null)
+/** What auto-enhance did with the last prompt it saw (the worker keeps it in memory), for the Settings section. */
+export const hookLast = atom<HookRecord | null>(null)
 export const models = atom<ModelsView | null>(null)
 export const defaults = atom<Defaults>({
   style: 'balanced',
@@ -211,9 +218,16 @@ export const defaults = atom<Defaults>({
 })
 
 export const history = derived(() => parseHistory(read(historyRaw)))
+/** The History tab shows every project's entries, or only those written in the project in focus. */
+export const historyScope = atom<'all' | 'project'>('historyScope', 'all', { persist: 'plugin' })
+/** The entry whose enhanced prompt is shown in place. */
+export const historyOpen = atom<string | null>(null)
+/** Whether "this project only" can be offered: the project is known and some entry carries one. */
+export const historyByProject = derived(() => read(projectName) !== null && read(history).some((entry) => entry.project))
 export const filteredHistory = derived(() => {
   const query = read(historyFilter).trim().toLowerCase()
-  const list = read(history)
+  const here = read(historyScope) === 'project' && read(historyByProject) ? read(projectName) : null
+  const list = here === null ? read(history) : read(history).filter((entry) => entry.project === here)
   return query
     ? list.filter((entry) => entry.original.toLowerCase().includes(query) || entry.enhanced.toLowerCase().includes(query))
     : list
@@ -233,9 +247,14 @@ export function say(text: Message | string): string {
  * on a thrown error's code and text only; see messages.ts); without one, the text is shown as it is.
  */
 export const message = (error: unknown) => {
+  const carried = errorMessage(error)
+  if (carried) return say(carried)
+  return error instanceof Error ? plainText(error.message) : String(error)
+}
+
+/** The worker's message an error carries (as a field under the test host, inside its text in Orca), or null. */
+export function errorMessage(error: unknown): Message | null {
   const text = error && typeof error === 'object' && 'text' in error ? (error as { text: unknown }).text : null
-  if (isMessage(text)) return say(text)
-  if (!(error instanceof Error)) return String(error)
-  const carried = messageIn(error.message)
-  return carried ? say(carried) : plainText(error.message)
+  if (isMessage(text)) return text
+  return error instanceof Error ? messageIn(error.message) : null
 }

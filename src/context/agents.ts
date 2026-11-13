@@ -30,7 +30,11 @@ const SECRET_ASSIGNMENT = /\b([A-Za-z0-9_]*(?:api[_-]?key|token|secret|passw(?:o
 export function redactSecrets(text: string): string {
   let out = text
   for (const pattern of SECRET_PATTERNS) out = out.replace(pattern, '[redacted]')
-  return out.replace(SECRET_ASSIGNMENT, (_match, name: string, sep: string) => `${name}${sep}[redacted]`)
+  // A count of tokens is not a token: `max_tokens: 200000`, `input_tokens=1234567` and
+  // `{"max_tokens": 200000}` (the value takes the closing brace with it) stay as they are.
+  return out.replace(SECRET_ASSIGNMENT, (match, name: string, sep: string, value: string) =>
+    /tokens$/i.test(name) && /^\d+[\]})]*$/.test(value) ? match : `${name}${sep}[redacted]`
+  )
 }
 
 /** How long ago, for the summary line: "3 min", "2 h". */

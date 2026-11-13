@@ -5,7 +5,7 @@ import { currentLanguage, dictionaries, resolveLanguage, t, translate } from './
 import { changeUiLanguage, enhanceNow, previewContext } from './panel/actions.ts'
 import { contextNotes, contextShown, draft, put, run, say } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, itemWhy, KEY_LABEL, OUTPUT_LANGUAGE_LABELS, PRIVACY_ROWS, SECTION_LABELS, STEP_LABELS } from './panel/view.ts'
+import { AGENT_STATE_LABELS, AUTO_MODE_HINTS, DISCLOSURES, itemWhy, KEY_LABEL, OUTPUT_LANGUAGE_LABELS, PRIVACY_GROUPS, PRIVACY_ROWS, SECTION_LABELS, STEP_LABELS } from './panel/view.ts'
 import { english, MESSAGES, msg, raw } from './messages.ts'
 import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
 import { STYLE_LABELS } from './prompts.ts'
@@ -37,7 +37,9 @@ function uiStrings(): Set<string> {
     ...Object.values(OUTPUT_LANGUAGE_LABELS),
     ...Object.values(SECTION_LABELS),
     ...Object.values(AUTO_MODE_HINTS),
-    ...PRIVACY_ROWS.flatMap((row) => [row.label, row.hint]),
+    ...PRIVACY_ROWS.flatMap((row) => [row.label, row.hint, row.risk, row.when]),
+    ...PRIVACY_GROUPS.map((group) => group.title),
+    ...Object.values(AGENT_STATE_LABELS),
     ...Object.values(DISCLOSURES).flat(),
     ...BUILT_IN_STRUCTURES.flatMap((structure) => [structure.name, ...structure.sections]),
     // Every message the worker sends by code (notes, labels, errors); 'raw' is outside text, never translated.
@@ -154,17 +156,15 @@ test('a message about a switch that is off sends the person to the gear tab by t
   const tab = SECTION_LABELS.privacy
   assert.equal(tab, 'Settings')
   const sent = Object.entries(MESSAGES).filter(([, text]) => /\b(?:is|are) off in /.test(text))
-  // Project files, terminal output, sending to terminals, starting agents, opening files.
-  assert.ok(sent.length >= 5, `only ${sent.length} such messages found`)
+  // Project files, terminal output, sending to terminals, starting agents, opening files, online model lists.
+  assert.ok(sent.length >= 6, `only ${sent.length} such messages found`)
   for (const [code, text] of sent) {
-    assert.match(text, new RegExp(`\\b(?:is|are) off in ${tab}[.:,]`), code)
+    assert.match(text, new RegExp(`\\b(?:is|are) off in ${tab}(?:[.:,]|$)`), code)
     for (const [lang, dict] of Object.entries(dictionaries)) {
       const named = (dict as Record<string, string>)[tab] ?? ''
       assert.ok(named !== '' && ((dict as Record<string, string>)[text] ?? '').includes(named), `${lang}: ${code} does not say "${named}"`)
     }
   }
-  // The model list's own reason is shown as it is, inside "Could not load the list (…)".
-  assert.match(readFileSync(new URL('./worker.ts', import.meta.url), 'utf8'), new RegExp(`online model lists are off in ${tab}'`))
 })
 
 test('the brand "Enhance Prompt" is the same in every language', async () => {

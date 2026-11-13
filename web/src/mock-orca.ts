@@ -20,15 +20,25 @@ const listen = (event: string, handler: Handler) => {
   return { dispose: () => events.get(event)?.delete(handler) }
 }
 
+/** What the first history entry holds: enough lines to show an entry read in place. */
+const HISTORY_SAMPLE = `Fix the login page layout on mobile screens (under 640 px wide).
+
+## Task
+1. Reproduce at 375 px and 414 px widths: the form overflows and the submit button is hidden.
+2. Find the cause (likely fixed widths in Card or LoginForm) and fix it with responsive classes.
+
+## Done when
+- No horizontal scroll from 320 px up; the button is visible without zooming.`
+
 const store = new Map<string, unknown>([
   [
     'history',
     [
-      { id: 'h1', at: Date.now() - 3600_000, original: 'login page is broken on mobile', enhanced: 'Fix the login page layout on mobile…', style: 'bugfix', model: 'sonnet', source: 'panel' },
-      { id: 'h2', at: Date.now() - 3 * 3600_000, original: 'add dark mode toggle', enhanced: 'Add a dark mode toggle to settings…', style: 'feature', model: 'gpt-5-mini', source: 'panel' },
-      { id: 'h3', at: Date.now() - 86_400_000, original: 'review the payment webhook handler', enhanced: 'Review src/api/webhooks/stripe.ts…', style: 'review', model: 'sonnet', source: 'panel' },
-      { id: 'h4', at: Date.now() - 2 * 86_400_000, original: 'split the settings page into tabs', enhanced: 'Refactor app/settings/page.tsx…', style: 'refactor', model: 'haiku', source: 'hook' },
-      { id: 'h5', at: Date.now() - 4 * 86_400_000, original: 'plan the migration to the new auth library', enhanced: 'Plan the move from next-auth…', style: 'plan', model: 'gpt-5', source: 'panel' }
+      { id: 'h1', at: Date.now() - 3600_000, original: 'login page is broken on mobile', enhanced: HISTORY_SAMPLE, style: 'bugfix', model: 'sonnet', source: 'panel', project: PROJECT },
+      { id: 'h2', at: Date.now() - 3 * 3600_000, original: 'add dark mode toggle', enhanced: 'Add a dark mode toggle to settings…', style: 'feature', model: 'gpt-5-mini', source: 'panel', project: PROJECT },
+      { id: 'h3', at: Date.now() - 86_400_000, original: 'review the payment webhook handler', enhanced: 'Review src/api/webhooks/stripe.ts…', style: 'review', model: 'sonnet', source: 'panel', project: 'billing-api' },
+      { id: 'h4', at: Date.now() - 2 * 86_400_000, original: 'split the settings page into tabs', enhanced: 'Refactor app/settings/page.tsx…', style: 'refactor', model: 'haiku', source: 'hook', project: PROJECT },
+      { id: 'h5', at: Date.now() - 4 * 86_400_000, original: 'plan the migration to the new auth library', enhanced: 'Plan the move from next-auth…', style: 'plan', model: 'gpt-5', source: 'panel', project: 'billing-api' }
     ]
   ]
 ])
@@ -127,6 +137,18 @@ const SAMPLE_CONTEXT = [
 
 /** `?fallback=1`: the first model fails and the next one answers (a picture of the fallback at work). */
 let fallbackDemo = false
+/** `?blocked=1`: the first agent is waiting for an answer, so Send asks before it types. */
+let blockedDemo = false
+/** `?hook=rewritten|appended|skipped`: what auto-enhance last did, for the line in the Settings section. */
+let hookDemo: string | null = null
+/** `?nokeys=1`: a machine without an OS key store. */
+let noKeyStore = false
+/** History entries removed a moment ago, for Undo. */
+const removed = new Map<string, unknown>()
+const setHistory = (list: unknown[]): void => {
+  store.set('history', list)
+  emit('storage', { key: 'history' })
+}
 
 async function enhance(input: Record<string, unknown>, signal?: AbortSignal) {
   const runId = String(input.runId)
@@ -168,7 +190,7 @@ let attachmentCount = 0
 /** Switches confirmed in the panel (the worker keeps them in storage). */
 const granted = new Set<string>()
 const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSignal) => unknown> = {
-  'models.get': () => models,
+  'models.get': () => ({ ...models, ...(noKeyStore ? { keysUnavailable: true } : {}) }),
   'models.catalog': (input) => ({
     models: input.preset === 'claude-code' ? [{ id: 'sonnet', label: 'sonnet: Sonnet, newest' }, { id: 'opus', label: 'opus: Opus, newest' }, { id: 'haiku', label: 'haiku: Haiku, newest' }] : [{ id: 'gpt-5-mini', label: 'GPT-5 mini' }, { id: 'gpt-5', label: 'GPT-5' }],
     source: 'mock',
@@ -188,8 +210,8 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
   // An agent's terminal reads "<its title> · <its state>", any other terminal by its title.
   'targets.list': () => ({
     targets: [
-      { terminalId: 't1', label: 'Claude Code · waiting', agent: 'claude' },
-      { terminalId: 't2', label: 'Codex · working', agent: 'codex' },
+      { terminalId: 't1', label: `Claude Code · ${blockedDemo ? 'blocked' : 'waiting'}`, agent: 'claude', title: 'Claude Code', state: blockedDemo ? 'blocked' : 'waiting' },
+      { terminalId: 't2', label: 'Codex · working', agent: 'codex', title: 'Codex', state: 'working' },
       { terminalId: 't3', label: 'pnpm dev', agent: null }
     ],
     workspace: CHECKOUT,
@@ -213,10 +235,35 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
     await wait(300)
     return { context: SAMPLE_CONTEXT, notes: [], chars: SAMPLE_CONTEXT.reduce((sum, entry) => sum + entry.chars, 0) }
   },
-  'prompt.send': () => ({ accepted: true }),
+  'prompt.send': (input) => {
+    if (blockedDemo && input.terminalId === 't1' && input.force !== true) {
+      throw Object.assign(new Error('blocked'), { code: 'conflict', text: msg('error.agent_blocked', { name: 'Claude Code' }) })
+    }
+    return { accepted: true }
+  },
   'prompt.copy': () => ({ copied: true }),
-  'history.remove': (input) => store.set('history', (store.get('history') as { id: string }[]).filter((entry) => entry.id !== input.id)),
-  'history.clear': () => store.set('history', []),
+  'history.remove': (input) => {
+    const list = store.get('history') as { id: string }[]
+    const gone = list.find((entry) => entry.id === input.id)
+    if (gone) removed.set(gone.id, gone)
+    setHistory(list.filter((entry) => entry.id !== input.id))
+  },
+  'history.restore': (input) => {
+    const entry = removed.get(String(input.id)) as { at: number } | undefined
+    if (!entry) return { restored: false }
+    removed.delete(String(input.id))
+    setHistory([...(store.get('history') as { at: number }[]), entry].sort((a, b) => b.at - a.at))
+    return { restored: true }
+  },
+  'history.clear': () => setHistory([]),
+  'hook.last': () =>
+    hookDemo === 'rewritten'
+      ? { at: Date.now() - 4 * 60_000, outcome: 'rewritten', agent: 'claude', model: 'gpt-5-mini' }
+      : hookDemo === 'appended'
+        ? { at: Date.now() - 4 * 60_000, outcome: 'appended', agent: 'claude' }
+        : hookDemo === 'skipped'
+          ? { at: Date.now() - 4 * 60_000, outcome: 'skipped', agent: 'codex', reason: msg('hook.no_model') }
+          : null,
   'data.summary': () => ({ history: (store.get('history') as unknown[]).length, profiles: models.profiles.length, keys: 1, catalogs: 2 }),
   'data.clear': () => null,
   'consents.get': () => ({ granted: [...granted], needed: ['allowOtherAgents', 'allowAgentActivity', 'allowAgentLaunch'] }),
@@ -296,6 +343,11 @@ export async function installMockOrca(): Promise<void> {
   }
   for (const key of (query.get('consent') ?? '').split(',').filter(Boolean)) granted.add(key)
   fallbackDemo = query.get('fallback') === '1'
+  blockedDemo = query.get('blocked') === '1'
+  hookDemo = query.get('hook')
+  noKeyStore = query.get('nokeys') === '1'
+  // ?nomodels=1: a first run, before any model is set (the Enhance tab then offers the CLI it found).
+  if (query.get('nomodels') === '1') models = { ...models, profiles: [] }
   if (query.get('theme') === 'dark') root.classList.add('dark')
   // ?width=360: a sidebar's width (headless browsers cannot make a window that narrow), with a
   // dashed line where the sidebar would end; ?edge=0 leaves the line out (pictures).

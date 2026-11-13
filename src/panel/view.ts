@@ -7,7 +7,7 @@ import { t } from '../i18n.ts'
 import { allStructures, ruleApplies, scopeName, structureById, type Rule, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
-import { type Catalog, type FeedbackAsk, type Run, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, projectName, rulesState, structureChoice, say, workspaceName } from './state.ts'
+import { type Catalog, type FeedbackAsk, type Run, type Target, catalogs, defaults, enabledProfiles, effectiveLevel, effectiveStyle, modelChoice, models, outputChoice, profileChoice, projectName, rulesState, structureChoice, say, workspaceName } from './state.ts'
 
 /**
  * The names of the panel's sections, on its header icons (the Enhance section shows the brand instead).
@@ -172,6 +172,16 @@ export function stepShare(entry: Step, now: number): string {
 /** The word before ":" in a level label: "Deep: + git…" → "Deep". */
 export const shortLabel = (label: string) => label.split(/[:：]/)[0].trim()
 
+/** An agent's state as Orca reports it, in words for the terminal picker. */
+export const AGENT_STATE_LABELS: Record<string, string> = { working: 'working', blocked: 'needs you', waiting: 'waiting', done: 'done' }
+
+/** A terminal as the picker and the notices name it: an agent by its title and its state, in the panel's language. */
+export function targetLabel(item: Target): string {
+  if (!item.title || !item.state) return item.label
+  const state = AGENT_STATE_LABELS[item.state]
+  return `${item.title} · ${state ? t(state) : item.state}`
+}
+
 /** One line naming the current options, used as the options button's tooltip. */
 export function optionsSummary(): string {
   const styleValue = read(effectiveStyle)
@@ -272,19 +282,116 @@ export function pickModel(value: string): void {
   set(modelChoice, model === PROFILE_DEFAULT || model === profile?.effectiveModel ? '' : model)
 }
 
-export const PRIVACY_ROWS: { key: PrivacyKey; label: string; hint: string }[] = [
-  { key: 'allowProjectFiles', label: 'Read project files', hint: 'Agent rules, README, manifest files and the file list of the focused workspace (Standard level and above). Off: only workspace and agent names are used.' },
-  { key: 'allowGit', label: 'Run git', hint: 'Read-only git status, log, diff, ls-files and grep in the focused workspace (Deep and Max levels).' },
-  { key: 'allowTerminalRead', label: 'Read terminal output', hint: 'The last lines of the terminal you picked, at the Max level only.' },
-  { key: 'allowOtherAgents', label: "Read other agents' sessions", hint: "At the Max level: the other agents running in this workspace (kind, title, state) and the last lines of their terminals, with keys and passwords masked. Needs Read terminal output too. Off until you turn it on." },
-  { key: 'allowAgentActivity', label: 'Watch what agents do', hint: 'Deep and Max levels: each tool an agent runs in Orca (its name and its target: a file path or a command, never its output) and how sessions end. Kept in memory for 45 minutes, never saved to disk.' },
-  { key: 'allowEditorSaves', label: 'Notice files you save', hint: "Deep and Max levels: the paths of files you save in Orca's editor (never their text), kept in memory for 45 minutes; they rank first in the code search." },
-  { key: 'allowTerminalSend', label: 'Send to terminals', hint: 'Type the prompt into the terminal you pick when you click Send. Off: use Copy instead.' },
-  { key: 'allowAgentLaunch', label: 'Start new agents', hint: 'A button that starts a new agent (Claude Code, Codex…) in this workspace with the enhanced prompt, only when you press it.' },
-  { key: 'allowOpenFiles', label: 'Open files in Orca', hint: 'Clicking a file in the context list opens it in an editor tab.' },
-  { key: 'saveHistory', label: 'Save history', hint: 'Keep your prompts and enhanced prompts in the History tab, on this machine only.' },
-  { key: 'allowEnvKeys', label: 'Use API keys from environment variables', hint: 'OPENAI_API_KEY, ANTHROPIC_API_KEY and the others, when a model has no saved key.' },
-  { key: 'allowOnlineModelLists', label: 'Fetch model lists online', hint: "GET /models from your API providers and the public Claude Code settings schema, to keep model menus current. CLI lists are always local." }
+/** The switches in three groups, as the Settings section shows them: what is read, what is done, what is kept or fetched. */
+export type PrivacyGroup = 'reads' | 'acts' | 'keeps'
+export const PRIVACY_GROUPS: { id: PrivacyGroup; title: string }[] = [
+  { id: 'reads', title: 'What it may read' },
+  { id: 'acts', title: 'What it may do' },
+  { id: 'keeps', title: 'What it may keep and fetch' }
+]
+
+/**
+ * One row per switch. `hint` says what it does and is always shown; `risk` and `when` (what can go
+ * wrong, and when turning it on is worth it) are in the row's Details, and in the dialog of a
+ * switch that asks to confirm.
+ */
+export const PRIVACY_ROWS: { key: PrivacyKey; group: PrivacyGroup; label: string; hint: string; risk: string; when: string }[] = [
+  {
+    key: 'allowProjectFiles',
+    group: 'reads',
+    label: 'Read project files',
+    hint: 'Agent rules, README, manifest files and the file list of the focused workspace (Standard level and above). Off: only workspace and agent names are used.',
+    risk: 'File and folder names, your agent rules, the README and manifest files go to the model you run. Files that look like secrets (.env, keys, certificates) are never read.',
+    when: 'Keep it on for prompts that name real files and commands. Turn it off in a project whose contents must not reach a model provider.'
+  },
+  {
+    key: 'allowGit',
+    group: 'reads',
+    label: 'Run git',
+    hint: 'Read-only git status, log, diff, ls-files and grep in the focused workspace (Deep and Max levels).',
+    risk: 'Branch names, commit subjects, the list of changed files and the diff of your uncommitted changes go to the model. Nothing in the repository is changed.',
+    when: 'On when a prompt should know what you are working on right now. Off when uncommitted changes may hold something you would not share.'
+  },
+  {
+    key: 'allowTerminalRead',
+    group: 'reads',
+    label: 'Read terminal output',
+    hint: 'The last lines of the terminal you picked, at the Max level only.',
+    risk: 'A terminal shows whatever was printed: paths, logs, data. Values that look like keys, tokens or passwords are masked first, which cannot catch everything.',
+    when: 'On to fix an error that is on screen in the terminal. Off when your terminals show secrets or customer data.'
+  },
+  {
+    key: 'allowOtherAgents',
+    group: 'reads',
+    label: "Read other agents' sessions",
+    hint: "At the Max level: the other agents running in this workspace (kind, title, state) and the last lines of their terminals, with keys and passwords masked. Needs Read terminal output too. Off until you turn it on.",
+    risk: 'Terminals you did not pick are read too, and their text goes to the model: code, file contents and command output of other work.',
+    when: 'On when several agents share a task and a new prompt must not repeat or undo their work. Otherwise leave it off.'
+  },
+  {
+    key: 'allowAgentActivity',
+    group: 'reads',
+    label: 'Watch what agents do',
+    hint: 'Deep and Max levels: each tool an agent runs in Orca (its name and its target: a file path or a command, never its output) and how sessions end. Kept in memory for 45 minutes, never saved to disk.',
+    risk: 'Tool names, file paths and command lines of every agent in Orca are kept in memory and sent with Deep and Max prompts. A command line can carry more than you expect.',
+    when: 'On when prompts should follow on from what the agents just did. Off when command lines may hold secrets.'
+  },
+  {
+    key: 'allowEditorSaves',
+    group: 'reads',
+    label: 'Notice files you save',
+    hint: "Deep and Max levels: the paths of files you save in Orca's editor (never their text), kept in memory for 45 minutes; they rank first in the code search.",
+    risk: 'Only paths are noted, never the text of a file. A path can still say what you are working on.',
+    when: 'On when you edit in Orca and want those files found first. It changes nothing if you edit elsewhere.'
+  },
+  {
+    key: 'allowTerminalSend',
+    group: 'acts',
+    label: 'Send to terminals',
+    hint: 'Type the prompt into the terminal you pick when you click Send. Off: use Copy instead.',
+    risk: 'Text is typed into a terminal for you, and with Enter on the agent starts on it at once. An agent that is waiting for an answer from you is never typed into unasked.',
+    when: 'On for the normal flow. Off to be sure nothing is ever typed for you: Copy still works.'
+  },
+  {
+    key: 'allowAgentLaunch',
+    group: 'acts',
+    label: 'Start new agents',
+    hint: 'A button that starts a new agent (Claude Code, Codex…) in this workspace with the enhanced prompt, only when you press it.',
+    risk: 'A new agent runs with your user account and its own permission settings: it can change files and run commands.',
+    when: 'On when you often start a fresh agent for each task. It only happens when you press Start.'
+  },
+  {
+    key: 'allowOpenFiles',
+    group: 'acts',
+    label: 'Open files in Orca',
+    hint: 'Clicking a file in the context list opens it in an editor tab.',
+    risk: "An editor tab opens in Orca's window. Nothing is read or changed by it.",
+    when: 'On to look at what was read before you send. Off if the panel should never change what Orca shows.'
+  },
+  {
+    key: 'saveHistory',
+    group: 'keeps',
+    label: 'Save history',
+    hint: 'Keep your prompts and enhanced prompts in the History tab, on this machine only.',
+    risk: "Your prompts and the enhanced prompts are kept as plain text in Orca's data for this plugin, and so are the draft and the result of each project.",
+    when: 'On to reuse earlier prompts and to find your draft again after a restart. Off on a shared machine, or when prompts hold things that must not be kept.'
+  },
+  {
+    key: 'allowEnvKeys',
+    group: 'keeps',
+    label: 'Use API keys from environment variables',
+    hint: 'OPENAI_API_KEY, ANTHROPIC_API_KEY and the others, when a model has no saved key.',
+    risk: 'A key from your environment is sent to that provider like a saved one, and its account pays for the calls.',
+    when: 'On when your keys already live in the environment and you do not want to store them twice. Off to use only the keys you saved in Models.'
+  },
+  {
+    key: 'allowOnlineModelLists',
+    group: 'keeps',
+    label: 'Fetch model lists online',
+    hint: "GET /models from your API providers and the public Claude Code settings schema, to keep model menus current. CLI lists are always local.",
+    risk: 'Network requests go to your API providers (with your key) and to schemastore.org. No prompt and nothing of your project is in them.',
+    when: 'On to see new models without updating the plugin. Off for no network traffic besides the model calls.'
+  }
 ]
 
 /**

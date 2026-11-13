@@ -10,10 +10,12 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { CLI_BINARIES, readCommand, resolveBinary } from './cli.ts'
 import { endpointUrl } from './llm.ts'
+import type { Message } from './messages.ts'
 import type { Provider } from './presets.ts'
 
 export type CatalogModel = { id: string; label: string; description?: string; isDefault?: boolean }
-export type Catalog = { models: CatalogModel[]; source: string; fetchedAt: number; error?: string }
+/** `errorText`: the same as `error` as a message, when the reason is the plugin's own (the panel shows it in its language). */
+export type Catalog = { models: CatalogModel[]; source: string; fetchedAt: number; error?: string; errorText?: Message }
 
 /** A cached catalog from storage, or null when it is missing or malformed. */
 export function parseCatalog(value: unknown): Catalog | null {

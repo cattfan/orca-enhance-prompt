@@ -2,7 +2,7 @@
 // to the state (state.ts) that follow. No UI here; the web panel (web/src) and the tests call these.
 import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
 import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, projectScope, type RulesConfig } from '../rules.ts'
-import { feedbackDue, ISSUES_URL } from './view.ts'
+import { feedbackDue, ISSUES_URL, targetLabel } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { attachmentItemId } from '../image-limits.ts'
 import { type Message } from '../messages.ts'
@@ -13,7 +13,7 @@ import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
 import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
-import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message } from './state.ts'
+import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, type NoticeAction } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -95,6 +95,10 @@ function switchWorkspace(key: string, name: string | null, sameTerminals = false
   set(excluded, incoming?.excluded ?? [])
   put(files, incoming?.files ?? [])
   if (incoming) park(key, { ...incoming, draft: '', result: '', contextShown: [], files: [] })
+  // Which request the result on screen was made from is known for the composer that was just
+  // put away, not for this one: Ctrl+Enter enhances here until a run says otherwise.
+  set(resultFor, null)
+  beforeReuse = null
   put(workspaceKey, key)
   set(workspaceName, name)
   set(notice, null)
@@ -283,6 +287,8 @@ export async function enhanceNow(): Promise<void> {
     const ran = { model: answer.model, profileName: answer.profileName, ms: answer.ms, attempts: answer.attempts }
     if (origin.key === read(workspaceKey)) {
       put(result, answer.enhanced)
+      // While the composer still holds this request, Ctrl+Enter sends the result (enhanceOrSend).
+      set(resultFor, prompt)
       put(lastRun, ran)
       showContext(answer.context, answer.notes)
       askForFeedback()
@@ -402,15 +408,58 @@ export function toggleItem(id: string, include: boolean): void {
 export async function send(text: string): Promise<void> {
   const terminalId = read(target)
   if (!terminalId || !text.trim()) return
+  await sendTo(terminalId, text, false)
+}
+
+/**
+ * Types the text into one terminal. An agent that is waiting for an answer from the person is not
+ * typed into unasked (the worker refuses): the notice offers to type it without Enter (`force`).
+ */
+async function sendTo(terminalId: string, text: string, force: boolean): Promise<void> {
+  if (read(busy)) return
+  const item = read(targets).find((entry) => entry.terminalId === terminalId)
+  if (!item) {
+    set(notice, { tone: 'warning', text: t('That terminal is no longer open.') })
+    return
+  }
+  const label = targetLabel(item)
   set(busy, 'send')
   try {
-    const { accepted } = await plugin.request('prompt.send', { terminalId, text, enter: read(effectiveEnter) })
-    const label = read(targets).find((item) => item.terminalId === terminalId)?.label ?? 'terminal'
-    set(notice, accepted ? { tone: 'success', text: t('Sent to {label}.', { label }) } : { tone: 'warning', text: t('{label} did not accept the text.', { label }) })
+    const { accepted } = await plugin.request('prompt.send', { terminalId, text, enter: read(effectiveEnter), ...(force ? { force: true } : {}) })
+    const done = force ? t('Typed into {label}, without Enter.', { label }) : t('Sent to {label}.', { label })
+    set(notice, accepted ? { tone: 'success', text: done } : { tone: 'warning', text: t('{label} did not accept the text.', { label }) })
   } catch (error) {
-    set(notice, { tone: 'danger', text: message(error) })
+    if (!force && errorMessage(error)?.code === 'error.agent_blocked') {
+      set(notice, { tone: 'warning', text: message(error), action: { label: t('Type it without Enter'), run: { kind: 'send.anyway', terminalId, text } } })
+    } else set(notice, { tone: 'danger', text: message(error) })
   } finally {
     set(busy, null)
+  }
+}
+
+/**
+ * Ctrl+Enter in the composer: sends the result while it is the one made from what the composer
+ * still holds (the person has it in front of them), and enhances otherwise.
+ */
+export async function enhanceOrSend(): Promise<void> {
+  const output = read(result)
+  const current = output.trim() !== '' && read(resultFor) !== null && read(resultFor) === read(draft).trim()
+  if (current && read(target) && read(busy) === null) return send(output)
+  return enhanceNow()
+}
+
+/** Runs what a notice's button stands for (state.ts: NoticeAction). */
+export async function runNoticeAction(action: NoticeAction): Promise<void> {
+  // The composer is in use (a run, a send): what the button would do waits, and says so.
+  if (action.kind !== 'history.restore' && read(busy) !== null) {
+    set(notice, { tone: 'warning', text: t('Something is still running here. Try again when it has finished.') })
+    return
+  }
+  if (action.kind === 'composer.restore') restoreComposer()
+  else if (action.kind === 'send.anyway') await sendTo(action.terminalId, action.text, true)
+  else {
+    const answer = await plugin.request('history.restore', { id: action.id }).catch(() => ({ restored: false }))
+    set(notice, answer.restored ? { tone: 'success', text: t('Back in the history.') } : { tone: 'warning', text: t('It could not be brought back.') })
   }
 }
 
@@ -420,17 +469,60 @@ export async function copy(text: string): Promise<void> {
   set(notice, answer.copied ? { tone: 'success', text: t('Copied to clipboard.') } : { tone: 'danger', text: t('Copy failed: {error}', { error: answer.error ?? 'unknown error' }) })
 }
 
+/** What the composer held before a history entry was opened in it, and in which project: for Undo. */
+let beforeReuse: { slot: Slot; key: string | null } | null = null
+
+function restoreComposer(): void {
+  const kept = beforeReuse
+  beforeReuse = null
+  // Only in the project it was taken in: a composer never moves to another project.
+  if (!kept || kept.key !== read(workspaceKey)) return
+  put(draft, kept.slot.draft)
+  put(result, kept.slot.result)
+  put(lastRun, kept.slot.lastRun)
+  put(contextShown, kept.slot.contextShown)
+  put(contextNotes, kept.slot.contextNotes)
+  set(excluded, kept.slot.excluded)
+  put(files, kept.slot.files ?? [])
+  set(resultFor, null)
+}
+
+/**
+ * Opens a history entry in the composer. What the composer held is replaced, so the notice offers
+ * Undo; an entry written in another project says so, since it is about to be sent in this one.
+ */
 export function reuse(entry: HistoryEntry): void {
+  const had = snapshot()
+  const replaced = !isEmpty(had) && (had.draft !== entry.original || had.result !== entry.enhanced)
+  beforeReuse = replaced ? { slot: had, key: read(workspaceKey) } : null
   put(draft, entry.original)
   put(result, entry.enhanced)
+  // What the composer showed about its last run was about another prompt.
+  put(lastRun, null)
+  put(contextShown, [])
+  put(contextNotes, [])
   if (isStyle(entry.style)) set(style, entry.style)
   set(tab, 'enhance')
+  // Written in another project, or (where Orca cannot tell which project is open) in one that may
+  // be another: it says where it is from, and Ctrl+Enter does not send it before it was read.
+  const here = read(projectName)
+  const elsewhere = entry.project && entry.project !== here ? entry.project : null
+  set(resultFor, elsewhere ? null : entry.original.trim())
+  if (!elsewhere && !replaced) return
+  set(notice, {
+    tone: elsewhere ? 'warning' : 'neutral',
+    text: elsewhere ? t('This prompt was written in {name}: read it before you send it here.', { name: elsewhere }) : t('Opened from the history. What the composer held was replaced.'),
+    ...(replaced ? { action: { label: t('Undo'), run: { kind: 'composer.restore' as const } } } : {})
+  })
 }
 
 /** History changes go through the worker, in order with the entries it is saving. */
 export async function removeEntry(id: string): Promise<void> {
   try {
     await plugin.request('history.remove', { id })
+    if (read(historyOpen) === id) set(historyOpen, null)
+    // Delete sits next to Copy: one press too many is put right with Undo (the worker keeps the entry for a minute).
+    set(notice, { tone: 'neutral', text: t('Removed from the history.'), action: { label: t('Undo'), run: { kind: 'history.restore', id } } })
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
   }
@@ -491,7 +583,9 @@ export async function detectClis(): Promise<void> {
 
 /** One click: adds a detected subscription CLI as a model with its defaults. */
 export async function addDetected(presetId: string, path: string): Promise<void> {
+  if (read(busy)) return
   const preset = presetById(presetId)
+  set(busy, 'save')
   try {
     set(
       models,
@@ -511,6 +605,8 @@ export async function addDetected(presetId: string, path: string): Promise<void>
     set(notice, { tone: 'success', text: t('Added {name}. Use Test to check it is signed in.', { name: preset.label }) })
   } catch (error) {
     set(notice, { tone: 'danger', text: message(error) })
+  } finally {
+    set(busy, null)
   }
 }
 
@@ -656,6 +752,11 @@ export async function openFile(path: string): Promise<void> {
   }
 }
 
+/** What auto-enhance did with the last prompt it saw (the Settings section shows it). */
+export async function refreshHookLast(): Promise<void> {
+  set(hookLast, await plugin.request('hook.last').catch(() => null))
+}
+
 export async function refreshDataSummary(): Promise<void> {
   set(dataSummary, await plugin.request('data.summary').catch(() => null))
 }
@@ -669,6 +770,9 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
       set(consents, [])
       for (const [now, , empty] of KEPT) set(now, empty as never)
       set(rulesState, { rules: [], structures: [] })
+      set(hookLast, null)
+      set(resultFor, null)
+      beforeReuse = null
       forgetSaved()
     }
     set(confirmWipe, false)

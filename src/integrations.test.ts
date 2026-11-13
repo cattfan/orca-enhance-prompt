@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import { forgetActivity, recordTool, toolTarget, agentActivity } from './context/activity.ts'
-import { forgetTerminals } from './context/terminals.ts'
+import { redactSecrets } from './context/agents.ts'
+import { forgetTerminals, terminalsSaved } from './context/terminals.ts'
 import { relativeTo } from './context/index.ts'
 import * as main from './worker.ts'
 
@@ -174,5 +175,205 @@ test('a quick run sends no notification, even with notifications on', async () =
   const worker = await mountWorker(main, { host: testHost })
   await worker.request('prompt.enhance', { prompt: 'do it', level: 'off' })
   assert.equal(testHost.callsOf('notifications.show').length, 0)
+  await worker.deactivate()
+})
+
+test('an agent that is waiting for an answer is not typed into unasked, and never gets Enter', async () => {
+  const blockedHost = mockHost({
+    settings: { sendPressEnter: true },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [{ id: 't1', title: 'Claude' }, { id: 't2', title: 'Codex' }] },
+      'agents.list': {
+        agents: [
+          { terminalId: 't1', title: 'Claude', agent: 'claude', state: 'blocked', stateStartedAt: 0 },
+          { terminalId: 't2', title: 'Codex', agent: 'codex', state: 'working', stateStartedAt: 0 }
+        ]
+      },
+      'terminal.sendText': { accepted: true }
+    }
+  })
+  const worker = await mountWorker(main, { host: blockedHost })
+  // The picker gets an agent's title and state apart, to word them in the panel's language.
+  const listed = await worker.request('targets.list', {})
+  assert.deepEqual(listed.targets[0], { terminalId: 't1', label: 'Claude · blocked', agent: 'claude', title: 'Claude', state: 'blocked' })
+  // Claude is asking the person something: what is typed now could be taken as the answer.
+  await assert.rejects(worker.request('prompt.send', { terminalId: 't1', text: 'do the next task' }), /Claude is waiting for an answer from you/)
+  assert.equal(blockedHost.callsOf('terminal.sendText').length, 0)
+  // The person was told and sends anyway: the text is typed, Enter is not pressed for them.
+  assert.deepEqual(await worker.request('prompt.send', { terminalId: 't1', text: 'do the next task', force: true }), { accepted: true })
+  const typed = blockedHost.callsOf('terminal.sendText') as { text: string }[]
+  assert.ok(typed.length > 0 && typed.every((call) => call.text !== '\r'), 'Enter was pressed for an agent that is waiting for an answer')
+  // The person answers the agent in its terminal, then presses "Type it without Enter": the
+  // agent is no longer blocked by then, and still no Enter is pressed for them.
+  blockedHost.respond('agents.list', { agents: [{ terminalId: 't1', title: 'Claude', agent: 'claude', state: 'waiting', stateStartedAt: 0 }] })
+  const sofar = blockedHost.callsOf('terminal.sendText').length
+  await worker.request('prompt.send', { terminalId: 't1', text: 'do the next task', enter: true, force: true })
+  const later = (blockedHost.callsOf('terminal.sendText') as { text: string }[]).slice(sofar)
+  assert.ok(later.length > 0 && later.every((call) => call.text !== '\r'), 'a forced send pressed Enter')
+  blockedHost.respond('agents.list', {
+    agents: [
+      { terminalId: 't1', title: 'Claude', agent: 'claude', state: 'blocked', stateStartedAt: 0 },
+      { terminalId: 't2', title: 'Codex', agent: 'codex', state: 'working', stateStartedAt: 0 }
+    ]
+  })
+  // An agent that is working takes the prompt as before, Enter included.
+  const before = typed.length
+  await worker.request('prompt.send', { terminalId: 't2', text: 'do the next task' })
+  const after = (blockedHost.callsOf('terminal.sendText') as { terminalId: string; text: string }[]).slice(before)
+  assert.equal(after.at(-1)?.text, '\r')
+  await worker.deactivate()
+})
+
+test('a prompt the panel started an agent with goes through auto-enhance as it is, and its terminal is known at once', async () => {
+  const launchHost = mockHost({
+    settings: { allowAgentLaunch: true, autoEnhanceMode: 'rules', autoEnhanceAppend: 'Run the tests before you finish.' },
+    storage: { models: { profiles: [profile] }, consents: { allowAgentLaunch: true } },
+    results: {
+      'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [] },
+      'workspace.list': { workspaces: [{ id: WS, kind: 'worktree', name: 'demo', project: 'demo', path: LISTED.path, branch: 'main', hostId: 'local' }], truncated: false },
+      'agents.list': { agents: [] },
+      'agent.launch': { terminalId: 'new-1' },
+      'statusBar.update': { ok: true }
+    }
+  })
+  const worker = await mountWorker(main, { host: launchHost })
+  await worker.request('agent.launch', { agent: 'claude', prompt: 'Fix the login page layout on phones.' })
+  // Orca runs the hook on a launch's prompt too: this one is enhanced already, so nothing is added.
+  const own = { agent: 'claude', terminalId: 'new-1', prompt: 'Fix the login page layout on phones.', inputKind: 'launch' as const }
+  assert.deepEqual(await worker.hooks.fire('agent.prompt.before', own), { kind: 'continue', event: own })
+  // Any other prompt gets the person's text, and the Settings section can say what happened.
+  const other = await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'new-1', prompt: 'Now add a logout button to the header.', inputKind: 'driving' as const })
+  assert.equal(other.kind === 'continue' && other.event.prompt, 'Now add a logout button to the header.\n\nRun the tests before you finish.')
+  const last = await worker.request('hook.last')
+  assert.deepEqual([last?.outcome, last?.agent], ['appended', 'claude'])
+  // The new terminal's workspace is known without waiting for Orca's first event about it.
+  await terminalsSaved()
+  assert.deepEqual(launchHost.data().storage.terminalWorkspaces, { 'new-1': WS })
+  await worker.deactivate()
+})
+
+test('auto-enhance (AI) that leaves a prompt as it was says why, to the panel and in "hook.last"', async () => {
+  // Only a subscription CLI is set: it starts too slowly for the hook's 2 seconds.
+  const cliOnly = mockHost({
+    settings: { autoEnhanceMode: 'ai' },
+    storage: { models: { profiles: [{ ...profile, id: 'cc', name: 'Claude Code', preset: 'claude-code', provider: 'cli', baseUrl: '', model: 'sonnet', command: 'claude' }] } },
+    results: { 'workspace.readContext': null, 'statusBar.update': { ok: true } }
+  })
+  const worker = await mountWorker(main, { host: cliOnly })
+  const event = { agent: 'codex', terminalId: 't9', prompt: 'add a health check endpoint to the api', inputKind: 'orchestration' as const }
+  assert.deepEqual(await worker.hooks.fire('agent.prompt.before', event), { kind: 'continue', event })
+  const last = await worker.request('hook.last')
+  assert.deepEqual([last?.outcome, last?.agent, last?.reason?.code], ['skipped', 'codex', 'hook.no_model'])
+  assert.deepEqual(
+    worker.posts.filter((post) => post.event === 'hook.skipped').map((post) => post.payload),
+    [{ agent: 'codex', reason: { code: 'hook.no_model' } }]
+  )
+  // Delete everything forgets it.
+  await worker.request('data.clear', { what: 'all' })
+  assert.equal(await worker.request('hook.last'), null)
+  await worker.deactivate()
+})
+
+test('a removed history entry comes back with Undo: by its id, to its place, only while history is kept', async () => {
+  const stored: Record<string, string | number>[] = [
+    { id: 'h3', at: 3000, original: 'three', enhanced: 'Three.', style: 'balanced', model: 'm', source: 'panel', project: 'demo' },
+    { id: 'h2', at: 2000, original: 'two', enhanced: 'Two.', style: 'balanced', model: 'm', source: 'panel' },
+    { id: 'h1', at: 1000, original: 'one', enhanced: 'One.', style: 'balanced', model: 'm', source: 'hook' }
+  ]
+  const historyHost = mockHost({ storage: { history: stored }, results: { 'statusBar.update': { ok: true } } })
+  const worker = await mountWorker(main, { host: historyHost })
+  const ids = () => (historyHost.data().storage.history as { id: string }[]).map((item) => item.id)
+  await worker.request('history.remove', { id: 'h2' })
+  assert.deepEqual(ids(), ['h3', 'h1'])
+  // Back between its neighbours, with everything it held.
+  assert.deepEqual(await worker.request('history.restore', { id: 'h2' }), { restored: true })
+  assert.deepEqual(ids(), ['h3', 'h2', 'h1'])
+  assert.deepEqual((historyHost.data().storage.history as { id: string; project?: string }[])[0].project, 'demo')
+  // Once only, and nothing the worker did not remove itself: the panel cannot write an entry in.
+  assert.deepEqual(await worker.request('history.restore', { id: 'h2' }), { restored: false })
+  assert.deepEqual(await worker.request('history.restore', { id: 'made-up' }), { restored: false })
+  assert.deepEqual(ids(), ['h3', 'h2', 'h1'])
+  // Clearing the history forgets what was removed before it.
+  await worker.request('history.remove', { id: 'h1' })
+  await worker.request('history.clear')
+  assert.deepEqual(await worker.request('history.restore', { id: 'h1' }), { restored: false })
+  await worker.deactivate()
+
+  // With Save history off, nothing is written back.
+  const offHost = mockHost({ settings: { saveHistory: false }, storage: { history: stored }, results: { 'statusBar.update': { ok: true } } })
+  const off = await mountWorker(main, { host: offHost })
+  await off.request('history.remove', { id: 'h3' })
+  assert.deepEqual(await off.request('history.restore', { id: 'h3' }), { restored: false })
+  assert.equal((offHost.data().storage.history as unknown[]).length, 2)
+  await off.deactivate()
+})
+
+test('a run is kept in the history under its project, so the History tab can show one project', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: 'Better.' } }] }), { status: 200 })) as typeof fetch
+  const testHost = host({})
+  const worker = await mountWorker(main, { host: testHost })
+  await worker.request('prompt.enhance', { prompt: 'fix the login page', level: 'off' })
+  const kept = testHost.data().storage.history as { original: string; project?: string }[]
+  assert.deepEqual([kept[0].original, kept[0].project], ['fix the login page', 'demo'])
+  await worker.deactivate()
+})
+
+test('an API key that cannot be stored is said so in words, and no model is saved without it', async () => {
+  const noStore = mockHost({
+    results: {
+      'secrets.protection': { status: 'unavailable' },
+      'secrets.set': () => {
+        throw new Error('secret store unavailable')
+      },
+      'statusBar.update': { ok: true }
+    }
+  })
+  const worker = await mountWorker(main, { host: noStore })
+  // The Models tab can warn before a key is typed.
+  assert.equal((await worker.request('models.get')).keysUnavailable, true)
+  await assert.rejects(
+    worker.request('models.save', { name: 'OpenAI', preset: 'openai', provider: 'openai', baseUrl: '', model: 'gpt-4.1-mini', maxTokens: 2000, enabled: true, apiKey: 'sk-test-1234567890' }),
+    /Orca could not store the API key/
+  )
+  assert.deepEqual((await worker.request('models.get')).profiles, [])
+  // Without a key (an environment variable, a local model) the same model is saved as before.
+  const saved = await worker.request('models.save', { name: 'Ollama', preset: 'ollama', provider: 'openai', baseUrl: 'http://localhost:11434/v1', model: 'llama3', maxTokens: 2000, enabled: true })
+  assert.equal(saved.profiles.length, 1)
+  await worker.deactivate()
+
+  // A machine with a key store says nothing.
+  const usual = await mountWorker(main, { host: mockHost({ results: { 'secrets.protection': { status: 'os-keyring' }, 'statusBar.update': { ok: true } } }) })
+  assert.equal((await usual.request('models.get')).keysUnavailable, undefined)
+  await usual.deactivate()
+})
+
+test('masking leaves a count of tokens alone and still hides a token', () => {
+  assert.equal(redactSecrets('max_tokens: 200000, input_tokens=1234567'), 'max_tokens: 200000, input_tokens=1234567')
+  // In JSON the value takes the closing brace with it: the count and the brace both stay.
+  assert.equal(redactSecrets('{"model": "x", "max_tokens": 200000}'), '{"model": "x", "max_tokens": 200000}')
+  assert.equal(redactSecrets('{"api_token": "abcdef123456"}'), '{"api_token": "[redacted]"}')
+  assert.equal(redactSecrets('API_TOKEN=abcdef123456 and token: 99887766'), 'API_TOKEN=[redacted] and token: [redacted]')
+})
+
+test('an entry that no longer fits the history is not said to be back', async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ choices: [{ message: { content: 'Better.' } }] }), { status: 200 })) as typeof fetch
+  const fullHost = mockHost({
+    settings: { historyLimit: 2 },
+    storage: {
+      models: { profiles: [profile] },
+      history: [
+        { id: 'h2', at: 2000, original: 'two', enhanced: 'Two.', style: 'balanced', model: 'm', source: 'panel' },
+        { id: 'h1', at: 1000, original: 'one', enhanced: 'One.', style: 'balanced', model: 'm', source: 'panel' }
+      ]
+    },
+    secrets: { 'apiKey.oa': 'k' },
+    results: { 'workspace.readContext': null, 'statusBar.update': { ok: true } }
+  })
+  const worker = await mountWorker(main, { host: fullHost })
+  await worker.request('history.remove', { id: 'h1' })
+  // A new prompt takes the free place: the history is full again, with two newer entries.
+  await worker.request('prompt.enhance', { prompt: 'three', level: 'off' })
+  assert.deepEqual(await worker.request('history.restore', { id: 'h1' }), { restored: false })
+  assert.deepEqual((fullHost.data().storage.history as { original: string }[]).map((item) => item.original), ['three', 'two'])
   await worker.deactivate()
 })

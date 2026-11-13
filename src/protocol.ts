@@ -23,7 +23,11 @@ export type ProfileInput = {
   /** New API key; undefined keeps the current one, '' removes it. */
   apiKey?: string
 }
+/** What auto-enhance last did with a prompt Orca was sending (kept in the worker's memory). */
+export type HookRecord = { at: number; outcome: 'rewritten' | 'appended' | 'skipped'; agent: string | null; model?: string; reason?: Message }
 export type ModelsView = {
+  /** This machine has no OS key store: Orca cannot save an API key (`secrets.protection`). */
+  keysUnavailable?: boolean
   profiles: ProfileView[]
   hookProfileId: string | null
   selectorProfileId: string | null
@@ -82,7 +86,8 @@ declare module 'orca' {
     }
     /** Types `text` into an agent terminal. */
     'prompt.send': {
-      input: { terminalId: string; text: string; enter?: boolean }
+      /** `force`: the person was told the agent is waiting for an answer from them and sends anyway (Enter is never pressed then). */
+      input: { terminalId: string; text: string; enter?: boolean; force?: boolean }
       output: { accepted: boolean }
     }
     /** Copies `text` to the OS clipboard of the Orca host. */
@@ -110,7 +115,8 @@ declare module 'orca' {
       /** `workspaceId`: Orca's id of the focused workspace (null when it cannot tell): the panel keeps each
        *  project's draft and result apart by it. `workspacePath`: its folder. */
       output: {
-        targets: { terminalId: string; label: string; agent: string | null }[]
+        /** `title` and `state` (an agent's: working, blocked, waiting, done) are what `label` is made of, for the panel's language. */
+        targets: { terminalId: string; label: string; agent: string | null; title?: string; state?: string }[]
         workspace?: string | null
         project?: string | null
         workspaceId?: string | null
@@ -146,12 +152,18 @@ declare module 'orca' {
         source: string
         fetchedAt: number
         error?: string
+        /** The same reason as a message, when it is the plugin's own (a switch that is off). */
+        errorText?: Message
       }
     }
     /** Deletes one history entry (in order with new entries being saved). */
     'history.remove': { input: { id: string }; output: { ok: true } }
     /** Deletes the whole history (in order with new entries being saved). */
     'history.clear': { output: { ok: true } }
+    /** Undo of history.remove: brings back the entry of that id, if this worker removed it a moment ago. */
+    'history.restore': { input: { id: string }; output: { restored: boolean } }
+    /** What auto-enhance did with the last prompt it saw, or null. */
+    'hook.last': { output: HookRecord | null }
     /** Rules tab: your rules and prompt structures. */
     'rules.get': { output: RulesConfig }
     /** Replaces them (cleaned and capped); answers with what was saved. */
@@ -167,6 +179,8 @@ declare module 'orca' {
   interface PluginPanelEvents {
     /** The auto-enhance hook rewrote a prompt Orca was sending. */
     'hook.enhanced': { agent: string | null; mode: string; model?: string }
+    /** Auto-enhance (AI) let a prompt through unchanged, and why. */
+    'hook.skipped': { agent: string | null; reason: Message }
     /** The steps of the panel's enhance run, a full snapshot on every change. */
     'enhance.progress': {
       runId: string

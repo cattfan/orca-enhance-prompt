@@ -2,10 +2,11 @@
 // actions (src/panel/*), drawn with shadcn/ReUI.
 import { useState } from 'react'
 import { read, set, update } from 'orca'
-import { ArrowDownIcon, ArrowUpIcon, RotateCcwIcon, CheckIcon, CopyIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon, RotateCcwIcon, CheckIcon, CopyIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { currentLanguage, t } from '../../src/i18n.ts'
 import { presetById, type ProfileView } from '../../src/presets.ts'
+import type { HookRecord } from '../../src/protocol.ts'
 import { isStyle, STYLE_LABELS } from '../../src/prompts.ts'
 import { allStructures, BUILT_IN_STRUCTURES, MAX_RULES, MAX_STRUCTURES } from '../../src/rules.ts'
 import {
@@ -25,7 +26,11 @@ import {
   filteredHistory,
   form,
   history,
+  historyByProject,
   historyFilter,
+  historyOpen,
+  historyScope,
+  hookLast,
   HISTORY_PAGE,
   historyShown,
   models,
@@ -33,6 +38,7 @@ import {
   projectName,
   ruleDraft,
   ruleScope,
+  say,
   structureDraft,
   tab,
   toModel,
@@ -66,7 +72,7 @@ import {
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, newRuleLabel, PRIVACY_ROWS, rulesConfig, rulesHere, ruleScopeLabel } from '../../src/panel/view.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, newRuleLabel, PRIVACY_GROUPS, PRIVACY_ROWS, rulesConfig, rulesHere, ruleScopeLabel } from '../../src/panel/view.ts'
 import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
@@ -102,16 +108,47 @@ export function HistorySection() {
       </div>
     )
   }
+  const here = read(projectName)
+  const byProject = read(historyByProject) && here !== null
+  const scope = byProject ? read(historyScope) : 'all'
+  const open = read(historyOpen)
   return (
     <div className="flex flex-col gap-2">
       <Input type="search" aria-label={t('Search history')} placeholder={t('Search history')} value={read(historyFilter)} onChange={(event) => set(historyFilter, event.target.value)} className="h-8" />
+      {byProject ? (
+        <Segmented
+          label={t('Which prompts to show')}
+          value={scope}
+          options={[
+            { value: 'all', label: t('Every project') },
+            { value: 'project', label: here }
+          ]}
+          onChange={(value) => set(historyScope, value === 'project' ? 'project' : 'all')}
+        />
+      ) : null}
+      {list.length === 0 ? <p className="text-muted-foreground py-4 text-center text-sm">{t('Nothing here matches.')}</p> : null}
       <div className="flex flex-col gap-1.5">
         {list.slice(0, shown).map((entry) => (
           <div key={entry.id} className="flex flex-col gap-1 rounded-lg border p-2">
-            <p className="truncate text-sm font-medium">{entry.original.split('\n')[0].slice(0, 160)}</p>
+            {/* Read in place: opening an entry in the Enhance tab replaces what the composer holds. */}
+            <button
+              type="button"
+              aria-expanded={open === entry.id}
+              aria-label={open === entry.id ? t('Hide the enhanced prompt') : t('Show the enhanced prompt')}
+              onClick={() => set(historyOpen, open === entry.id ? null : entry.id)}
+              className="flex min-w-0 items-start gap-1 text-left"
+            >
+              <ChevronRightIcon className={cn('text-muted-foreground mt-0.5 size-3.5 shrink-0 transition-transform', open === entry.id && 'rotate-90')} />
+              <span className={cn('min-w-0 text-sm font-medium', open === entry.id ? 'break-words whitespace-pre-wrap' : 'truncate')}>
+                {open === entry.id ? entry.original.slice(0, 600) : entry.original.split('\n')[0].slice(0, 160)}
+              </span>
+            </button>
+            {open === entry.id ? (
+              <div className="bg-muted/50 max-h-64 overflow-y-auto rounded-md border p-2 text-[13px] break-words whitespace-pre-wrap">{entry.enhanced}</div>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground truncate text-xs">
-                {`${t(STYLE_LABELS[isStyle(entry.style) ? entry.style : 'balanced'])} · ${entry.model}${entry.source === 'hook' ? ` · ${t('auto')}` : ''} · ${ago(entry.at)}`}
+                {`${t(STYLE_LABELS[isStyle(entry.style) ? entry.style : 'balanced'])} · ${entry.model}${entry.source === 'hook' ? ` · ${t('auto')}` : ''}${entry.project && scope === 'all' ? ` · ${entry.project}` : ''} · ${ago(entry.at)}`}
               </span>
               <div className="flex shrink-0">
                 <IconAction label={t('Open in Enhance tab')} onClick={() => reuse(entry)}>
@@ -184,7 +221,7 @@ function FormModelPicker({ current }: { current: Form }) {
         {loading
           ? t('Loading the model list…')
           : catalog?.error
-            ? t('Could not load the list ({error}). Type the model id.', { error: catalog.error })
+            ? t('Could not load the list ({error}). Type the model id.', { error: catalog.errorText ? say(catalog.errorText) : catalog.error })
             : catalog && catalog.models.length > 0
               ? t('{count} models from {source}, refreshed daily.', { count: catalog.models.length, source: catalog.source })
               : cli
@@ -352,6 +389,12 @@ export function ModelsSection() {
   ]
   return (
     <div className="flex flex-col gap-4">
+      {view.keysUnavailable ? (
+        <Alert variant="warning">
+          <AlertTitle>{t('API keys cannot be saved on this machine')}</AlertTitle>
+          <AlertDescription>{t('Orca found no key store here to keep them in. Use a key from an environment variable (the switch for it is in Settings), or a subscription CLI.')}</AlertDescription>
+        </Alert>
+      ) : null}
       <Section title={t('Your models')} hint={t('Models are tried top to bottom. Disabled models are skipped.')}>
         {view.fromEnv && view.profiles.length > 0 ? (
           <Alert>
@@ -640,46 +683,85 @@ function OtherAgentsAmounts({ active }: { active: boolean }) {
   )
 }
 
-/** Before a switch that needs it turns on: everything it allows, in plain words, and Turn on / Cancel. */
-function ConsentDialog({ keyName, onClose }: { keyName: PrivacyKey | null; onClose: () => void }) {
+/**
+ * Everything about one switch, in plain words: what it does, what can go wrong, and when it is
+ * worth turning on. Opened from a row's link to read, or (`confirm`) before a switch that needs it
+ * turns on, with Turn on / Cancel.
+ */
+function SwitchDialog({ keyName, confirm, onClose }: { keyName: PrivacyKey | null; confirm: boolean; onClose: () => void }) {
   const row = PRIVACY_ROWS.find((entry) => entry.key === keyName)
-  const points = keyName ? (DISCLOSURES[keyName] ?? []) : []
+  const points = row ? (DISCLOSURES[row.key] ?? [row.hint]) : []
   return (
     <Dialog open={keyName !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="flex max-h-[85vh] max-w-[calc(100vw-24px)] flex-col gap-3 p-4">
         <DialogHeader>
-          <DialogTitle>{row ? t('Turn on "{name}"?', { name: t(row.label) }) : ''}</DialogTitle>
-          <DialogDescription>{t('Read what this allows. Nothing is hidden: this is everything it does.')}</DialogDescription>
+          <DialogTitle>{row ? (confirm ? t('Turn on "{name}"?', { name: t(row.label) }) : t(row.label)) : ''}</DialogTitle>
+          <DialogDescription>
+            {confirm ? t('Read what this allows. Nothing is hidden: this is everything it does.') : t('What this switch does, what can go wrong, and when it is worth turning on.')}
+          </DialogDescription>
         </DialogHeader>
-        {/* Padding, not a margin: the list scrolls, and a scrolling box cuts off bullets drawn outside it. */}
-        <ul className="list-disc space-y-1.5 overflow-y-auto pl-5 text-sm leading-relaxed">
-          {points.map((point) => (
-            <li key={point}>{t(point)}</li>
-          ))}
-        </ul>
-        <p className="text-muted-foreground text-xs">{t('You can turn it off at any time here; turning it off also withdraws this confirmation.')}</p>
+        <div className="flex flex-col gap-2.5 overflow-y-auto text-sm leading-relaxed">
+          <div className="flex flex-col gap-1">
+            <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{t('What it does')}</h4>
+            {/* Padding, not a margin: the box scrolls, and a scrolling box cuts off bullets drawn outside it. */}
+            <ul className="list-disc space-y-1.5 pl-5">
+              {points.map((point) => (
+                <li key={point}>{t(point)}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{t('What can go wrong')}</h4>
+            <p>{row ? t(row.risk) : ''}</p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <h4 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{t('When to turn it on')}</h4>
+            <p>{row ? t(row.when) : ''}</p>
+          </div>
+        </div>
+        {confirm ? <p className="text-muted-foreground text-xs">{t('You can turn it off at any time here; turning it off also withdraws this confirmation.')}</p> : null}
         <div className="flex justify-end gap-1.5">
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            {t('Cancel')}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              if (keyName) void confirmSwitch(keyName)
-              onClose()
-            }}
-          >
-            {t('I understand, turn it on')}
-          </Button>
+          {confirm ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={onClose}>
+                {t('Cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (keyName) void confirmSwitch(keyName)
+                  onClose()
+                }}
+              >
+                {t('I understand, turn it on')}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={onClose}>
+              {t('Close')}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   )
 }
 
+/** What auto-enhance did with the last prompt Orca sent, in one line (a prompt left as it was says why). */
+function hookLastText(last: HookRecord): string {
+  const when = ago(last.at)
+  const agent = last.agent ?? t('an agent')
+  if (last.outcome === 'rewritten') return t('Last prompt ({when}): rewritten for {agent} with {model}.', { when, agent, model: last.model ?? '?' })
+  if (last.outcome === 'appended') return t('Last prompt ({when}): your text was added for {agent}.', { when, agent })
+  return t('Last prompt ({when}): left unchanged for {agent}. {reason}', { when, agent, reason: last.reason ? say(last.reason) : '' })
+}
+
 export function SettingsSection() {
   // ?ask=<switch> opens its confirmation at once in the dev server (pictures of the dialog).
   const [asking, setAsking] = useState<PrivacyKey | null>(import.meta.env.DEV ? (new URLSearchParams(location.search).get('ask') as PrivacyKey | null) : null)
+  // A switch whose explanation is open to read (?details=<switch> in the dev server, for pictures).
+  const [reading, setReading] = useState<PrivacyKey | null>(import.meta.env.DEV ? (new URLSearchParams(location.search).get('details') as PrivacyKey | null) : null)
+  const last = read(hookLast)
   const flags = read(privacy)
   const data = read(dataSummary)
   const prefs = read(defaults)
@@ -700,6 +782,8 @@ export function SettingsSection() {
             onChange={(value) => void setSetting('autoEnhanceMode', value)}
           />
           <p className="text-muted-foreground text-xs">{t(AUTO_MODE_HINTS[prefs.autoEnhanceMode] ?? AUTO_MODE_HINTS.off)}</p>
+          {/* Auto-enhance works out of sight: what it did last, and why when it did nothing. */}
+          {prefs.autoEnhanceMode !== 'off' && last ? <p className={cn('text-xs', last.outcome === 'skipped' ? 'text-warning-foreground' : 'text-muted-foreground')}>{hookLastText(last)}</p> : null}
         </Row>
         {view && prefs.autoEnhanceMode === 'ai' && hookOptions.length === 0 ? (
           <Row
@@ -723,8 +807,13 @@ export function SettingsSection() {
           </Row>
         ) : null}
       </Group>
-      <Group title={t('What it may use')} hint={t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.')}>
-        {PRIVACY_ROWS.map((row) => {
+      {PRIVACY_GROUPS.map((group, index) => (
+      <Group
+        key={group.id}
+        title={t(group.title)}
+        hint={index === 0 ? t('Orca asks once for everything this plugin may do. These switches decide what it actually uses; the plugin checks them every time.') : undefined}
+      >
+        {PRIVACY_ROWS.filter((row) => row.group === group.id).map((row) => {
           const needs = NEEDS_CONSENT.has(row.key)
           const on = flags[row.key] === true
           // On in Orca's Settings but never confirmed here: the worker keeps it off until confirmed.
@@ -740,7 +829,10 @@ export function SettingsSection() {
               }
               description={
                 <>
-                  {t(row.hint)}
+                  {t(row.hint)}{' '}
+                  <button type="button" className="hover:text-foreground underline underline-offset-2" onClick={() => setReading(row.key)}>
+                    {t('Risk and when to use it')}
+                  </button>
                   {row.key === 'allowOtherAgents' ? <OtherAgentsAmounts active={on && !waiting && flags.allowTerminalRead !== false} /> : null}
                   {waiting ? (
                     <span className="text-warning-foreground mt-1 flex items-center gap-2">
@@ -770,6 +862,7 @@ export function SettingsSection() {
           )
         })}
       </Group>
+      ))}
       <Group title={t('Notifications')}>
         <Row
           title={t('Notify when a long enhance finishes')}
@@ -777,7 +870,14 @@ export function SettingsSection() {
           control={<Switch checked={prefs.notifyWhenDone} aria-label={t('Notify when a long enhance finishes')} onCheckedChange={(value) => void setSetting('notifyWhenDone', value)} />}
         />
       </Group>
-      <ConsentDialog keyName={asking} onClose={() => setAsking(null)} />
+      <SwitchDialog
+        keyName={asking ?? reading}
+        confirm={asking !== null}
+        onClose={() => {
+          setAsking(null)
+          setReading(null)
+        }}
+      />
       <Group title={t('Stored on this machine')} hint={t('Nothing is sent anywhere except your prompt and the context you allow, to the model you run. No tracking or analytics.')}>
         {data ? (
           [

@@ -4,6 +4,8 @@ import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { cachedStatic } from './context/index.ts'
+import { forgetTerminals } from './context/terminals.ts'
 import * as main from './worker.ts'
 
 // A test that stubs fetch never leaks it into the next one.
@@ -145,6 +147,39 @@ test('Preview context obeys the same Privacy switches as a run', async () => {
   await terminalOff.deactivate()
 })
 
+test('the picked terminal\'s output is masked for keys and passwords, in a preview and in a run alike', async () => {
+  const root = tempDir('privacy-terminal-mask-')
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+    bodies.push(String(init?.body ?? ''))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+  }) as typeof fetch
+  const worker = await mountWorker(main, {
+    host: mockHost({
+      settings: { allowGit: false },
+      storage: { models: { profiles: [profile] } },
+      secrets: { 'apiKey.oa': 'k' },
+      results: {
+        'workspace.readContext': { branch: 'main', displayName: 'demo', terminals: [{ id: 't1', title: 'Claude' }] },
+        'workspace.list': { workspaces: [{ id: 'w', kind: 'folder', name: 'demo', path: root, branch: 'main', hostId: null }], truncated: false },
+        'agents.list': { agents: [] },
+        'terminal.read': { lines: ['$ export OPENAI_API_KEY=sk-live-0123456789abcdefghij', 'Error: login failed for token ghp_abcdefghijklmnopqrstuvwxyz0123', 'at src/login.ts:14'], truncated: false }
+      }
+    })
+  })
+  // What the list shows is what would be sent: the count is of the masked text.
+  const preview = await worker.request('context.preview', { prompt: 'fix the login error', level: 'max', terminalId: 't1' })
+  const shown = preview.context.find((item) => item.id === 'terminal')
+  assert.equal(shown?.chars, ['$ export OPENAI_API_KEY=[redacted]', 'Error: login failed for token [redacted]', 'at src/login.ts:14'].join('\n').length)
+  await worker.request('prompt.enhance', { prompt: 'fix the login error', level: 'max', terminalId: 't1' })
+  const sent = bodies.at(-1) ?? ''
+  // The line that helps stays; the key and the token do not leave the machine.
+  assert.match(sent, /at src\/login\.ts:14/)
+  assert.match(sent, /OPENAI_API_KEY=\[redacted\]/)
+  assert.ok(!sent.includes('sk-live-0123456789abcdefghij') && !sent.includes('ghp_abcdefghijklmnopqrstuvwxyz0123'), 'a secret from the terminal reached the model')
+  await worker.deactivate()
+})
+
 test('auto-enhance (AI) leaves cached project context out while project files are off', async () => {
   const root = tempDir('privacy-hook-')
   writeFileSync(join(root, 'AGENTS.md'), 'Use pnpm, secret rules.')
@@ -165,6 +200,60 @@ test('auto-enhance (AI) leaves cached project context out while project files ar
   assert.equal(bodies.length, 1)
   assert.ok(!bodies[0].includes('secret rules'))
   await hook.deactivate()
+})
+
+test('auto-enhance reads a project that is not in focus only while project files are on, and then for the next prompt', async () => {
+  const focusedRoot = tempDir('privacy-hook-focus-')
+  const otherRoot = tempDir('privacy-hook-other-')
+  writeFileSync(join(otherRoot, 'AGENTS.md'), 'Other project: always use bun.')
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(String(init?.body))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'rewritten' } }] }), { status: 200 })
+  }) as typeof fetch
+  const listed = (path: string) => path.replace(/\\/g, '/')
+  const twoProjects = (settings: Record<string, boolean | string>) =>
+    mockHost({
+      settings: { autoEnhanceMode: 'ai', allowGit: false, ...settings },
+      storage: { models: { profiles: [profile] } },
+      secrets: { 'apiKey.oa': 'k' },
+      results: {
+        'workspace.readContext': { branch: 'main', displayName: 'here', terminals: [{ id: 't-here', title: 'Claude' }] },
+        'workspace.list': {
+          workspaces: [
+            { id: 'w-here', kind: 'folder', name: 'here', path: listed(focusedRoot), branch: 'main', hostId: 'local' },
+            { id: 'w-other', kind: 'folder', name: 'other', path: listed(otherRoot), branch: 'main', hostId: 'local' }
+          ],
+          truncated: false
+        },
+        'agents.list': { agents: [] },
+        'statusBar.update': { ok: true }
+      }
+    })
+  const event = { agent: 'claude', terminalId: 't-other', prompt: 'add a health check endpoint', inputKind: 'orchestration' as const }
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 300))
+
+  // Project files off: the other project is not read, now or for later.
+  const off = await mountWorker(main, { host: twoProjects({ allowProjectFiles: false }) })
+  await off.emit('agent.status.changed', { workspaceId: 'w-other', paneKey: 'p', terminalId: 't-other', state: 'working', receivedAt: Date.now() })
+  await off.hooks.fire('agent.prompt.before', event)
+  await settled()
+  assert.equal(cachedStatic(listed(otherRoot)), null)
+  assert.ok(!bodies.at(-1)?.includes('always use bun'))
+  await off.deactivate()
+  await forgetTerminals()
+
+  // On: this prompt has 2 s and goes with the project's name alone; the project is read for the next one.
+  const on = await mountWorker(main, { host: twoProjects({}) })
+  await on.emit('agent.status.changed', { workspaceId: 'w-other', paneKey: 'p', terminalId: 't-other', state: 'working', receivedAt: Date.now() })
+  await on.hooks.fire('agent.prompt.before', event)
+  assert.ok(!bodies.at(-1)?.includes('always use bun'))
+  await settled()
+  assert.notEqual(cachedStatic(listed(otherRoot)), null)
+  await on.hooks.fire('agent.prompt.before', event)
+  assert.match(bodies.at(-1) ?? '', /Other project: always use bun\./)
+  await on.deactivate()
+  await forgetTerminals()
 })
 
 test('history keeps both entries when two runs finish at the same time', async () => {

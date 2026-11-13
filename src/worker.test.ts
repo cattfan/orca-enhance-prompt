@@ -4,6 +4,7 @@ import { after } from 'node:test'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
+import { findFocusedWorkspace } from './context/index.ts'
 import { forgetTerminals, terminalsSaved } from './context/terminals.ts'
 import * as main from './worker.ts'
 
@@ -314,10 +315,16 @@ test('the status bar says Enhance: On or Off under the plugin\'s lightbulb; whic
 test('cycle command switches auto-enhance mode', async () => {
   const host = mockHost({ results: { 'statusBar.update': { ok: true } } })
   const worker = await mountWorker(main, { host })
-  assert.equal(await worker.command('auto-enhance.cycle'), 'Auto-enhance: rules')
+  assert.equal(await worker.command('auto-enhance.cycle'), 'Auto-enhance is on (rules).')
   assert.equal(host.data().settings.autoEnhanceMode, 'rules')
-  assert.equal(await worker.command('auto-enhance.off'), 'Auto-enhance: off')
+  assert.equal(await worker.command('auto-enhance.off'), 'Auto-enhance is off.')
   await worker.deactivate()
+  // Orca shows a command's answer: it is in the panel's language, like the status bar's tooltip.
+  const vietnamese = await mountWorker(main, { host: mockHost({ settings: { uiLanguage: 'vi' }, results: { 'statusBar.update': { ok: true } } }) })
+  assert.equal(await vietnamese.command('auto-enhance.ai'), 'Tự cải thiện đang bật (AI).')
+  assert.equal(await vietnamese.command('status-bar.toggle'), 'Đã ẩn mục trên thanh trạng thái.')
+  assert.equal(await vietnamese.command('status-bar.toggle'), 'Đã hiện mục trên thanh trạng thái.')
+  await vietnamese.deactivate()
 })
 
 test('a long send closes its bracketed paste when a later piece is refused or fails', async () => {
@@ -673,6 +680,107 @@ test('several projects named "main": Orca\'s agent event tells which one is open
   assert.equal(host.data().storage.terminalWorkspaces, undefined)
   assert.equal((await restarted.request('targets.list', {})).workspaceId, null)
   await restarted.deactivate()
+})
+
+test('several projects named "main": a newer Orca names the focused workspace itself, in either shape of id', async () => {
+  const one = project()
+  const two = project()
+  // The test host answers as the installed Orca does and refuses a field that Orca does not know,
+  // so the Orca of tomorrow is a stand-in here: the two calls the lookup makes, and a storage.
+  const kept = new Map<string, unknown>()
+  const orca = {
+    host: {
+      has: () => true,
+      call: async (name: string) =>
+        name === 'workspace.list'
+          ? {
+              workspaces: [
+                { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'main', project: 'Shop', path: listedPath(one), branch: 'main', hostId: 'local' },
+                { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'main', project: 'Reup', path: listedPath(two), branch: 'main', hostId: 'local' }
+              ],
+              truncated: false
+            }
+          : null
+    },
+    storage: { get: async (key: string) => kept.get(key) ?? null, set: async (key: string, value: unknown) => void kept.set(key, value), delete: async (key: string) => void kept.delete(key) },
+    log: () => undefined
+  } as never
+  const focus = (workspaceId?: string) => ({ branch: 'main', displayName: 'main', terminals: [{ id: 'term_shell' }], ...(workspaceId ? { workspaceId } : {}) })
+  await forgetTerminals(orca)
+  // The Orca of today: no id with the focus, and nothing else says which of the two it is.
+  assert.equal(await findFocusedWorkspace(orca, focus()), null)
+  // As workspace.list names it.
+  assert.equal((await findFocusedWorkspace(orca, focus('identity:wt2:local:2222')))?.project, 'Reup')
+  // Its terminals are known from then on: the next lookup needs no id.
+  assert.equal((await findFocusedWorkspace(orca, focus()))?.project, 'Reup')
+  await terminalsSaved()
+  await forgetTerminals(orca)
+  // As events name it: the worktree's own id, with the platform's slashes.
+  assert.equal((await findFocusedWorkspace(orca, focus(`repo-one::${one}`)))?.project, 'Shop')
+  await terminalsSaved()
+  await forgetTerminals(orca)
+  // An id that names no listed workspace decides nothing.
+  assert.equal(await findFocusedWorkspace(orca, focus('identity:wt2:local:9999')), null)
+  await terminalsSaved()
+  await forgetTerminals(orca)
+})
+
+test('auto-enhance takes the rules and the name of the project its prompt goes to, not of the one in focus', async () => {
+  const one = project()
+  const two = project()
+  const calls = stubFetch(() => openaiAnswer('Rewritten.'))
+  const host = mockHost({
+    settings: { autoEnhanceMode: 'ai' },
+    storage: {
+      models: { profiles: [profile('fast', 'groq')] },
+      rules: {
+        rules: [
+          { id: 'r1', text: 'Shop: use pnpm.', enabled: true, scope: 'project:Shop' },
+          { id: 'r2', text: 'Reup: use bun.', enabled: true, scope: 'project:Reup' }
+        ],
+        structures: []
+      }
+    },
+    secrets: { 'apiKey.fast': 'g' },
+    results: {
+      // The person is looking at Shop.
+      'workspace.readContext': { branch: 'main', displayName: 'main', terminals: [{ id: 'term_shop', title: 'Claude' }, { id: 'term_shop_new', title: 'Codex' }] },
+      'workspace.list': {
+        workspaces: [
+          { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'main', project: 'Shop', path: listedPath(one), branch: 'main', hostId: 'local' },
+          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'main', project: 'Reup', path: listedPath(two), branch: 'main', hostId: 'local' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host })
+  await worker.emit('agent.status.changed', { workspaceId: `repo-one::${one}`, paneKey: 'p1', terminalId: 'term_shop', state: 'waiting', receivedAt: Date.now() })
+  await worker.emit('agent.status.changed', { workspaceId: `repo-two::${two}`, paneKey: 'p2', terminalId: 'term_reup', state: 'working', receivedAt: Date.now() })
+  const body = () => JSON.stringify(calls.at(-1)?.body)
+  // Orca sends a task to the agent of Reup, which is not in focus.
+  const other = await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_reup', prompt: 'add a health check endpoint', inputKind: 'orchestration' as const })
+  assert.equal(other.kind === 'continue' && other.event.prompt, 'Rewritten.')
+  assert.match(body(), /Reup: use bun\./)
+  assert.ok(!body().includes('Shop: use pnpm.'), 'a rule of the focused project went to another project')
+  assert.match(body(), /Reup: main \(branch main\)/)
+  // The focused project's own agent: its rule and name, as before.
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_shop', prompt: 'add a health check endpoint', inputKind: 'driving' as const })
+  assert.match(body(), /Shop: use pnpm\./)
+  assert.ok(!body().includes('Reup: use bun.'))
+  // A new agent Orca has said nothing about yet, in a terminal of the focused workspace: that project.
+  await worker.hooks.fire('agent.prompt.before', { agent: 'codex', terminalId: 'term_shop_new', prompt: 'add a health check endpoint', inputKind: 'launch' as const })
+  assert.match(body(), /Shop: use pnpm\./)
+  assert.match(body(), /Shop: main \(branch main\)/)
+  // A terminal that is neither known nor one of the focused workspace's: its project is not known,
+  // so it gets no project's rule and no project's name. The prompt is still rewritten.
+  const stranger = await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_elsewhere', prompt: 'add a health check endpoint', inputKind: 'launch' as const })
+  assert.equal(stranger.kind === 'continue' && stranger.event.prompt, 'Rewritten.')
+  assert.ok(!body().includes('Shop: use pnpm.') && !body().includes('Reup: use bun.'), 'a rule of some project went to a terminal whose project is not known')
+  assert.ok(!/(Shop|Reup): main \(branch main\)/.test(body()))
+  await worker.deactivate()
+  await forgetTerminals()
 })
 
 test('several projects named "main": a tool hook says it too, and the panel\'s own note of an event is understood', async () => {

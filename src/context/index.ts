@@ -15,7 +15,7 @@ import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStat
 import { readRuleFiles } from './instructions.ts'
 import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
 import { detectStack } from './stack.ts'
-import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, SESSION_LINES } from './agents.ts'
+import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, redactSecrets, SESSION_LINES } from './agents.ts'
 import { agentActivity, savedFiles } from './activity.ts'
 import { learnTerminal, loadTerminals, workspacesOfTerminals } from './terminals.ts'
 import { namesWorkspace, workspaceTitle } from '../workspaces.ts'
@@ -29,9 +29,12 @@ const RELEVANT_FILES: Record<ContextLevel, number> = { off: 0, basic: 0, standar
 export const atLeast = (level: ContextLevel, min: ContextLevel) => LEVEL_RANK[level] >= LEVEL_RANK[min]
 
 /** A workspace as workspace.list answers it; `project` is its repository's name (host API 1.5). */
-type Workspace = { id: string; name: string; project?: string | null; path: string; branch: string | null; hostId: string | null }
-/** What workspace.readContext answers: no id and no path, only a name, a branch and the terminals. */
-type Focused = { displayName: string; branch: string; terminals?: readonly { id: string }[] }
+export type Workspace = { id: string; name: string; project?: string | null; path: string; branch: string | null; hostId: string | null }
+/**
+ * What workspace.readContext answers: a name, a branch and the terminals, and no path. The Orcas
+ * this was written on give no id either; a newer one does (`workspaceId`, host API 1.9 documents it).
+ */
+type Focused = { displayName: string; branch: string; terminals?: readonly { id: string }[]; workspaceId?: string }
 
 /**
  * Whether a workspace's files are on this machine. Orca names this machine's host `local` (older
@@ -131,6 +134,15 @@ export async function findFocusedWorkspace(
     const terminals = (focused.terminals ?? []).map((terminal) => terminal.id)
     // What an earlier run of the worker kept is read once; a lookup right after a start waits for it.
     await loadTerminals(orca)
+    // A newer Orca names the focused workspace itself: then there is nothing to work out. It must
+    // still be a listed workspace that fits the focus, like every other id.
+    if (typeof focused.workspaceId === 'string' && focused.workspaceId) {
+      const named = fittingWorkspace(workspaces, focused.workspaceId, focused)
+      if (named) {
+        for (const terminal of terminals) learnTerminal(orca, terminal, focused.workspaceId)
+        return named
+      }
+    }
     for (const id of workspacesOfTerminals(terminals)) {
       const said = fittingWorkspace(workspaces, id, focused)
       if (said) {
@@ -153,6 +165,25 @@ export async function findFocusedWorkspace(
   } catch {
     return null
   }
+}
+
+/**
+ * The workspace a terminal is in, when Orca said so (terminals.ts) and exactly one listed workspace
+ * carries that id; null otherwise. For a prompt that goes to one terminal, which need not be in the
+ * focused workspace.
+ */
+export async function workspaceOfTerminal(orca: OrcaWorkerApi, terminalId: string): Promise<Workspace | null> {
+  if (!terminalId || !orca.host.has('workspace.list')) return null
+  await loadTerminals(orca)
+  const ids = workspacesOfTerminals([terminalId])
+  if (ids.length === 0) return null
+  const list = await orca.host.call('workspace.list', {}).catch(() => null)
+  const workspaces: Workspace[] = list?.workspaces ?? []
+  for (const id of ids) {
+    const named = workspaces.filter((ws) => namesWorkspace(id, ws))
+    if (named.length === 1) return named[0]
+  }
+  return null
 }
 
 /**
@@ -302,7 +333,8 @@ export async function gatherContext(orca: OrcaWorkerApi, options: GatherOptions)
     const lines = (read?.lines ?? []).map((line) => line.trimEnd()).filter(Boolean)
     if (lines.length > 0) {
       const title = focused?.terminals.find((t) => t.id === options.terminalId)?.title ?? 'agent terminal'
-      items.push(item('terminal', 'terminal', msg('label.terminal', { name: title }), lines.join('\n')))
+      // What a terminal printed can hold a key or a password: masked like the other agents' sessions.
+      items.push(item('terminal', 'terminal', msg('label.terminal', { name: title }), redactSecrets(lines.join('\n'))))
     }
     step('terminal', 'done', String(lines.length))
   }

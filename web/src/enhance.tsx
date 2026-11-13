@@ -48,9 +48,11 @@ import {
   tick,
   workspaceChoices,
   workspaceKey,
-  workspaceName
+  workspaceName,
+  detected
 } from '../../src/panel/state.ts'
 import {
+  addDetected,
   allowed,
   launchAgent,
   openFile,
@@ -58,6 +60,7 @@ import {
   closeFeedback,
   copy,
   enhanceNow,
+  enhanceOrSend,
   pickWorkspace,
   previewContext,
   refreshTargets,
@@ -75,6 +78,7 @@ import {
   levelOptions,
   modelMenu,
   modelWarning,
+  targetLabel,
   optionsSummary,
   outputOptions,
   pickModel,
@@ -166,10 +170,12 @@ function Composer({ refresh }: { refresh: () => void }) {
   const attachedCount = read(files).length + uploadingNames().length
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter enhances (the button shows the Enter key); Shift+Enter is a new line.
+    // Enter enhances (the button shows the Enter key); Shift+Enter is a new line. Ctrl+Enter (⌘ on
+    // a Mac) sends the result once it is there and still the one for this text, so a prompt goes
+    // from idea to terminal without the mouse, and never unread.
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault()
-      void enhanceNow()
+      void (event.ctrlKey || event.metaKey ? enhanceOrSend() : enhanceNow())
     }
   }
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -434,7 +440,7 @@ function TargetPicker() {
         label={t('Send to')}
         value={read(target) ?? undefined}
         placeholder={list.length === 0 ? t('No terminals in this workspace') : t('Choose a terminal')}
-        options={list.map((item) => ({ value: item.terminalId, label: item.label }))}
+        options={list.map((item) => ({ value: item.terminalId, label: targetLabel(item) }))}
         onChange={(value) => set(target, value)}
         onOpen={() => void refreshTargets()}
       />
@@ -471,7 +477,20 @@ function ResultCard({ output }: { output: string }) {
           </IconAction>
         </div>
       </div>
-      <Textarea aria-label={t('Enhanced prompt')} value={output} rows={10} onChange={(event) => put(result, event.target.value)} className="max-h-[60vh] text-[13px]" />
+      <Textarea
+        aria-label={t('Enhanced prompt')}
+        value={output}
+        rows={10}
+        onChange={(event) => put(result, event.target.value)}
+        onKeyDown={(event) => {
+          // Ctrl+Enter (⌘ on a Mac) sends what is in the box, edits included.
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+            event.preventDefault()
+            void send(output)
+          }
+        }}
+        className="max-h-[60vh] text-[13px]"
+      />
       {failed.length > 0 ? (
         <p className="text-warning-foreground text-xs">
           {t('Fell back after: {list}', {
@@ -490,10 +509,15 @@ function ResultCard({ output }: { output: string }) {
           </TooltipTrigger>
           <TooltipContent>{t('Press Enter after sending')}</TooltipContent>
         </Tooltip>
-        <Button size="sm" onClick={() => void send(output)} disabled={!read(target) || working !== null}>
-          <SendIcon />
-          {t('Send')}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" onClick={() => void send(output)} disabled={!read(target) || working !== null}>
+              <SendIcon />
+              {t('Send')}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('Send to the terminal (Ctrl+Enter)')}</TooltipContent>
+        </Tooltip>
       </div>
       {allowed('allowAgentLaunch') ? <NewAgent output={output} /> : null}
     </div>
@@ -578,6 +602,9 @@ export function WorkspacePicker() {
 export function EnhanceSection({ refresh }: { refresh: () => void }) {
   const output = read(result)
   const warning = modelWarning()
+  // With no model yet, an agent CLI found on this machine is one press away: it runs on the
+  // subscription the person already has, with no key to paste.
+  const found = warning === 'no-model' ? read(detected).filter((entry) => !entry.added) : []
   return (
     <div className="flex flex-col gap-3">
       <WorkspacePicker />
@@ -588,11 +615,29 @@ export function EnhanceSection({ refresh }: { refresh: () => void }) {
       {warning ? (
         <Alert variant="warning">
           <AlertTitle>{warning === 'no-model' ? t('No model yet') : t('No API key yet')}</AlertTitle>
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{t('Add one in the Models tab.')}</span>
-            <Button size="sm" variant="outline" onClick={() => set(tab, 'models')}>
-              {t('Open Models')}
-            </Button>
+          <AlertDescription className="flex flex-col gap-2">
+            {found.length > 0 ? (
+              <>
+                <span>{t('Found on this machine. It uses your subscription: no API key needed.')}</span>
+                <span className="flex flex-wrap gap-1.5">
+                  {found.map((entry) => (
+                    <Button key={entry.preset} size="sm" onClick={() => void addDetected(entry.preset, entry.path)}>
+                      {t('Use {name}', { name: entry.label.replace(/ \(.*\)$/, '') })}
+                    </Button>
+                  ))}
+                  <Button size="sm" variant="ghost" onClick={() => set(tab, 'models')}>
+                    {t('Other models')}
+                  </Button>
+                </span>
+              </>
+            ) : (
+              <span className="flex items-center justify-between gap-2">
+                <span>{t('Add one in the Models tab.')}</span>
+                <Button size="sm" variant="outline" onClick={() => set(tab, 'models')}>
+                  {t('Open Models')}
+                </Button>
+              </span>
+            )}
           </AlertDescription>
         </Alert>
       ) : null}

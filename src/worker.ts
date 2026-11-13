@@ -9,13 +9,13 @@ import { copyToClipboard } from './clipboard.ts'
 import { forgetActivity, recordSave, recordStatus, recordTool } from './context/activity.ts'
 import { isSensitive } from './context/files.ts'
 import { resolveLanguage, translate } from './i18n-dict.ts'
-import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, focusedProject, gatherContext, isLocalWorkspace, projectNameOf, staticParts, type ContextItem } from './context/index.ts'
+import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, focusedProject, gatherContext, isLocalWorkspace, projectNameOf, staticParts, workspaceOfTerminal, type ContextItem, type Workspace } from './context/index.ts'
 import { forgetTerminals, learnTerminal, loadTerminals } from './context/terminals.ts'
 import { workspaceTitle } from './workspaces.ts'
 import { imagesBlock, imageSupport, withImagePaths } from './images.ts'
 import { cleanAttachments, clearAttachments, loadFiles, putChunk } from './attachments.ts'
 import { attachmentItemId } from './image-limits.ts'
-import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig } from './rules.ts'
+import { parseRulesConfig, RULES_KEY, rulesFor, rulesToJson, structureById, type RulesConfig, type RuleWhere } from './rules.ts'
 import { capHistory, HISTORY_KEY, parseHistory, toJson, trimForHistory, type HistoryEntry } from './history.ts'
 import {
   candidates,
@@ -30,7 +30,7 @@ import {
 } from './models.ts'
 import { isContextLevel, newProfileId, normalizeProfile, presetById, PRESETS, type ContextLevel, type ModelProfile, type ModelsConfig } from './presets.ts'
 import { buildSystemPrompt, buildUserMessage, cleanOutput, isStyle, PASTE_END, PASTE_START, terminalChunks, terminalSafe, type Style } from './prompts.ts'
-import { PANEL_REQUEST_LIMIT_MS, type ModelsView } from './protocol.ts'
+import { PANEL_REQUEST_LIMIT_MS, type HookRecord, type ModelsView } from './protocol.ts'
 import { CONSENTS_KEY, NEEDS_CONSENT, parseConsents, parseOtherAgentsLimits, parsePrivacy, type OtherAgentsLimits, type Privacy, type PrivacyKey } from './privacy.ts'
 import { createProgress, planSteps, type StepReporter } from './progress.ts'
 import { MODELS_KEY } from './presets.ts'
@@ -159,6 +159,18 @@ export function withHistory<T>(change: () => Promise<T>): Promise<T> {
   return next
 }
 
+/** The name of the agent in this terminal when Orca says it is blocked (waiting for the person), else null. */
+async function blockedAgent(orca: OrcaWorkerApi, terminalId: string): Promise<string | null> {
+  const list = await orca.host.call('agents.list', {}).catch(() => null)
+  const agent = (list?.agents ?? []).find((entry) => entry.terminalId === terminalId)
+  return agent?.state === 'blocked' ? (agent.title ?? agent.agent ?? 'agent') : null
+}
+
+/** Entries removed a moment ago, for Undo: in memory only, a few of them, for a short while. */
+const UNDO_MS = 60_000
+const UNDO_KEPT = 10
+const removedEntries = new Map<string, { entry: HistoryEntry; until: number }>()
+
 async function addHistory(orca: OrcaWorkerApi, settings: Settings, entry: Omit<HistoryEntry, 'id' | 'at'>): Promise<void> {
   if (settings.historyLimit <= 0 || !settings.privacy.saveHistory) return
   await withHistory(async () => {
@@ -206,12 +218,11 @@ async function pickFilesWithModel(
  * The Rules tab: the saved rules and structures, and the rules that are followed in the focused
  * project. `hint` is what the panel knows this workspace as (several can share a name).
  */
-async function ownRules(orca: OrcaWorkerApi, hint?: string | null): Promise<{ config: RulesConfig; rules: string[] }> {
+async function ownRules(orca: OrcaWorkerApi, hint?: string | null): Promise<{ config: RulesConfig; rules: string[]; where: RuleWhere }> {
   const config = parseRulesConfig(await orca.storage.get(RULES_KEY).catch(() => null))
-  if (config.rules.length === 0) return { config, rules: [] }
-  // Only a rule kept for one project needs to know which project this is.
-  const where = config.rules.some((rule) => rule.scope) ? await focusedProject(orca, hint) : { workspace: null, project: null }
-  return { config, rules: rulesFor(config, where) }
+  // Which project this is: for a rule kept for one project, and for the run's entry in the history.
+  const where = await focusedProject(orca, hint)
+  return { config, rules: rulesFor(config, where), where }
 }
 
 /** Makes sure the prompt names every attached file the rewriter left out. */
@@ -284,6 +295,9 @@ export async function enhance(
   const level = allowedLevel(requested, settings)
   const privacy = gatherPrivacy(settings)
   const step = progress?.(level, settings.privacy.allowProjectFiles, privacy.allowOtherAgents) ?? (() => undefined)
+  // Which project this run is for, settled before anything slow: the person may look at another
+  // project while the context is gathered, and the rules and the history entry are this one's.
+  const own = await ownRules(orca, typeof input.workspaceId === 'string' ? input.workspaceId : null)
 
   const gathered = await gatherContext(orca, {
     level,
@@ -303,7 +317,6 @@ export async function enhance(
   if (level !== requested) gathered.notes.push(PROJECT_FILES_OFF)
   const agentItem = gathered.items.find((entry) => entry.kind === 'agent')
   const language = input.language && /^[a-z]{2,4}$/.test(input.language) ? input.language : settings.outputLanguage
-  const own = await ownRules(orca, typeof input.workspaceId === 'string' ? input.workspaceId : null)
   const system = buildSystemPrompt({
     style,
     language,
@@ -362,7 +375,8 @@ export async function enhance(
       items: gathered.items,
       notes: gathered.notes,
       settings,
-      style
+      style,
+      project: own.where.project
     }
   } catch (error) {
     // The step names the model that was tried. Why it failed is the run's error, which the panel
@@ -381,12 +395,15 @@ const view = (items: ContextItem[]) => items.map(({ content: _content, ...rest }
 
 async function modelsView(orca: OrcaWorkerApi): Promise<ModelsView> {
   const config = await loadModels(orca)
+  // Without an OS key store Orca cannot keep an API key: the Models tab says so before one is typed.
+  const keys = orca.host.has('secrets.protection') ? await orca.host.call('secrets.protection', {}).catch(() => null) : null
   return {
     profiles: await viewProfiles(orca, config.profiles),
     hookProfileId: config.hookProfileId,
     selectorProfileId: config.selectorProfileId,
     fromEnv: config.fromEnv,
-    presets: PRESETS
+    presets: PRESETS,
+    ...(keys?.status === 'unavailable' ? { keysUnavailable: true } : {})
   }
 }
 
@@ -397,20 +414,43 @@ async function editableModels(orca: OrcaWorkerApi): Promise<ModelsConfig> {
 }
 
 /** Prompt-independent context for the hook: whatever the cache holds for the focused workspace. */
-async function hookContext(orca: OrcaWorkerApi, allowProjectFiles: boolean): Promise<ContextItem[]> {
+type HookPlace = { workspace: Workspace | null; label: string; where: RuleWhere }
+
+/**
+ * Where a prompt Orca is sending belongs: the workspace of the terminal it goes to, when Orca's
+ * agent events said which one that is (context/terminals.ts); else the focused workspace, but only
+ * when the terminal is one of its own. Null when neither holds: the project is not known then, and
+ * nothing of one project is used in another. The hook used to take the focused workspace always,
+ * so an agent in another project got the rules and the context of the project the person happened
+ * to be looking at.
+ */
+export async function hookPlace(orca: OrcaWorkerApi, terminalId: string): Promise<HookPlace | null> {
+  const own = await workspaceOfTerminal(orca, terminalId)
+  if (own) {
+    return {
+      workspace: own,
+      label: `${workspaceTitle(own.name, own.project)}${own.branch ? ` (branch ${own.branch})` : ''}`,
+      where: { workspace: own.name, project: own.project?.trim() || own.name }
+    }
+  }
   const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
-  if (!focused) return []
-  const items: ContextItem[] = []
+  if (!focused || !focused.terminals.some((terminal) => terminal.id === terminalId)) return null
   const workspace = await findFocusedWorkspace(orca, focused)
-  const label = `${workspaceTitle(focused.displayName, workspace?.project)}${focused.branch ? ` (branch ${focused.branch})` : ''}`
-  items.push({ id: 'workspace', kind: 'workspace', label: 'Workspace', content: label, chars: label.length })
+  return {
+    workspace,
+    label: `${workspaceTitle(focused.displayName, workspace?.project)}${focused.branch ? ` (branch ${focused.branch})` : ''}`,
+    where: { workspace: focused.displayName, project: await projectNameOf(orca, focused, workspace) }
+  }
+}
+
+function hookContext(place: HookPlace | null, allowProjectFiles: boolean): ContextItem[] {
+  if (!place) return []
+  const items: ContextItem[] = [{ id: 'workspace', kind: 'workspace', label: 'Workspace', content: place.label, chars: place.label.length }]
   if (!allowProjectFiles) return items
-  const cached = workspace && isLocalWorkspace(workspace) ? cachedStatic(workspace.path) : null
+  const cached = place.workspace && isLocalWorkspace(place.workspace) ? cachedStatic(place.workspace.path) : null
   if (cached) items.push(...cached.items.filter((entry) => entry.kind !== 'tree'))
   return items
 }
-
-const MODE_LABEL: Record<AutoMode, string> = { off: 'off', rules: 'rules', ai: 'AI' }
 
 /** Orca's default shortcut for the right sidebar (`sidebar.right.toggle`, Mod+L). */
 const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
@@ -427,22 +467,43 @@ const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
  */
 export const statusBarText = (mode: AutoMode): string => `${BRAND_SHORT}: ${mode === 'off' ? 'Off' : 'On'}`
 
-/** The tooltip per panel language ('auto' stays English: the worker cannot see Orca's locale). */
-const STATUS_TOOLTIP: Record<string, { modes: Record<AutoMode, string>; tooltip: (mode: string) => string }> = {
+/**
+ * What the worker itself says, per panel language ('auto' stays English: the worker cannot see
+ * Orca's locale): the status bar's tooltip, and the answers of its commands, which Orca shows.
+ */
+const WORKER_WORDS: Record<string, { modes: Record<AutoMode, string>; tooltip: (mode: string) => string; answer: (mode: string) => string; bar: { hidden: string; shown: string } }> = {
   en: {
     modes: { off: 'off', rules: 'on (rules)', ai: 'on (AI)' },
     tooltip: (mode) =>
-      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "${BRAND}".\nAuto-enhance is ${mode}. Change it under the panel's gear icon or in the command palette.\nSettings and updates: Settings → Plugins → Enhance Prompt.`
+      `Click: open the right sidebar (${SIDEBAR_KEY}), then the lightbulb tab "${BRAND}".\nAuto-enhance is ${mode}. Change it under the panel's gear icon or in the command palette.\nSettings and updates: Settings → Plugins → Enhance Prompt.`,
+    answer: (mode) => `Auto-enhance is ${mode}.`,
+    bar: { hidden: 'Status bar item hidden.', shown: 'Status bar item shown.' }
   },
   vi: {
     modes: { off: 'tắt', rules: 'bật (quy tắc)', ai: 'bật (AI)' },
     tooltip: (mode) =>
-      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "${BRAND}".\nTự cải thiện đang ${mode}. Đổi ở biểu tượng bánh răng của panel hoặc trong command palette.\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`
+      `Bấm: mở thanh bên phải (${SIDEBAR_KEY}), rồi chọn tab bóng đèn "${BRAND}".\nTự cải thiện đang ${mode}. Đổi ở biểu tượng bánh răng của panel hoặc trong command palette.\nCài đặt và cập nhật: Settings → Plugins → Enhance Prompt.`,
+    answer: (mode) => `Tự cải thiện đang ${mode}.`,
+    bar: { hidden: 'Đã ẩn mục trên thanh trạng thái.', shown: 'Đã hiện mục trên thanh trạng thái.' }
   },
   zh: {
     modes: { off: '关', rules: '开（规则）', ai: '开（AI）' },
-    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “${BRAND}”。\n自动优化：${mode}。可在面板的齿轮图标下或命令面板中更改。\n设置与更新：Settings → Plugins → Enhance Prompt。`
+    tooltip: (mode) => `点击：打开右侧边栏（${SIDEBAR_KEY}），再选灯泡标签 “${BRAND}”。\n自动优化：${mode}。可在面板的齿轮图标下或命令面板中更改。\n设置与更新：Settings → Plugins → Enhance Prompt。`,
+    answer: (mode) => `自动优化：${mode}。`,
+    bar: { hidden: '状态栏项目已隐藏。', shown: '状态栏项目已显示。' }
   }
+}
+
+/** The words of the panel's language, as the person set it. */
+async function workerWords(orca: OrcaWorkerApi) {
+  const all = await orca.settings.get()
+  return WORKER_WORDS[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? WORKER_WORDS.en
+}
+
+/** What a command that set the mode answers, in the panel's language. */
+async function modeAnswer(orca: OrcaWorkerApi, mode: AutoMode): Promise<string> {
+  const words = await workerWords(orca)
+  return words.answer(words.modes[mode])
 }
 
 async function refreshStatusBar(orca: OrcaWorkerApi): Promise<void> {
@@ -450,7 +511,7 @@ async function refreshStatusBar(orca: OrcaWorkerApi): Promise<void> {
   const all = await orca.settings.get()
   const { autoEnhanceMode } = await readSettings(orca)
   const display = typeof all.statusBarItem === 'string' ? all.statusBarItem : 'full'
-  const words = STATUS_TOOLTIP[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? STATUS_TOOLTIP.en
+  const words = await workerWords(orca)
   await orca.host
     .call('statusBar.update', {
       id: 'auto-enhance',
@@ -466,7 +527,7 @@ async function refreshStatusBar(orca: OrcaWorkerApi): Promise<void> {
 async function setMode(orca: OrcaWorkerApi, mode: AutoMode): Promise<string> {
   await orca.settings.set('autoEnhanceMode', mode)
   await refreshStatusBar(orca)
-  return `Auto-enhance: ${MODE_LABEL[mode]}`
+  return modeAnswer(orca, mode)
 }
 
 /**
@@ -501,7 +562,7 @@ async function fetchCatalog(
   if (source.presetId === 'codex') return codexCatalog(source.command)
   if (source.presetId === 'gemini-cli') return geminiCatalog(source.command, online)
   if (source.provider === 'cli') return { models: [], source: 'custom CLI', fetchedAt: Date.now() }
-  if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: 'online model lists are off in Settings' }
+  if (!online) return { models: [], source: 'GET /models', fetchedAt: Date.now(), error: english(msg('error.lists_off')), errorText: msg('error.lists_off') }
   // Privacy: an environment key is used only while "Use API keys from environment variables" is on.
   const envKey = privacy.allowEnvKeys && source.env ? (process.env[source.env] ?? null) : null
   const savedKey = source.profile ? (await resolveKey(orca, source.profile)).key : null
@@ -609,7 +670,8 @@ async function waitForRun(orca: OrcaWorkerApi, run: LiveRun, signal: AbortSignal
       enhanced: result.enhanced,
       style: result.style,
       model,
-      source: 'panel'
+      source: 'panel',
+      ...(result.project ? { project: result.project } : {})
     }).catch((error) => orca.log(`history: ${(error as Error).message}`))
     return {
       enhanced: result.enhanced,
@@ -685,12 +747,19 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     return { context: view(gathered.items), notes, chars: gathered.items.reduce((sum, entry) => sum + entry.chars, 0) }
   })
 
-  orca.panels.handle('prompt.send', async ({ terminalId, text, enter }) => {
+  orca.panels.handle('prompt.send', async ({ terminalId, text, enter, force }) => {
     const settings = await readSettings(orca)
     if (!settings.privacy.allowTerminalSend) throw hostError(msg('error.send_off'), 'not_permitted')
     const pieces = terminalChunks(text, settings.sendMode)
     if (pieces.length === 0) throw hostError(msg('error.nothing_to_send'), 'invalid_params')
-    const pressEnter = enter ?? settings.sendPressEnter
+    // An agent that is waiting for an answer (a permission, a question) takes what is typed as that
+    // answer, and Enter could approve what it asked. So the person is told first, and when they
+    // send anyway the text is typed without Enter.
+    const blocked = await blockedAgent(orca, terminalId)
+    if (blocked && force !== true) throw hostError(msg('error.agent_blocked', { name: blocked }), 'conflict')
+    // `force` is the press of "Type it without Enter": no Enter then, whatever the agent's state is
+    // by now (the person may have answered it in the meantime).
+    const pressEnter = force !== true && !blocked && (enter ?? settings.sendPressEnter)
     // Long prompts go in pieces: Orca accepts at most 4096 characters per call, and keeps writes to
     // one terminal in order.
     const result = await sendPieces(orca, terminalId, pieces)
@@ -718,13 +787,14 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
   })
 
   orca.panels.handle('targets.list', async (input) => {
-    const targets: { terminalId: string; label: string; agent: string | null }[] = []
+    const targets: { terminalId: string; label: string; agent: string | null; title?: string; state?: string }[] = []
     const seen = new Set<string>()
     const agents = await orca.host.call('agents.list', {}).catch(() => null)
     for (const agent of agents?.agents ?? []) {
       if (agent.terminalId && !seen.has(agent.terminalId)) {
         seen.add(agent.terminalId)
-        targets.push({ terminalId: agent.terminalId, label: `${agent.title ?? agent.agent ?? 'Agent'} · ${agent.state}`, agent: agent.agent })
+        const title = agent.title ?? agent.agent ?? 'Agent'
+        targets.push({ terminalId: agent.terminalId, label: `${title} · ${agent.state}`, agent: agent.agent, title, state: agent.state })
       }
     }
     const context = await orca.host.call('workspace.readContext', {}).catch(() => null)
@@ -767,13 +837,20 @@ function registerModelHandlers(orca: OrcaWorkerApi): void {
     const id = existing >= 0 ? config.profiles[existing].id : newProfileId(input.name || input.preset)
     const profile = normalizeProfile({ ...input, id })
     if (!profile) throw hostError(msg('error.invalid_profile'), 'invalid_params')
+    // The key first: where this machine has no OS key store Orca refuses it, and a model saved
+    // without its key would look ready and fail on its first run.
+    if (input.apiKey?.trim()) {
+      try {
+        await orca.secrets.set(secretName(id), input.apiKey.trim())
+      } catch (error) {
+        orca.log(`models.save: the key was not stored: ${(error as Error).message}`)
+        throw hostError(msg('error.key_not_saved'), 'action_failed')
+      }
+    }
     if (existing >= 0) config.profiles[existing] = profile
     else config.profiles.push(profile)
     await saveModels(orca, config)
-    if (input.apiKey !== undefined) {
-      if (input.apiKey.trim()) await orca.secrets.set(secretName(id), input.apiKey.trim())
-      else await orca.secrets.delete(secretName(id)).catch(() => undefined)
-    }
+    if (input.apiKey !== undefined && !input.apiKey.trim()) await orca.secrets.delete(secretName(id)).catch(() => undefined)
     return modelsView(orca)
   })
 
@@ -909,13 +986,40 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
   orca.panels.handle('history.remove', async ({ id }) => {
     await withHistory(async () => {
       const list = parseHistory(await orca.storage.get(HISTORY_KEY))
-      const next = list.filter((entry) => entry.id !== id)
-      if (next.length !== list.length) await orca.storage.set(HISTORY_KEY, next.map(toJson))
+      const gone = list.find((entry) => entry.id === id)
+      if (!gone) return
+      await orca.storage.set(HISTORY_KEY, list.filter((entry) => entry.id !== id).map(toJson))
+      // Kept in memory for a while, so that Undo can bring it back (history.restore).
+      removedEntries.set(id, { entry: gone, until: Date.now() + UNDO_MS })
+      for (const [key, kept] of removedEntries) if (kept.until < Date.now() || removedEntries.size > UNDO_KEPT) removedEntries.delete(key)
     })
     return { ok: true as const }
   })
 
+  // Undo of a removal: only an entry this worker removed a moment ago, by its id. The panel sends no
+  // entry, so nothing but what was in the history can come back into it.
+  orca.panels.handle('history.restore', async ({ id }) => {
+    const kept = removedEntries.get(typeof id === 'string' ? id : '')
+    removedEntries.delete(typeof id === 'string' ? id : '')
+    const settings = await readSettings(orca)
+    if (!kept || kept.until < Date.now() || settings.historyLimit <= 0 || !settings.privacy.saveHistory) return { restored: false }
+    let restored = false
+    await withHistory(async () => {
+      const list = parseHistory(await orca.storage.get(HISTORY_KEY))
+      if (list.some((entry) => entry.id === kept.entry.id)) {
+        restored = true
+        return
+      }
+      const next = capHistory([...list, kept.entry].sort((a, b) => b.at - a.at), settings.historyLimit)
+      // A history that filled up meanwhile has no room for an older entry: say so, do not claim it is back.
+      restored = next.some((entry) => entry.id === kept.entry.id)
+      if (restored) await orca.storage.set(HISTORY_KEY, next.map(toJson))
+    })
+    return { restored }
+  })
+
   orca.panels.handle('history.clear', async () => {
+    removedEntries.clear()
     await withHistory(() => orca.storage.delete(HISTORY_KEY))
     return { ok: true as const }
   })
@@ -936,7 +1040,10 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('data.clear', async ({ what }) => {
     const keys = await orca.storage.keys()
-    if (what === 'history' || what === 'all') await withHistory(() => orca.storage.delete(HISTORY_KEY))
+    if (what === 'history' || what === 'all') {
+      removedEntries.clear()
+      await withHistory(() => orca.storage.delete(HISTORY_KEY))
+    }
     if (what === 'catalogs' || what === 'all') {
       for (const key of keys.filter((entry) => entry.startsWith('catalog:'))) await orca.storage.delete(key)
     }
@@ -948,6 +1055,8 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       // Confirmations go too: a switch that needs one asks again; what Orca reported is forgotten.
       await orca.storage.delete(CONSENTS_KEY)
       forgetActivity()
+      launchedPrompts.clear()
+      lastHook = null
       await forgetTerminals(orca)
       // The copies of attached files (the panel forgets its list of them as well).
       await clearAttachments().catch((error) => orca.log(`attachments: ${(error as Error).message}`))
@@ -956,29 +1065,69 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
   })
 }
 
+/**
+ * Prompts the panel itself started an agent with, for a short while: they are enhanced already, so
+ * the auto-enhance hook lets them through (Orca may run it on a launch's prompt like on any other).
+ */
+const LAUNCH_MEMORY_MS = 120_000
+const launchedPrompts = new Map<string, number>()
+function wasLaunchedHere(prompt: string): boolean {
+  const now = Date.now()
+  for (const [text, until] of launchedPrompts) if (until < now) launchedPrompts.delete(text)
+  return launchedPrompts.has(terminalSafe(prompt).trim())
+}
+
+/** Projects whose context the hook is reading for the next prompt that goes there. */
+const warming = new Set<string>()
+
+/** What auto-enhance did last, for the Settings section: a prompt it let through unchanged says why. */
+let lastHook: HookRecord | null = null
+function noteHook(orca: OrcaWorkerApi, record: Omit<HookRecord, 'at'>): void {
+  lastHook = { at: Date.now(), ...record }
+  if (record.outcome === 'skipped' && record.reason) orca.panels.post('hook.skipped', { agent: record.agent, reason: record.reason })
+}
+
 /** The agent.prompt.before hook, and keeping its project context warm. */
 function registerAutoEnhance(orca: OrcaWorkerApi): void {
+  orca.panels.handle('hook.last', async () => lastHook)
+
   orca.hooks.on('agent.prompt.before', async (event, next) => {
     const started = Date.now()
     const settings = await readSettings(orca)
     const prompt = event.prompt
     if (settings.autoEnhanceMode === 'off' || prompt.trim().length < settings.autoEnhanceMinLength) return
+    if (wasLaunchedHere(prompt)) return
     if (settings.autoEnhanceMode === 'rules') {
       const append = settings.autoEnhanceAppend.trim()
       if (!append || prompt.includes(append)) return
       orca.panels.post('hook.enhanced', { agent: event.agent, mode: 'rules' })
+      noteHook(orca, { outcome: 'appended', agent: event.agent })
       return next({ ...event, prompt: `${prompt.trimEnd()}\n\n${append}` })
     }
     try {
       const config = await loadModels(orca)
-      const items = settings.autoEnhanceContext ? await hookContext(orca, settings.privacy.allowProjectFiles) : []
-      const own = await ownRules(orca)
+      // The project the prompt goes to, which need not be the one in focus.
+      const place = await hookPlace(orca, event.terminalId)
+      const items = settings.autoEnhanceContext ? hookContext(place, settings.privacy.allowProjectFiles) : []
+      // A project that is not in focus has not been read yet: read it now, for the next prompt that
+      // goes there (this one has 2 s and goes with the workspace's name alone).
+      if (settings.autoEnhanceContext && settings.privacy.allowProjectFiles && place?.workspace && isLocalWorkspace(place.workspace) && !cachedStatic(place.workspace.path)) {
+        const root = place.workspace.path
+        // Once per project at a time: several tasks sent to one project start one read, not one each.
+        if (!warming.has(root)) {
+          warming.add(root)
+          void staticParts(root, settings.extraContextFiles, true, settings.privacy.allowGit)
+            .catch(() => undefined)
+            .finally(() => warming.delete(root))
+        }
+      }
+      const rules =rulesFor(parseRulesConfig(await orca.storage.get(RULES_KEY).catch(() => null)), place?.where ?? { workspace: null, project: null })
       const system = buildSystemPrompt({
         style: settings.defaultStyle,
         language: settings.outputLanguage,
         customInstructions: settings.customInstructions,
         agent: settings.adaptToAgent ? event.agent : null,
-        rules: own.rules
+        rules
       })
       // CLI models take seconds to start; the hook has under 2 s, so it uses API models only.
       const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled).filter(
@@ -987,6 +1136,7 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
       if (list.length === 0) {
         // The panel's Auto-enhance section warns about this; the prompt goes through unchanged.
         orca.log('auto-enhance skipped: no enabled API model (subscription CLIs are too slow for the hook)')
+        noteHook(orca, { outcome: 'skipped', agent: event.agent, reason: msg('hook.no_model') })
         return
       }
       const result = await runChain(
@@ -1001,6 +1151,7 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
       const enhanced = terminalSafe(cleanOutput(result.text)).trim()
       if (!enhanced) {
         orca.log('auto-enhance skipped: the model returned no prompt')
+        noteHook(orca, { outcome: 'skipped', agent: event.agent, reason: msg('hook.empty') })
         return
       }
       const model = result.attempts.find((attempt) => attempt.ok)?.model ?? result.profile.model
@@ -1009,12 +1160,17 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
         enhanced,
         style: settings.defaultStyle,
         model,
-        source: 'hook'
+        source: 'hook',
+        ...(place?.where.project ? { project: place.where.project } : {})
       }).catch(() => undefined)
       orca.panels.post('hook.enhanced', { agent: event.agent, mode: 'ai', model })
+      noteHook(orca, { outcome: 'rewritten', agent: event.agent, model })
       return next({ ...event, prompt: enhanced })
     } catch (error) {
       orca.log(`auto-enhance skipped: ${(error as Error).message}`)
+      // Why, in the panel's language where the plugin knows the reason (a model that was too slow, a failed chain).
+      const reason = error instanceof ChainError || error instanceof LlmError ? error.text : raw((error as Error).message)
+      noteHook(orca, { outcome: 'skipped', agent: event.agent, reason })
       return
     }
   })
@@ -1047,7 +1203,7 @@ function registerCommands(orca: OrcaWorkerApi): void {
     const next = AUTO_MODES[(AUTO_MODES.indexOf(autoEnhanceMode) + 1) % AUTO_MODES.length]
     await orca.settings.set('autoEnhanceMode', next)
     await refreshStatusBar(orca)
-    return `Auto-enhance: ${MODE_LABEL[next]}`
+    return modeAnswer(orca, next)
   })
 
   orca.commands.register('auto-enhance.off', async () => setMode(orca, 'off'))
@@ -1059,7 +1215,7 @@ function registerCommands(orca: OrcaWorkerApi): void {
     const next = all.statusBarItem === 'hidden' ? 'full' : 'hidden'
     await orca.settings.set('statusBarItem', next)
     await refreshStatusBar(orca)
-    return next === 'hidden' ? 'Status bar item hidden' : 'Status bar item shown'
+    return (await workerWords(orca)).bar[next === 'hidden' ? 'hidden' : 'shown']
   })
 
   orca.settings.onDidChange(({ key }) => {
@@ -1153,7 +1309,12 @@ function registerIntegrations(orca: OrcaWorkerApi): void {
     if (!text) throw hostError(msg('error.nothing_to_send'), 'invalid_params')
     const id = await focusedWorkspaceId(orca, workspaceId)
     if (!id) throw hostError(msg('note.no_workspace'), 'invalid_params')
-    return orca.host.call('agent.launch', { workspaceId: id, agent, prompt: text })
+    // This prompt is already enhanced: if Orca runs the auto-enhance hook on it, it goes through as it is.
+    launchedPrompts.set(text, Date.now() + LAUNCH_MEMORY_MS)
+    const started = await orca.host.call('agent.launch', { workspaceId: id, agent, prompt: text })
+    // The new terminal is in that workspace: known from now on, before Orca's first event about it.
+    learnTerminal(orca, started.terminalId, id)
+    return started
   })
 
   /** Opens a file of the focused workspace in Orca's editor (a context item the person clicked). */

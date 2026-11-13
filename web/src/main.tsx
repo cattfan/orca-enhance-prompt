@@ -9,9 +9,9 @@ import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { SECTION_LABELS, UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
-import { busy, draft, files, history, optionsOpen, put, tab } from '../../src/panel/state.ts'
+import { busy, draft, files, history, historyOpen, notice, optionsOpen, put, tab } from '../../src/panel/state.ts'
 import { previews } from './attach'
-import { changeUiLanguage, enhanceNow, refreshDataSummary, refreshTargets } from '../../src/panel/actions.ts'
+import { changeUiLanguage, enhanceNow, refreshDataSummary, refreshHookLast, refreshTargets } from '../../src/panel/actions.ts'
 import { closePanel, wirePanel } from '../../src/panel/setup.ts'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { IconAction, Notices } from './common'
@@ -60,7 +60,10 @@ function LanguagePicker() {
 
 function openSection(value: string): void {
   set(tab, value)
-  if (value === 'privacy') void refreshDataSummary()
+  if (value === 'privacy') {
+    void refreshDataSummary()
+    void refreshHookLast()
+  }
 }
 
 function App() {
@@ -130,6 +133,12 @@ async function start(): Promise<void> {
     const query = new URLSearchParams(location.search)
     const demo = query.get('demo')
     if (query.get('options') === '1') set(optionsOpen, true)
+    // ?entry=h1: a history entry read in place; ?toast=undo: a notice with its button (pictures).
+    const entry = query.get('entry')
+    if (entry) set(historyOpen, entry)
+    if (query.get('toast') === 'undo') {
+      setTimeout(() => set(notice, { tone: 'neutral', text: t('Removed from the history.'), action: { label: t('Undo'), run: { kind: 'history.restore', id: 'none' } } }), 600)
+    }
     // ?whatsnew=1: as if just updated, so What's new opens.
     if (query.get('whatsnew') === '1') localStorage.setItem('enhance-prompt:seen-version', '0')
     // ?attach=1: a screenshot and a log already attached; ?run=0 types the demo prompt without running it.

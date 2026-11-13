@@ -5,6 +5,7 @@ import { read, set } from 'orca'
 import { InfoIcon } from 'lucide-react'
 import { toast, Toaster } from 'sonner'
 import { t } from '../../src/i18n.ts'
+import { runNoticeAction } from '../../src/panel/actions.ts'
 import { notice } from '../../src/panel/state.ts'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,7 +21,12 @@ export function Notices() {
   useEffect(() => {
     if (!current) return
     const show = { success: toast.success, danger: toast.error, warning: toast.warning, neutral: toast.info }[current.tone]
-    show(current.text, { duration: current.tone === 'danger' ? 8000 : 4000 })
+    // A notice with a button (Undo, send anyway) stays long enough to be read and pressed.
+    const action = current.action
+    show(current.text, {
+      duration: current.tone === 'danger' || action ? 8000 : 4000,
+      ...(action ? { action: { label: action.label, onClick: () => void runNoticeAction(action.run) } } : {})
+    })
     set(notice, null)
   }, [current])
   return (

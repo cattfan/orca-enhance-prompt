@@ -44,6 +44,13 @@ export const MESSAGES = {
   'error.send_off': 'Sending to terminals is off in Settings.',
   'error.launch_off': 'Starting new agents is off in Settings, or not confirmed yet.',
   'error.open_off': 'Opening files in Orca is off in Settings.',
+  // Shown inside "Could not load the list (…)": no capital, no full stop.
+  'error.lists_off': 'online model lists are off in Settings',
+  'error.key_not_saved': 'Orca could not store the API key: this machine has no key store for it. Use a key from an environment variable, or a subscription CLI.',
+  'error.agent_blocked': '{name} is waiting for an answer from you, and what is typed now could be taken as that answer.',
+  // Why auto-enhance let a prompt through unchanged (the Settings section shows the last one).
+  'hook.no_model': 'No enabled API model: a subscription CLI starts too slowly for the 2 s auto-enhance has.',
+  'hook.empty': 'The model returned no prompt.',
   'error.unsupported': 'This version of Orca cannot do that yet.',
   'error.invalid_request': 'Invalid request.',
   'error.nothing_to_send': 'Nothing to send.',
