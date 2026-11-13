@@ -86,6 +86,8 @@ const states = {
   models: { query: 'lang=en&tab=models', wait: 6000 },
   rules: { query: 'lang=en&tab=rules', wait: 6000 },
   history: { query: 'lang=en&tab=history', wait: 6000 },
+  // An entry opened to read its enhanced prompt in place.
+  historyOpen: { query: 'lang=en&tab=history&entry=h1', wait: 6000 },
   // The Settings section with auto-enhance on (rules), as most of the listing's readers will use it.
   settings: { query: 'lang=en&tab=privacy&set=autoEnhanceMode:rules', wait: 6000 },
   vi: { query: `lang=vi&demo=${VI}`, wait: 15000 },
@@ -224,7 +226,7 @@ const guide = {
   'docs/assets/guide/4-progress-early.png': 'progressEarly',
   'docs/assets/guide/6-rules-and-structures.png': 'rules',
   'docs/assets/guide/7-models.png': 'models',
-  'docs/assets/guide/8-history.png': 'history',
+  'docs/assets/guide/8-history.png': 'historyOpen',
   'docs/assets/guide/9-other-agents-settings.png': 'otherAgents',
   'docs/assets/guide/11-new-agent.png': 'newAgent'
 }
@@ -274,7 +276,7 @@ function framed(shotUrl, across, width, height, out) {
 // one is the whole window: 500 px, a wide sidebar, the narrowest a headless window lays out.
 const DIALOG = 'docs/assets/guide/10-confirm-dialog.png'
 if (wanted(DIALOG)) {
-  const [width, height] = [500, 660]
+  const [width, height] = [500, 760]
   const shot = join(work, 'dialog.png')
   shoot(shot, `${SERVER}/?mock=1&fresh&lang=en&tab=privacy&ask=allowAgentActivity`, width, height, 6000)
   framed(pathToFileURL(shot).href, width, width, height, join(root, DIALOG))
