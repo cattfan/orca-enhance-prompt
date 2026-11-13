@@ -1,8 +1,8 @@
 // History, Models, Rules and Settings (privacy) sections of the web panel: the panel's state and
 // actions (src/panel/*), drawn with shadcn/ReUI.
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { read, set, update } from 'orca'
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon, RotateCcwIcon, CheckIcon, CopyIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon, RotateCcwIcon, CheckIcon, CopyIcon, DownloadIcon, EllipsisVerticalIcon, ExternalLinkIcon, PencilIcon, PlugZapIcon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { currentLanguage, t } from '../../src/i18n.ts'
 import { presetById, type ProfileView } from '../../src/presets.ts'
@@ -39,6 +39,7 @@ import {
   ruleDraft,
   ruleScope,
   say,
+  sendAfterEnhance,
   structureDraft,
   tab,
   toModel,
@@ -47,6 +48,7 @@ import {
 import {
   addDetected,
   addRule,
+  allowed,
   addStructure,
   applyPreset,
   clearData,
@@ -54,6 +56,7 @@ import {
   turnSwitchOff,
   clearHistory,
   copy,
+  exportHistory,
   formCatalogInput,
   loadCatalog,
   modelAction,
@@ -67,13 +70,14 @@ import {
   saveRules,
   setFeedbackNotes,
   setRoles,
+  setSendAfterEnhance,
   setSetting,
   switchModel,
   testProfile,
   toggleProfile
 } from '../../src/panel/actions.ts'
-import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, newRuleLabel, PRIVACY_GROUPS, PRIVACY_ROWS, rulesConfig, rulesHere, ruleScopeLabel } from '../../src/panel/view.ts'
-import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS, type PrivacyKey } from '../../src/privacy.ts'
+import { AUTO_MODE_HINTS, DISCLOSURES, FEEDBACK_EVERY_DAYS, hookChoice, hookModels, KEY_LABEL, maxTokenChoices, modelOptions, newRuleLabel, PRIVACY_GROUPS, PRIVACY_ROWS, rulesConfig, rulesHere, ruleScopeLabel, SEND_AFTER_ROW, switchRow } from '../../src/panel/view.ts'
+import { NEEDS_CONSENT, OTHER_AGENTS_LIMITS } from '../../src/privacy.ts'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/reui/alert'
 import { Badge } from '@/components/reui/badge'
@@ -172,14 +176,21 @@ export function HistorySection() {
       ) : null}
       <div className="flex items-center justify-between">
         <span className="text-muted-foreground text-xs">{t('{shown} of {total}', { shown: Math.min(shown, list.length), total: all.length })}</span>
-        <Button
-          size="sm"
-          variant={read(confirmClearHistory) ? 'destructive' : 'ghost'}
-          onClick={() => (read(confirmClearHistory) ? void clearHistory() : set(confirmClearHistory, true))}
-        >
-          <Trash2Icon />
-          {read(confirmClearHistory) ? t('Press again to clear history') : t('Clear history')}
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* What the list shows goes into the file: the search and the project filter apply. */}
+          <Button size="sm" variant="ghost" onClick={() => void exportHistory()} disabled={list.length === 0}>
+            <DownloadIcon />
+            {t('Save as a file')}
+          </Button>
+          <Button
+            size="sm"
+            variant={read(confirmClearHistory) ? 'destructive' : 'ghost'}
+            onClick={() => (read(confirmClearHistory) ? void clearHistory() : set(confirmClearHistory, true))}
+          >
+            <Trash2Icon />
+            {read(confirmClearHistory) ? t('Press again to clear history') : t('Clear history')}
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -684,15 +695,44 @@ function OtherAgentsAmounts({ active }: { active: boolean }) {
 }
 
 /**
+ * "Send right after enhancing": a switch of the panel's own, drawn like the Privacy switches. It
+ * turns on only from its dialog, and says so when "Send to terminals", which it needs, is off.
+ */
+function SendAfterRow({ onRead, onAsk }: { onRead: () => void; onAsk: () => void }) {
+  const row = SEND_AFTER_ROW
+  const on = read(sendAfterEnhance)
+  return (
+    <Row
+      title={
+        <span className="flex flex-wrap items-center gap-1.5">
+          {t(row.label)}
+          <Badge variant="outline">{t('asks to confirm')}</Badge>
+        </span>
+      }
+      description={
+        <>
+          {t(row.hint)}{' '}
+          <button type="button" className="hover:text-foreground underline underline-offset-2" onClick={onRead}>
+            {t('Risk and when to use it')}
+          </button>
+          {on && !allowed('allowTerminalSend') ? <span className="text-warning-foreground mt-1 block">{t('It does nothing while "Send to terminals" is off.')}</span> : null}
+        </>
+      }
+      control={<Switch checked={on} aria-label={t(row.label)} onCheckedChange={(value) => (value ? onAsk() : setSendAfterEnhance(false))} />}
+    />
+  )
+}
+
+/**
  * Everything about one switch, in plain words: what it does, what can go wrong, and when it is
  * worth turning on. Opened from a row's link to read, or (`confirm`) before a switch that needs it
  * turns on, with Turn on / Cancel.
  */
-function SwitchDialog({ keyName, confirm, onClose }: { keyName: PrivacyKey | null; confirm: boolean; onClose: () => void }) {
-  const row = PRIVACY_ROWS.find((entry) => entry.key === keyName)
-  const points = row ? (DISCLOSURES[row.key] ?? [row.hint]) : []
+function SwitchDialog({ keyName, confirm, onClose }: { keyName: string | null; confirm: boolean; onClose: () => void }) {
+  const row = switchRow(keyName)
+  const points = row ? (DISCLOSURES[row.key as keyof typeof DISCLOSURES] ?? [row.hint]) : []
   return (
-    <Dialog open={keyName !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
+    <Dialog open={row !== null} onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent className="flex max-h-[85vh] max-w-[calc(100vw-24px)] flex-col gap-3 p-4">
         <DialogHeader>
           <DialogTitle>{row ? (confirm ? t('Turn on "{name}"?', { name: t(row.label) }) : t(row.label)) : ''}</DialogTitle>
@@ -729,7 +769,9 @@ function SwitchDialog({ keyName, confirm, onClose }: { keyName: PrivacyKey | nul
               <Button
                 size="sm"
                 onClick={() => {
-                  if (keyName) void confirmSwitch(keyName)
+                  // The panel's own switch is turned on here; a Privacy switch is confirmed with the worker.
+                  if (row?.key === SEND_AFTER_ROW.key) setSendAfterEnhance(true)
+                  else if (row) void confirmSwitch(row.key)
                   onClose()
                 }}
               >
@@ -758,9 +800,9 @@ function hookLastText(last: HookRecord): string {
 
 export function SettingsSection() {
   // ?ask=<switch> opens its confirmation at once in the dev server (pictures of the dialog).
-  const [asking, setAsking] = useState<PrivacyKey | null>(import.meta.env.DEV ? (new URLSearchParams(location.search).get('ask') as PrivacyKey | null) : null)
+  const [asking, setAsking] = useState<string | null>(import.meta.env.DEV ? new URLSearchParams(location.search).get('ask') : null)
   // A switch whose explanation is open to read (?details=<switch> in the dev server, for pictures).
-  const [reading, setReading] = useState<PrivacyKey | null>(import.meta.env.DEV ? (new URLSearchParams(location.search).get('details') as PrivacyKey | null) : null)
+  const [reading, setReading] = useState<string | null>(import.meta.env.DEV ? new URLSearchParams(location.search).get('details') : null)
   const last = read(hookLast)
   const flags = read(privacy)
   const data = read(dataSummary)
@@ -819,8 +861,8 @@ export function SettingsSection() {
           // On in Orca's Settings but never confirmed here: the worker keeps it off until confirmed.
           const waiting = needs && on && !read(consents).includes(row.key)
           return (
+            <Fragment key={row.key}>
             <Row
-              key={row.key}
               title={
                 <span className="flex flex-wrap items-center gap-1.5">
                   {t(row.label)}
@@ -859,6 +901,9 @@ export function SettingsSection() {
                 />
               }
             />
+            {/* Right under the switch it depends on. */}
+            {row.key === 'allowTerminalSend' ? <SendAfterRow onRead={() => setReading(SEND_AFTER_ROW.key)} onAsk={() => setAsking(SEND_AFTER_ROW.key)} /> : null}
+            </Fragment>
           )
         })}
       </Group>

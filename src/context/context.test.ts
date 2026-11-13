@@ -88,7 +88,9 @@ test('git diff leaves out secret files, renames of them and excluded paths', asy
     run('commit', '-q', '-m', 'init')
     writeFileSync(join(root, 'config/credentials.yml'), 'token: NEW-CRED\n')
     writeFileSync(join(root, 'certs.p12'), 'NEW-P12\n')
-    writeFileSync(join(root, 'src/app.ts'), 'export const a = 2 // VISIBLE\n')
+    // A key pasted into an ordinary source file (a fake one, put together here).
+    const pasted = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123'].join('_')
+    writeFileSync(join(root, 'src/app.ts'), `export const a = 2 // VISIBLE\nexport const token = "${pasted}"\nexport const next = readToken()\n`)
     writeFileSync(join(root, 'dist/bundle.js'), 'new bundle EXCLUDED\n')
     run('mv', 'secrets.json', 'data.json')
     unlinkSync(join(root, 'id_rsa'))
@@ -98,6 +100,10 @@ test('git diff leaves out secret files, renames of them and excluded paths', asy
     assert.ok(result)
     const all = `${result.stat}\n${result.diff}`
     assert.match(all, /VISIBLE/)
+    // The key in the shown file is masked; the lines around it are the code they were.
+    assert.ok(!all.includes(pasted), `a key in a source file leaked:\n${all}`)
+    assert.match(all, /\+export const token = "\[redacted\]"/)
+    assert.match(all, /\+export const next = readToken\(\)/)
     for (const secret of ['CRED', 'SECRET', 'PRIVATE-KEY', 'P12', 'EXCLUDED', 'data.json', 'credentials.yml', 'id_rsa']) {
       assert.ok(!all.includes(secret), `${secret} leaked:\n${all}`)
     }

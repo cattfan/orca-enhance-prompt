@@ -1,8 +1,8 @@
 // actions.ts: what the panel does (what its buttons call): requests to the worker, and the changes
 // to the state (state.ts) that follow. No UI here; the web panel (web/src) and the tests call these.
-import { plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
+import { files as orcaFiles, plugin, read, set, settings, shell, update, type JsonValue } from 'orca'
 import { MAX_RULE_CHARS, MAX_RULES, MAX_SECTIONS, MAX_STRUCTURES, newId, projectScope, type RulesConfig } from '../rules.ts'
-import { feedbackDue, ISSUES_URL, targetLabel } from './view.ts'
+import { exportName, feedbackDue, historyMarkdown, ISSUES_URL, targetLabel } from './view.ts'
 import { type HistoryEntry } from '../history.ts'
 import { attachmentItemId } from '../image-limits.ts'
 import { type Message } from '../messages.ts'
@@ -13,7 +13,7 @@ import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
 import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
-import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, type NoticeAction } from './state.ts'
+import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, sendAfterEnhance, filteredHistory, type NoticeAction } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
@@ -251,8 +251,20 @@ export function showContext(items: ContextItemView[], notes: (Message | string)[
 // ---------------------------------------------------------------- actions
 
 export async function enhanceNow(): Promise<void> {
+  await runEnhance()
+}
+
+/** What a run left in this composer: the request it was made from, and the prompt it wrote. */
+type Enhanced = { prompt: string; enhanced: string }
+
+/**
+ * One enhance run. Answers with what it put into the composer on screen, or null when nothing is
+ * there to act on: it failed or was cancelled, or its project is no longer the one in focus.
+ */
+async function runEnhance(): Promise<Enhanced | null> {
   const prompt = read(draft).trim()
-  if (!prompt || read(busy)) return
+  if (!prompt || read(busy)) return null
+  let shown: Enhanced | null = null
   const controller = new AbortController()
   inFlight = controller
   const origin = { key: read(workspaceKey), name: projectTitle() }
@@ -292,6 +304,7 @@ export async function enhanceNow(): Promise<void> {
       put(lastRun, ran)
       showContext(answer.context, answer.notes)
       askForFeedback()
+      shown = { prompt, enhanced: answer.enhanced }
     } else if (origin.key !== null && !removedWorkspaces.has(origin.key)) {
       // The person moved to another project meanwhile: the prompt waits in its own project.
       const slot = read(parked)[origin.key]
@@ -310,6 +323,7 @@ export async function enhanceNow(): Promise<void> {
     if (runOrigin === origin) runOrigin = null
     set(busy, null)
   }
+  return shown
 }
 
 /** An empty composer of a project that has nothing parked. */
@@ -417,13 +431,22 @@ export async function send(text: string): Promise<void> {
  */
 async function sendTo(terminalId: string, text: string, force: boolean): Promise<void> {
   if (read(busy)) return
+  set(busy, 'send')
+  try {
+    await typeInto(terminalId, text, force)
+  } finally {
+    set(busy, null)
+  }
+}
+
+/** The request behind sendTo, and the notice that says how it went. The caller holds `busy`. */
+async function typeInto(terminalId: string, text: string, force: boolean): Promise<void> {
   const item = read(targets).find((entry) => entry.terminalId === terminalId)
   if (!item) {
     set(notice, { tone: 'warning', text: t('That terminal is no longer open.') })
     return
   }
   const label = targetLabel(item)
-  set(busy, 'send')
   try {
     const { accepted } = await plugin.request('prompt.send', { terminalId, text, enter: read(effectiveEnter), ...(force ? { force: true } : {}) })
     const done = force ? t('Typed into {label}, without Enter.', { label }) : t('Sent to {label}.', { label })
@@ -432,20 +455,90 @@ async function sendTo(terminalId: string, text: string, force: boolean): Promise
     if (!force && errorMessage(error)?.code === 'error.agent_blocked') {
       set(notice, { tone: 'warning', text: message(error), action: { label: t('Type it without Enter'), run: { kind: 'send.anyway', terminalId, text } } })
     } else set(notice, { tone: 'danger', text: message(error) })
+  }
+}
+
+/**
+ * Ctrl+Enter in the composer: sends the result while it is the one made from what the composer
+ * still holds (the person has it in front of them), and enhances otherwise. With "Send right after
+ * enhancing" on, the enhance goes on to the send by itself (enhanceAndSend).
+ */
+export async function enhanceOrSend(): Promise<void> {
+  const output = read(result)
+  const current = output.trim() !== '' && read(resultFor) !== null && read(resultFor) === read(draft).trim()
+  if (current && read(target) && read(busy) === null) return send(output)
+  return enhanceAndSend()
+}
+
+/** Whether a one-step send is on: its own switch, and "Send to terminals", which it needs. */
+export const sendsAfterEnhance = () => read(sendAfterEnhance) && allowed('allowTerminalSend')
+
+/** The agent states in which nothing is going on in the terminal: it sits at its prompt. */
+const IDLE_STATES = new Set(['waiting', 'done'])
+
+/**
+ * Why a prompt that was just enhanced is not sent by itself, as a sentence for the person, or null
+ * when every condition holds. `start` is what was fixed when the run began.
+ */
+function heldBack(start: { terminalId: string | null; key: string | null }, done: Enhanced): string | null {
+  const key = read(workspaceKey)
+  // Orca tells several same-named projects apart only by their terminals; while it could not (when
+  // the run began, or now), this could be a terminal of another project.
+  const unknown = (value: string | null) => value === null || value.startsWith('name:')
+  if (unknown(key) || unknown(start.key)) return t('Orca could not tell which project this is.')
+  if (key !== start.key) return t('The project in focus changed while it ran; the prompt waits in the project it was written in.')
+  const item = read(targets).find((entry) => entry.terminalId === start.terminalId)
+  if (!start.terminalId || !item || read(target) !== start.terminalId) return t('The terminal picked when you started is closed or no longer the one picked.')
+  const label = targetLabel(item)
+  // A plain terminal would run the prompt's first line as a command.
+  if (!item.agent) return t('{label} is a plain terminal, not an agent.', { label })
+  // A working agent can ask for an answer at any moment, and what is typed then could be taken as it.
+  const name = item.title ?? item.agent
+  if (item.state === 'working') return t('{name} is still working.', { name })
+  if (item.state === 'blocked') return t('{name} is waiting for an answer from you.', { name })
+  if (!item.state || !IDLE_STATES.has(item.state)) return t('Orca does not say whether {name} is idle.', { name })
+  if (read(draft).trim() !== done.prompt || read(result) !== done.enhanced) return t('The text changed while it ran.')
+  return null
+}
+
+/**
+ * Enhances, then types the result into the picked terminal with no read in between. Only while
+ * "Send right after enhancing" is on (Settings: off until the person has read what it does);
+ * otherwise this is a plain enhance. Nothing is sent on a doubt, and the result then waits in the
+ * composer like any other:
+ * - the terminal is fixed when the run starts, and must still be open and still be the one picked;
+ * - the project must be one Orca can tell from the others, and the one the run started in;
+ * - the agent there must be idle, as Orca reports it once the run is over;
+ * - the text sent is the run's own answer, and only while the composer still holds its request.
+ * Enter follows the Enter switch, and the worker's own checks (the Send switch, an agent that is
+ * waiting for an answer) apply as for any send.
+ */
+export async function enhanceAndSend(): Promise<void> {
+  if (!sendsAfterEnhance()) return enhanceNow()
+  const start = { terminalId: read(target), key: read(workspaceKey) }
+  const done = await runEnhance()
+  if (!done) return
+  set(busy, 'send')
+  try {
+    // The states as they are now, not as they were when the run began.
+    await refreshTargets()
+    const why = heldBack(start, done)
+    if (why) {
+      set(notice, { tone: 'warning', text: `${t('Not sent by itself.')} ${why} ${t('Read the prompt and send it yourself.')}` })
+      return
+    }
+    await typeInto(start.terminalId!, done.enhanced, false)
   } finally {
     set(busy, null)
   }
 }
 
 /**
- * Ctrl+Enter in the composer: sends the result while it is the one made from what the composer
- * still holds (the person has it in front of them), and enhances otherwise.
+ * The switch itself. Turning it on is a confirmation: the Settings section calls this from the
+ * dialog that says what it does and what can go wrong.
  */
-export async function enhanceOrSend(): Promise<void> {
-  const output = read(result)
-  const current = output.trim() !== '' && read(resultFor) !== null && read(resultFor) === read(draft).trim()
-  if (current && read(target) && read(busy) === null) return send(output)
-  return enhanceNow()
+export function setSendAfterEnhance(on: boolean): void {
+  set(sendAfterEnhance, on)
 }
 
 /** Runs what a notice's button stands for (state.ts: NoticeAction). */
@@ -467,6 +560,32 @@ export async function copy(text: string): Promise<void> {
   if (!text.trim()) return
   const answer = await plugin.request('prompt.copy', { text }).catch((error) => ({ copied: false, error: message(error) }))
   set(notice, answer.copied ? { tone: 'success', text: t('Copied to clipboard.') } : { tone: 'danger', text: t('Copy failed: {error}', { error: answer.error ?? 'unknown error' }) })
+}
+
+/**
+ * Offers a text in Orca's save dialog, as a Markdown file. Called at once, inside the press: Orca
+ * opens the dialog only from a gesture. The person picks the place; the plugin never learns it.
+ */
+async function saveFile(name: string, data: string): Promise<void> {
+  try {
+    const { status } = await orcaFiles.saveAs({ suggestedName: name, mimeType: 'text/markdown', data })
+    if (status === 'saved') set(notice, { tone: 'success', text: t('Saved as a file.') })
+  } catch {
+    set(notice, { tone: 'danger', text: t('The file could not be saved.') })
+  }
+}
+
+/** The enhanced prompt as a file, as it reads in the box (edits included). */
+export async function savePrompt(text: string): Promise<void> {
+  if (!text.trim()) return
+  await saveFile(exportName('prompt'), text.endsWith('\n') ? text : `${text}\n`)
+}
+
+/** The history entries the list shows (the search and the project filter apply), as one file. */
+export async function exportHistory(): Promise<void> {
+  const entries = read(filteredHistory)
+  if (entries.length === 0) return
+  await saveFile(exportName('history'), historyMarkdown(entries))
 }
 
 /** What the composer held before a history entry was opened in it, and in which project: for Undo. */
@@ -772,6 +891,8 @@ export async function clearData(what: 'history' | 'catalogs' | 'all'): Promise<v
       set(rulesState, { rules: [], structures: [] })
       set(hookLast, null)
       set(resultFor, null)
+      // A confirmation like the others: gone with everything else, and asked for again.
+      set(sendAfterEnhance, false)
       beforeReuse = null
       forgetSaved()
     }

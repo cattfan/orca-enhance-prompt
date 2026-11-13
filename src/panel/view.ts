@@ -4,6 +4,8 @@ import { read, set } from 'orca'
 import { CONTEXT_LEVEL_LABELS, CONTEXT_LEVELS, isContextLevel, type ContextItemView, type ProfileView } from '../presets.ts'
 import { isStyle, STYLE_LABELS, STYLES } from '../prompts.ts'
 import { t } from '../i18n.ts'
+import { BRAND } from '../brand.ts'
+import type { HistoryEntry } from '../history.ts'
 import { allStructures, ruleApplies, scopeName, structureById, type Rule, type RulesConfig } from '../rules.ts'
 import { ESTIMATED_STEPS, stepPercent, type Step } from '../progress.ts'
 import type { PrivacyKey } from '../privacy.ts'
@@ -182,6 +184,39 @@ export function targetLabel(item: Target): string {
   return `${item.title} · ${state ? t(state) : item.state}`
 }
 
+const two = (value: number) => String(value).padStart(2, '0')
+/** A moment as `2026-11-13 14:05`, in the machine's own time: the same in every language, and it sorts. */
+export function stamp(at: number): string {
+  const date = new Date(at)
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`
+}
+
+/** The name offered for a saved file: what it is and when, so that two saves do not collide. */
+export function exportName(kind: 'prompt' | 'history', now = Date.now()): string {
+  return `${kind === 'history' ? 'enhance-prompt-history' : 'prompt'}-${stamp(now).replace(' ', '-').replace(':', '')}.md`
+}
+
+/** A text as a Markdown code block, whatever it holds: the fence is longer than any run of backticks in it. */
+export function fenced(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length))
+  const fence = '`'.repeat(Math.max(3, longest + 1))
+  return `${fence}text\n${text}\n${fence}`
+}
+
+/**
+ * History entries as one Markdown document, in the order given: each with when, where and how it
+ * was made, the request, and the enhanced prompt. The texts are in code blocks, so a prompt's own
+ * headings do not become headings of the document.
+ */
+export function historyMarkdown(entries: readonly HistoryEntry[], now = Date.now()): string {
+  const parts = [`# ${BRAND}: ${t('History')}`, t('Saved {when} · {count} prompts', { when: stamp(now), count: entries.length })]
+  for (const entry of entries) {
+    const facts = [stamp(entry.at), entry.project ?? '', t(STYLE_LABELS[isStyle(entry.style) ? entry.style : 'balanced']), entry.model, entry.source === 'hook' ? t('auto') : '']
+    parts.push(`## ${facts.filter(Boolean).join(' · ')}`, `### ${t('Your prompt')}`, fenced(entry.original), `### ${t('Enhanced prompt')}`, fenced(entry.enhanced))
+  }
+  return `${parts.join('\n\n')}\n`
+}
+
 /** One line naming the current options, used as the options button's tooltip. */
 export function optionsSummary(): string {
   const styleValue = read(effectiveStyle)
@@ -295,7 +330,8 @@ export const PRIVACY_GROUPS: { id: PrivacyGroup; title: string }[] = [
  * wrong, and when turning it on is worth it) are in the row's Details, and in the dialog of a
  * switch that asks to confirm.
  */
-export const PRIVACY_ROWS: { key: PrivacyKey; group: PrivacyGroup; label: string; hint: string; risk: string; when: string }[] = [
+export type SwitchRow<Key extends string = string> = { key: Key; group: PrivacyGroup; label: string; hint: string; risk: string; when: string }
+export const PRIVACY_ROWS: SwitchRow<PrivacyKey>[] = [
   {
     key: 'allowProjectFiles',
     group: 'reads',
@@ -395,10 +431,33 @@ export const PRIVACY_ROWS: { key: PrivacyKey; group: PrivacyGroup; label: string
 ]
 
 /**
+ * "Send right after enhancing": drawn like the switches above, under "What it may do", and it always
+ * asks to confirm. The panel keeps it itself (state.ts: sendAfterEnhance): a new setting in the
+ * manifest would make Orca ask every user to approve the update again.
+ */
+export const SEND_AFTER_ROW: SwitchRow<'sendAfterEnhance'> = {
+  key: 'sendAfterEnhance',
+  group: 'acts',
+  label: 'Send right after enhancing',
+  hint: 'Ctrl+Enter, or the button next to Enhance, enhances the prompt and types it into the agent in one go, without showing it to you first. Enter alone still stops at the result. Off until you turn it on.',
+  risk: 'The agent gets a prompt you have not read. A model can misread a request, add a step you did not ask for, or answer with something that is not a prompt at all; with Enter on, the agent starts on it at once.',
+  when: 'On for small, low-risk requests, with an agent that asks before it does anything hard to undo. Leave it off when the agent runs with wide permissions, or when a wrong instruction would be costly.'
+}
+
+/** Every switch the Settings section draws, by its key. */
+export const switchRow = (key: string | null): SwitchRow | null => [...PRIVACY_ROWS, SEND_AFTER_ROW].find((row) => row.key === key) ?? null
+
+/**
  * What the person reads before turning on a switch that needs confirmation: what it reads or does,
  * where that goes, what stays, and how to stop it. Nothing is left out.
  */
-export const DISCLOSURES: Partial<Record<PrivacyKey, string[]>> = {
+export const DISCLOSURES: Partial<Record<PrivacyKey | 'sendAfterEnhance', string[]>> = {
+  sendAfterEnhance: [
+    'Adds a second button next to Enhance, and changes what Ctrl+Enter does in the composer: the prompt is enhanced and the result is typed into the terminal you picked, with or without Enter as your Enter switch says. Enter alone still only enhances.',
+    'It sends by itself only when the terminal is still open and still the one picked, Orca can tell which project this is and it is the one you started in, the agent there is idle (not working, not waiting for an answer from you), and you did not change the text meanwhile.',
+    'Whenever one of these does not hold, nothing is sent: the result stays in the composer with a note that says why, and you send it yourself.',
+    'It needs "Send to terminals" to be on, and the checks of that switch still apply.'
+  ],
   allowOtherAgents: [
     'Reads which other agents run in this workspace (kind, title, state) and the last lines of each one\'s terminal, every time you enhance at the Max level: as many agents and lines as you set below the switch (4 agents and 80 lines by default, at most 8 and 300).',
     'That text is sent with your prompt to the model you run (your API provider, or the subscription CLI and its provider). It can contain code, file contents, command output and anything the agents printed.',

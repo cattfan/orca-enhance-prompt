@@ -9,9 +9,10 @@ import { t, UI_LANGUAGES, uiLanguageSetting } from '../../src/i18n.ts'
 import { SECTION_LABELS, UI_LANGUAGE_LABELS } from '../../src/panel/view.ts'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BRAND } from '../../src/brand.ts'
-import { busy, draft, files, history, historyOpen, notice, optionsOpen, put, tab } from '../../src/panel/state.ts'
+import { busy, draft, files, history, historyOpen, notice, optionsOpen, put, say, sendAfterEnhance, tab } from '../../src/panel/state.ts'
+import { msg } from '../../src/messages.ts'
 import { previews } from './attach'
-import { changeUiLanguage, enhanceNow, refreshDataSummary, refreshHookLast, refreshTargets } from '../../src/panel/actions.ts'
+import { changeUiLanguage, enhanceAndSend, enhanceNow, refreshDataSummary, refreshHookLast, refreshTargets } from '../../src/panel/actions.ts'
 import { closePanel, wirePanel } from '../../src/panel/setup.ts'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { IconAction, Notices } from './common'
@@ -139,6 +140,16 @@ async function start(): Promise<void> {
     if (query.get('toast') === 'undo') {
       setTimeout(() => set(notice, { tone: 'neutral', text: t('Removed from the history.'), action: { label: t('Undo'), run: { kind: 'history.restore', id: 'none' } } }), 600)
     }
+    // ?toast=blocked: what Send says for an agent that is waiting for an answer, once the demo's result is there.
+    if (query.get('toast') === 'blocked') {
+      const text = say(msg('error.agent_blocked', { name: 'Claude Code' }))
+      setTimeout(() => set(notice, { tone: 'warning', text, action: { label: t('Type it without Enter'), run: { kind: 'send.anyway', terminalId: 'none', text: '' } } }), 6000)
+    }
+    // ?onestep=1: "Send right after enhancing" is on, so its button is drawn next to Enhance;
+    // ?onestep=run: the demo prompt also goes through it (enhanced, then sent or held back);
+    // ?onestep=0 turns it back off (the pictures share one browser profile, and it is remembered).
+    const oneStep = query.get('onestep')
+    if (oneStep) set(sendAfterEnhance, oneStep !== '0')
     // ?whatsnew=1: as if just updated, so What's new opens.
     if (query.get('whatsnew') === '1') localStorage.setItem('enhance-prompt:seen-version', '0')
     // ?attach=1: a screenshot and a log already attached; ?run=0 types the demo prompt without running it.
@@ -154,7 +165,7 @@ async function start(): Promise<void> {
     if (demo) {
       put(draft, demo)
       // Run once the panel is idle (opening the options gathers the context first).
-      const go = (): void => void (read(busy) ? setTimeout(go, 200) : enhanceNow())
+      const go = (): void => void (read(busy) ? setTimeout(go, 200) : oneStep === 'run' ? enhanceAndSend() : enhanceNow())
       if (query.get('run') !== '0') setTimeout(go, 300)
     }
     // The drawn content's height, in the title: scripts/make-listing.mjs crops its shots with it.

@@ -26,6 +26,19 @@ test('starting the panel loads its terminals, rules and confirmations, and the s
   await view.unmount()
 })
 
+test('starting the panel tells the worker which language Orca runs in', async () => {
+  const told: string[] = []
+  const requests: MockRequests = { ...base, 'ui.locale': (input: { locale: string }) => (told.push(input.locale), { ok: true as const }) }
+  const view = await mountPanel(mockHost({ requests }), { locale: 'vi-VN' })
+  assert.deepEqual(told, ['vi-VN'])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+  // A worker that has no such request (an older one still running after an update) is no error.
+  const older = await mountPanel(mockHost({ requests: base }), { locale: 'vi-VN' })
+  assert.deepEqual(older.errors, [])
+  await older.unmount()
+})
+
 test("the worker's progress and the auto-enhance hook's news reach the panel", async () => {
   const view = await mountPanel(mockHost({ requests: base }))
   beginRun('r1')

@@ -318,6 +318,44 @@ test('a run is kept in the history under its project, so the History tab can sho
   await worker.deactivate()
 })
 
+test('the project of a run is settled before its context is gathered: its rules and its history entry stay with it', async () => {
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+    bodies.push(String(init?.body))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Better.' } }] }), { status: 200 })
+  }) as typeof fetch
+  // The person looks at another project while the run goes: Orca's focus is "demo" when the run
+  // starts and "blog" every time it is asked after that.
+  let asked = 0
+  const blog = { id: 'identity:wt9:local:blog', kind: 'worktree', name: 'blog', project: 'blog', path: `${LISTED.path}/blog`, branch: 'dev', hostId: 'local' }
+  const testHost = mockHost({
+    storage: {
+      models: { profiles: [profile] },
+      rules: { rules: [{ id: 'r1', text: 'Use pnpm here.', enabled: true, scope: 'project:demo' }, { id: 'r2', text: 'Use yarn here.', enabled: true, scope: 'project:blog' }], structures: [] }
+    },
+    secrets: { 'apiKey.oa': 'k' },
+    results: {
+      'workspace.readContext': () => (asked++ === 0 ? { branch: 'main', displayName: 'demo', terminals: [] } : { branch: 'dev', displayName: 'blog', terminals: [] }),
+      'workspace.list': { workspaces: [{ id: WS, kind: 'worktree', name: 'demo', project: 'demo', path: LISTED.path, branch: 'main', hostId: 'local' }, blog], truncated: false },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host: testHost })
+  // What the worker asks while it starts is not part of the run.
+  await settle()
+  asked = 0
+  // The Standard level reads the project, so the gather asks Orca for the focus again.
+  await worker.request('prompt.enhance', { prompt: 'fix the login page', level: 'standard' })
+  // The focus was read more than once, so the second project was really there to be picked up.
+  assert.ok(asked > 1, `workspace.readContext was asked ${asked} time(s)`)
+  assert.equal(bodies.length, 1)
+  assert.ok(bodies[0].includes('Use pnpm here.'), 'the rule of the project the run started in is followed')
+  assert.ok(!bodies[0].includes('Use yarn here.'), 'a rule of the project looked at meanwhile is not')
+  const kept = testHost.data().storage.history as { project?: string }[]
+  assert.equal(kept[0].project, 'demo')
+  await worker.deactivate()
+})
+
 test('an API key that cannot be stored is said so in words, and no model is saved without it', async () => {
   const noStore = mockHost({
     results: {

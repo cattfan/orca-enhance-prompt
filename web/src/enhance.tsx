@@ -5,6 +5,7 @@ import { read, set, settings, update } from 'orca'
 import {
   CopyIcon,
   CornerDownLeftIcon,
+  DownloadIcon,
   FileTextIcon,
   PaperclipIcon,
   ArrowUpToLineIcon,
@@ -59,14 +60,17 @@ import {
   cancel,
   closeFeedback,
   copy,
+  enhanceAndSend,
   enhanceNow,
   enhanceOrSend,
   pickWorkspace,
   previewContext,
   refreshTargets,
   removeFile,
+  savePrompt,
   send,
   sendFeedback,
+  sendsAfterEnhance,
   setSetting,
   stopFeedback,
   toggleItem
@@ -172,7 +176,8 @@ function Composer({ refresh }: { refresh: () => void }) {
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter enhances (the button shows the Enter key); Shift+Enter is a new line. Ctrl+Enter (⌘ on
     // a Mac) sends the result once it is there and still the one for this text, so a prompt goes
-    // from idea to terminal without the mouse, and never unread.
+    // from idea to terminal without the mouse, and never unread, unless the person turned on
+    // "Send right after enhancing": then Ctrl+Enter enhances and sends in one go.
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault()
       void (event.ctrlKey || event.metaKey ? enhanceOrSend() : enhanceNow())
@@ -246,9 +251,17 @@ function Composer({ refresh }: { refresh: () => void }) {
               <SquareIcon className="fill-current" />
             </IconAction>
           ) : (
-            <IconAction label={t('Enhance (Enter) · Shift+Enter for a new line')} variant="default" onClick={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
-              <CornerDownLeftIcon />
-            </IconAction>
+            <>
+              {/* "Send right after enhancing" is on: the one-step button sits next to Enhance, which still stops at the result. */}
+              {sendsAfterEnhance() ? (
+                <IconAction label={t('Enhance and send without reading (Ctrl+Enter)')} variant="outline" onClick={() => void enhanceAndSend()} disabled={!text.trim() || working !== null || !read(target)}>
+                  <SendIcon />
+                </IconAction>
+              ) : null}
+              <IconAction label={t('Enhance (Enter) · Shift+Enter for a new line')} variant="default" onClick={() => void enhanceNow()} disabled={!text.trim() || working !== null}>
+                <CornerDownLeftIcon />
+              </IconAction>
+            </>
           )}
         </div>
       </div>
@@ -462,6 +475,9 @@ function ResultCard({ output }: { output: string }) {
         <div className="flex">
           <IconAction label={t('Copy')} onClick={() => void copy(output)}>
             <CopyIcon />
+          </IconAction>
+          <IconAction label={t('Save as a file')} onClick={() => void savePrompt(output)}>
+            <DownloadIcon />
           </IconAction>
           <IconAction
             label={t('Refine: use the enhanced prompt as the new input')}

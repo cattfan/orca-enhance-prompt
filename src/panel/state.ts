@@ -202,6 +202,13 @@ export function restoreSaved(): void {
 export const targets = atom<Target[]>([])
 /** The draft the shown result was made from: while the composer still holds it, Ctrl+Enter sends the result. */
 export const resultFor = atom<string | null>(null)
+/**
+ * "Send right after enhancing": Ctrl+Enter (or the button next to Enhance) enhances and types the
+ * result into the agent with no read in between (actions.ts: enhanceAndSend). Off until the person
+ * has read what it does and turned it on in Settings. A preference of the panel, not a setting in
+ * the manifest: Orca counts a new setting as more access and asks every user to approve again.
+ */
+export const sendAfterEnhance = atom('sendAfterEnhance', false, { persist: 'plugin' })
 /** What auto-enhance did with the last prompt it saw (the worker keeps it in memory), for the Settings section. */
 export const hookLast = atom<HookRecord | null>(null)
 export const models = atom<ModelsView | null>(null)

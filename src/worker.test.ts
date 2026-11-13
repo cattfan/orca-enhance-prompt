@@ -327,6 +327,42 @@ test('cycle command switches auto-enhance mode', async () => {
   await vietnamese.deactivate()
 })
 
+test('with the panel\'s language on Auto, the worker speaks Orca\'s language once a panel has told it which', async () => {
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 30))
+  const host = mockHost({ results: { 'statusBar.update': { ok: true } } })
+  const tooltip = () => (host.callsOf('statusBar.update').at(-1) as { tooltip: string }).tooltip
+  const worker = await mountWorker(main, { host })
+  await settled()
+  // A worker cannot see Orca's language: English until a panel has opened.
+  assert.match(tooltip(), /Auto-enhance is off\./)
+  assert.equal(await worker.command('auto-enhance.rules'), 'Auto-enhance is on (rules).')
+  // The panel reports it (src/panel/setup.ts): the status bar follows at once, and so do the answers.
+  assert.deepEqual(await worker.request('ui.locale', { locale: 'vi-VN' }), { ok: true })
+  assert.match(tooltip(), /Tự cải thiện đang bật \(quy tắc\)\./)
+  assert.equal(await worker.command('auto-enhance.off'), 'Tự cải thiện đang tắt.')
+  assert.equal(host.data().storage[main.LOCALE_KEY], 'vi-VN')
+  // The same language again is no news: the status bar is not written a second time.
+  const writes = host.callsOf('statusBar.update').length
+  await worker.request('ui.locale', { locale: 'vi-VN' })
+  assert.equal(host.callsOf('statusBar.update').length, writes)
+  await worker.deactivate()
+
+  // Kept across restarts: the next worker is in that language before any panel opens.
+  const again = mockHost({ storage: { [main.LOCALE_KEY]: 'zh-CN' }, results: { 'statusBar.update': { ok: true } } })
+  const second = await mountWorker(main, { host: again })
+  await settled()
+  assert.match((again.callsOf('statusBar.update').at(-1) as { tooltip: string }).tooltip, /自动优化：关/)
+  await second.deactivate()
+  // A picked language wins over what Orca runs in.
+  const picked = mockHost({ settings: { uiLanguage: 'en' }, storage: { [main.LOCALE_KEY]: 'vi-VN' }, results: { 'statusBar.update': { ok: true } } })
+  const third = await mountWorker(main, { host: picked })
+  assert.equal(await third.command('auto-enhance.rules'), 'Auto-enhance is on (rules).')
+  // Delete everything forgets it with the rest.
+  await third.request('data.clear', { what: 'all' })
+  assert.equal(picked.data().storage[main.LOCALE_KEY], undefined)
+  await third.deactivate()
+})
+
 test('a long send closes its bracketed paste when a later piece is refused or fails', async () => {
   for (const failure of ['refuse', 'throw'] as const) {
     let calls = 0
@@ -779,6 +815,55 @@ test('auto-enhance takes the rules and the name of the project its prompt goes t
   assert.equal(stranger.kind === 'continue' && stranger.event.prompt, 'Rewritten.')
   assert.ok(!body().includes('Shop: use pnpm.') && !body().includes('Reup: use bun.'), 'a rule of some project went to a terminal whose project is not known')
   assert.ok(!/(Shop|Reup): main \(branch main\)/.test(body()))
+  await worker.deactivate()
+  await forgetTerminals()
+})
+
+test('a kept pairing of a terminal is dropped when Orca now lists that terminal in a workspace it does not fit', async () => {
+  const shop = project()
+  const docs = project()
+  const calls = stubFetch(() => openaiAnswer('Rewritten.'))
+  const host = mockHost({
+    settings: { autoEnhanceMode: 'ai' },
+    storage: {
+      models: { profiles: [profile('fast', 'groq')] },
+      rules: {
+        rules: [
+          { id: 'r1', text: 'Shop: use pnpm.', enabled: true, scope: 'project:Shop' },
+          { id: 'r2', text: 'Docs: use vale.', enabled: true, scope: 'project:Docs' }
+        ],
+        structures: []
+      },
+      // Kept by an earlier run of the worker: this id was a terminal of Docs then.
+      terminalWorkspaces: { term_1: `repo-docs::${docs}`, term_docs: `repo-docs::${docs}` }
+    },
+    secrets: { 'apiKey.fast': 'g' },
+    results: {
+      // Now Orca lists a terminal of that id in the focused workspace, which is Shop.
+      'workspace.readContext': { branch: 'main', displayName: 'shop', terminals: [{ id: 'term_1', title: 'Claude' }] },
+      'workspace.list': {
+        workspaces: [
+          { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'shop', project: 'Shop', path: listedPath(shop), branch: 'main', hostId: 'local' },
+          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'docs', project: 'Docs', path: listedPath(docs), branch: 'guide', hostId: 'local' }
+        ],
+        truncated: false
+      },
+      'agents.list': { agents: [] }
+    }
+  })
+  const worker = await mountWorker(main, { host })
+  const body = () => JSON.stringify(calls.at(-1)?.body)
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_1', prompt: 'add a health check endpoint', inputKind: 'launch' as const })
+  assert.match(body(), /Shop: use pnpm\./)
+  assert.ok(!body().includes('Docs: use vale.'), 'a rule of the project the id used to belong to was followed')
+  // The old pairing is gone from storage too; one that nothing contradicts stays.
+  await terminalsSaved()
+  const kept = host.data().storage.terminalWorkspaces as Record<string, string>
+  assert.notEqual(kept.term_1, `repo-docs::${docs}`)
+  assert.equal(kept.term_docs, `repo-docs::${docs}`)
+  // A terminal that is not in the focused workspace cannot be checked: what was kept is used.
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_docs', prompt: 'add a health check endpoint', inputKind: 'orchestration' as const })
+  assert.match(body(), /Docs: use vale\./)
   await worker.deactivate()
   await forgetTerminals()
 })

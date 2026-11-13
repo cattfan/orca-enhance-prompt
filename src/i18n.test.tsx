@@ -5,7 +5,7 @@ import { currentLanguage, dictionaries, resolveLanguage, t, translate } from './
 import { changeUiLanguage, enhanceNow, previewContext } from './panel/actions.ts'
 import { contextNotes, contextShown, draft, put, run, say } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
-import { AGENT_STATE_LABELS, AUTO_MODE_HINTS, DISCLOSURES, itemWhy, KEY_LABEL, OUTPUT_LANGUAGE_LABELS, PRIVACY_GROUPS, PRIVACY_ROWS, SECTION_LABELS, STEP_LABELS } from './panel/view.ts'
+import { AGENT_STATE_LABELS, AUTO_MODE_HINTS, DISCLOSURES, itemWhy, KEY_LABEL, OUTPUT_LANGUAGE_LABELS, PRIVACY_GROUPS, PRIVACY_ROWS, SECTION_LABELS, SEND_AFTER_ROW, STEP_LABELS } from './panel/view.ts'
 import { english, MESSAGES, msg, raw } from './messages.ts'
 import { CONTEXT_LEVEL_LABELS, PRESETS } from './presets.ts'
 import { STYLE_LABELS } from './prompts.ts'
@@ -37,7 +37,7 @@ function uiStrings(): Set<string> {
     ...Object.values(OUTPUT_LANGUAGE_LABELS),
     ...Object.values(SECTION_LABELS),
     ...Object.values(AUTO_MODE_HINTS),
-    ...PRIVACY_ROWS.flatMap((row) => [row.label, row.hint, row.risk, row.when]),
+    ...[...PRIVACY_ROWS, SEND_AFTER_ROW].flatMap((row) => [row.label, row.hint, row.risk, row.when]),
     ...PRIVACY_GROUPS.map((group) => group.title),
     ...Object.values(AGENT_STATE_LABELS),
     ...Object.values(DISCLOSURES).flat(),

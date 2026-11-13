@@ -15,9 +15,10 @@ import { changedPaths, gitDiff, gitFiles, gitGrep, gitGrepCount, gitLog, gitStat
 import { readRuleFiles } from './instructions.ts'
 import { contentScores, scoreFiles, weightedKeywords } from './relevance.ts'
 import { detectStack } from './stack.ts'
-import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, redactSecrets, SESSION_LINES } from './agents.ts'
+import { agentsSummary, MAX_SESSIONS, otherAgents, readSession, SESSION_LINES } from './agents.ts'
+import { redactCode, redactSecrets } from './secrets.ts'
 import { agentActivity, savedFiles } from './activity.ts'
-import { learnTerminal, loadTerminals, workspacesOfTerminals } from './terminals.ts'
+import { forgetTerminal, learnTerminal, loadTerminals, workspacesOfTerminals } from './terminals.ts'
 import { namesWorkspace, workspaceTitle } from '../workspaces.ts'
 
 export type ContextItem = ContextItemView & { content: string }
@@ -34,7 +35,7 @@ export type Workspace = { id: string; name: string; project?: string | null; pat
  * What workspace.readContext answers: a name, a branch and the terminals, and no path. The Orcas
  * this was written on give no id either; a newer one does (`workspaceId`, host API 1.9 documents it).
  */
-type Focused = { displayName: string; branch: string; terminals?: readonly { id: string }[]; workspaceId?: string }
+export type Focused = { displayName: string; branch: string; terminals?: readonly { id: string }[]; workspaceId?: string }
 
 /**
  * Whether a workspace's files are on this machine. Orca names this machine's host `local` (older
@@ -171,15 +172,26 @@ export async function findFocusedWorkspace(
  * The workspace a terminal is in, when Orca said so (terminals.ts) and exactly one listed workspace
  * carries that id; null otherwise. For a prompt that goes to one terminal, which need not be in the
  * focused workspace.
+ *
+ * What was kept is what Orca said at some time, and it stays in storage across restarts. `focused`
+ * (Orca's focus as it is now) is the one check there is: a terminal Orca lists in the focused
+ * workspace is in that workspace, so a pairing that does not fit the focus is an old one (the id
+ * went to a new terminal). It is dropped, and the answer is null: the caller takes the focus.
  */
-export async function workspaceOfTerminal(orca: OrcaWorkerApi, terminalId: string): Promise<Workspace | null> {
+export async function workspaceOfTerminal(orca: OrcaWorkerApi, terminalId: string, focused?: Focused | null): Promise<Workspace | null> {
   if (!terminalId || !orca.host.has('workspace.list')) return null
   await loadTerminals(orca)
   const ids = workspacesOfTerminals([terminalId])
   if (ids.length === 0) return null
   const list = await orca.host.call('workspace.list', {}).catch(() => null)
   const workspaces: Workspace[] = list?.workspaces ?? []
+  const inFocus = focused?.terminals?.some((terminal) => terminal.id === terminalId) ?? false
   for (const id of ids) {
+    if (focused && inFocus) {
+      const fits = fittingWorkspace(workspaces, id, focused)
+      if (!fits) forgetTerminal(orca, terminalId)
+      return fits
+    }
     const named = workspaces.filter((ws) => namesWorkspace(id, ws))
     if (named.length === 1) return named[0]
   }
@@ -478,7 +490,8 @@ async function dynamicParts(
     if (options.exclude.has(`file:${entry.path}`)) continue
     const text = await readText(root, entry.path)
     if (!text) continue
-    out.push(item(`file:${entry.path}`, 'file', raw(entry.path), snippet(text, entry.hits, perFile), entry.why))
+    // A key that sits in a source file is masked where it is certainly one; the code around it stays.
+    out.push(item(`file:${entry.path}`, 'file', raw(entry.path), redactCode(snippet(text, entry.hits, perFile)), entry.why))
   }
   if (keywords.length > 0 && picked.length === 0) {
     notes.push(msg('note.no_files'))

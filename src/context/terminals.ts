@@ -57,6 +57,11 @@ export function learnTerminal(orca: OrcaWorkerApi, terminalId: unknown, workspac
   save(orca)
 }
 
+/** Drops one pairing that turned out to be an old one (see workspaceOfTerminal). */
+export function forgetTerminal(orca: OrcaWorkerApi, terminalId: string): void {
+  if (known.delete(terminalId)) save(orca)
+}
+
 /** The workspaces Orca named for these terminals, the one with the most of them first. */
 export function workspacesOfTerminals(terminalIds: readonly string[]): string[] {
   const count = new Map<string, number>()

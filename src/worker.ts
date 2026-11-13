@@ -8,7 +8,7 @@ import { CLI_BINARIES, detectClis } from './cli.ts'
 import { copyToClipboard } from './clipboard.ts'
 import { forgetActivity, recordSave, recordStatus, recordTool } from './context/activity.ts'
 import { isSensitive } from './context/files.ts'
-import { resolveLanguage, translate } from './i18n-dict.ts'
+import { resolveLanguage, translate, type UiLanguage } from './i18n-dict.ts'
 import { atLeast, cachedStatic, contextItem, findFocusedWorkspace, focusedCandidates, focusedProject, gatherContext, isLocalWorkspace, projectNameOf, staticParts, workspaceOfTerminal, type ContextItem, type Workspace } from './context/index.ts'
 import { forgetTerminals, learnTerminal, loadTerminals } from './context/terminals.ts'
 import { workspaceTitle } from './workspaces.ts'
@@ -425,7 +425,9 @@ type HookPlace = { workspace: Workspace | null; label: string; where: RuleWhere 
  * to be looking at.
  */
 export async function hookPlace(orca: OrcaWorkerApi, terminalId: string): Promise<HookPlace | null> {
-  const own = await workspaceOfTerminal(orca, terminalId)
+  // The focus is read first: it is what a kept pairing of this terminal is checked against.
+  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
+  const own = await workspaceOfTerminal(orca, terminalId, focused)
   if (own) {
     return {
       workspace: own,
@@ -433,7 +435,6 @@ export async function hookPlace(orca: OrcaWorkerApi, terminalId: string): Promis
       where: { workspace: own.name, project: own.project?.trim() || own.name }
     }
   }
-  const focused = await orca.host.call('workspace.readContext', {}).catch(() => null)
   if (!focused || !focused.terminals.some((terminal) => terminal.id === terminalId)) return null
   const workspace = await findFocusedWorkspace(orca, focused)
   return {
@@ -468,8 +469,8 @@ const SIDEBAR_KEY = process.platform === 'darwin' ? '⌘L' : 'Ctrl+L'
 export const statusBarText = (mode: AutoMode): string => `${BRAND_SHORT}: ${mode === 'off' ? 'Off' : 'On'}`
 
 /**
- * What the worker itself says, per panel language ('auto' stays English: the worker cannot see
- * Orca's locale): the status bar's tooltip, and the answers of its commands, which Orca shows.
+ * What the worker itself says, per panel language: the status bar's tooltip, and the answers of
+ * its commands, which Orca shows.
  */
 const WORKER_WORDS: Record<string, { modes: Record<AutoMode, string>; tooltip: (mode: string) => string; answer: (mode: string) => string; bar: { hidden: string; shown: string } }> = {
   en: {
@@ -494,10 +495,25 @@ const WORKER_WORDS: Record<string, { modes: Record<AutoMode, string>; tooltip: (
   }
 }
 
-/** The words of the panel's language, as the person set it. */
+/**
+ * Orca's own language, as the panel last reported it (`ui.locale`): a worker cannot see it. Kept
+ * in the plugin's storage, so the status bar is in the right language from Orca's start, before
+ * any panel has opened.
+ */
+export const LOCALE_KEY = 'uiLocale'
+
+/** The language the worker speaks: the panel's, and with "Auto" Orca's own once a panel has told it (English until then). */
+async function workerLanguage(orca: OrcaWorkerApi, setting?: string): Promise<UiLanguage> {
+  const chosen = setting ?? (await orca.settings.get()).uiLanguage
+  const value = typeof chosen === 'string' ? chosen : 'auto'
+  if (value === 'en' || value === 'vi' || value === 'zh') return value
+  const locale = await orca.storage.get(LOCALE_KEY).catch(() => null)
+  return resolveLanguage('auto', typeof locale === 'string' ? locale : 'en')
+}
+
+/** The words of that language. */
 async function workerWords(orca: OrcaWorkerApi) {
-  const all = await orca.settings.get()
-  return WORKER_WORDS[typeof all.uiLanguage === 'string' ? all.uiLanguage : 'en'] ?? WORKER_WORDS.en
+  return WORKER_WORDS[await workerLanguage(orca)] ?? WORKER_WORDS.en
 }
 
 /** What a command that set the mode answers, in the panel's language. */
@@ -1054,6 +1070,7 @@ function registerDataHandlers(orca: OrcaWorkerApi): void {
       await orca.storage.delete(RULES_KEY)
       // Confirmations go too: a switch that needs one asks again; what Orca reported is forgotten.
       await orca.storage.delete(CONSENTS_KEY)
+      await orca.storage.delete(LOCALE_KEY)
       forgetActivity()
       launchedPrompts.clear()
       lastHook = null
@@ -1221,6 +1238,15 @@ function registerCommands(orca: OrcaWorkerApi): void {
   orca.settings.onDidChange(({ key }) => {
     if (key === 'autoEnhanceMode' || key === 'statusBarItem' || key === 'uiLanguage') void refreshStatusBar(orca)
   })
+  // The panel says which language Orca runs in; the status bar follows when that is news.
+  orca.panels.handle('ui.locale', async ({ locale }) => {
+    const value = typeof locale === 'string' ? locale.trim().slice(0, 35) : ''
+    if (value && (await orca.storage.get(LOCALE_KEY).catch(() => null)) !== value) {
+      await orca.storage.set(LOCALE_KEY, value)
+      await refreshStatusBar(orca)
+    }
+    return { ok: true as const }
+  })
   void refreshStatusBar(orca)
 }
 
@@ -1333,7 +1359,7 @@ function registerIntegrations(orca: OrcaWorkerApi): void {
 /** After a long panel run: a desktop notification that names the model and time, never the prompt. */
 async function notifyDone(orca: OrcaWorkerApi, settings: Settings, model: string, ms: number): Promise<void> {
   if (!settings.notifyWhenDone || ms < NOTIFY_AFTER_MS || !orca.host.has('notifications.show')) return
-  const lang = resolveLanguage(settings.uiLanguage, 'en')
+  const lang = await workerLanguage(orca, settings.uiLanguage)
   const body = translate(lang, 'Enhanced prompt ready ({model}, {seconds} s)', { model, seconds: (ms / 1000).toFixed(0) })
   await orca.host.call('notifications.show', { title: BRAND, body }).catch(() => undefined)
 }

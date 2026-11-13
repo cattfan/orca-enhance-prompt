@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process'
 import { killTree } from '../cli.ts'
 import { isSensitive } from './files.ts'
+import { redactCode } from './secrets.ts'
 
 export function git(
   cwd: string,
@@ -112,7 +113,8 @@ export function parseNameStatus(out: string): string[][] {
 /**
  * Uncommitted changes, without any file that may hold secrets (`isSensitive`) or that `allow` refuses
  * (the person's exclude patterns). A rename or copy is left out whole when either side is refused,
- * so renaming `secrets.json` to `data.json` does not show its content.
+ * so renaming `secrets.json` to `data.json` does not show its content. In the files that are shown,
+ * a value that is certainly a credential is masked (`redactCode`); the code around it stays.
  */
 export async function gitDiff(
   root: string,
@@ -133,7 +135,10 @@ export async function gitDiff(
     return null
   }
   const diff = (await git(root, ['diff', 'HEAD', '-M', '-U2', '--no-ext-diff', '--', ...pathspecs], { maxBytes: 4_000_000, signal })) ?? ''
-  return { stat: stat.trim(), diff: diff.length > maxChars ? `${diff.slice(0, maxChars)}\n…(diff truncated)` : diff }
+  // A key pasted into a source file is in the diff too: masked where it is certainly one. The diff
+  // is cut with a little to spare first, so a key at the cut is still whole when it is looked for.
+  const shown = diff.length > maxChars ? `${redactCode(diff.slice(0, maxChars + 400)).slice(0, maxChars)}\n…(diff truncated)` : redactCode(diff)
+  return { stat: stat.trim(), diff: shown }
 }
 
 export async function gitFiles(root: string, signal?: AbortSignal): Promise<string[] | null> {

@@ -44,6 +44,15 @@ export const shell = {
   }
 }
 
+/** Orca's save dialog (desktop only). Without it the call fails, and the panel says the file was not saved. */
+export const files = {
+  saveAs: async (options: { suggestedName?: string; mimeType?: string; data: string | ArrayBuffer }) => {
+    const api = frame().files
+    if (!api) throw new Error('files.saveAs is not available here')
+    return api.saveAs(options)
+  }
+}
+
 export function on(event: string, handler: (payload: never) => void): { dispose(): void } {
   return frame().on(event as never, handler as never)
 }

@@ -21,10 +21,12 @@ export function Notices() {
   useEffect(() => {
     if (!current) return
     const show = { success: toast.success, danger: toast.error, warning: toast.warning, neutral: toast.info }[current.tone]
-    // A notice with a button (Undo, send anyway) stays long enough to be read and pressed.
+    // A notice with a button (Undo, send anyway) stays long enough to be read and pressed, and so
+    // does one that says something went another way than asked (an error, a warning: why a prompt
+    // was not sent by itself is three sentences).
     const action = current.action
     show(current.text, {
-      duration: current.tone === 'danger' || action ? 8000 : 4000,
+      duration: current.tone === 'danger' || current.tone === 'warning' || action ? 8000 : 4000,
       ...(action ? { action: { label: action.label, onClick: () => void runNoticeAction(action.run) } } : {})
     })
     set(notice, null)

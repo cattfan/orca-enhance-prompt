@@ -2,7 +2,7 @@
 // the first data is asked for. No UI here: the web panel (web/src/main.tsx) calls it once its frame
 // is ready, and the tests call it on Orca's panel runtime (src/panel/testing.ts), so the wiring that
 // ships is the wiring that is tested.
-import { on, plugin, read, set, settings } from 'orca'
+import { env, on, plugin, read, set, settings } from 'orca'
 import { t } from '../i18n.ts'
 import {
   applyProgress,
@@ -54,6 +54,9 @@ export function wirePanel(): () => void {
     })
   ]
   void refreshDefaults()
+  // The worker cannot see which language Orca runs in; its status bar tooltip and its commands'
+  // answers follow it while the panel's language is Auto.
+  void plugin.request('ui.locale', { locale: env.locale ?? 'en' }).catch(() => undefined)
   void refreshModels()
   void refreshTargets()
   void refreshRules()

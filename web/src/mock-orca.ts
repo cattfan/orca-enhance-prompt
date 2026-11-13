@@ -264,6 +264,7 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
         : hookDemo === 'skipped'
           ? { at: Date.now() - 4 * 60_000, outcome: 'skipped', agent: 'codex', reason: msg('hook.no_model') }
           : null,
+  'ui.locale': () => ({ ok: true }),
   'data.summary': () => ({ history: (store.get('history') as unknown[]).length, profiles: models.profiles.length, keys: 1, catalogs: 2 }),
   'data.clear': () => null,
   'consents.get': () => ({ granted: [...granted], needed: ['allowOtherAgents', 'allowAgentActivity', 'allowAgentLaunch'] }),
@@ -351,7 +352,14 @@ export async function installMockOrca(): Promise<void> {
   if (query.get('theme') === 'dark') root.classList.add('dark')
   // ?width=360: a sidebar's width (headless browsers cannot make a window that narrow), with a
   // dashed line where the sidebar would end; ?edge=0 leaves the line out (pictures).
-  if (query.get('width')) document.body.style.cssText = `max-width:${Number(query.get('width'))}px${query.get('edge') === '0' ? '' : ';border-right:1px dashed #8884'}`
+  if (query.get('width')) {
+    const width = Number(query.get('width'))
+    document.body.style.cssText = `max-width:${width}px${query.get('edge') === '0' ? '' : ';border-right:1px dashed #8884'}`
+    // A notice is centred in the window; in Orca the window is the sidebar, so it is centred there.
+    const style = document.createElement('style')
+    style.textContent = `[data-sonner-toaster][data-x-position="center"]{left:${width / 2}px;--width:min(356px,${width - 24}px)}`
+    document.head.append(style)
+  }
   const api = {
     api: { major: 1, minor: 99 },
     locale: navigator.language,
@@ -384,7 +392,9 @@ export async function installMockOrca(): Promise<void> {
     },
     secrets: { get: async () => null, set: async () => undefined, delete: async () => undefined },
     // The preview opens nothing: it answers as if the person cancelled, so the panel shows the URL.
-    shell: { openExternal: async () => ({ opened: false, reason: 'cancelled' }) }
+    shell: { openExternal: async () => ({ opened: false, reason: 'cancelled' }) },
+    // The preview writes no file: it answers as if the person had saved it.
+    files: { saveAs: async () => ({ status: 'saved' }) }
   }
   // SAFETY: a dev-only stand-in; it implements the parts of the frame API the panel calls.
   Object.defineProperty(window, 'orca', { value: api, configurable: true })

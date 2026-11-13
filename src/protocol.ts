@@ -162,6 +162,11 @@ declare module 'orca' {
     'history.clear': { output: { ok: true } }
     /** Undo of history.remove: brings back the entry of that id, if this worker removed it a moment ago. */
     'history.restore': { input: { id: string }; output: { restored: boolean } }
+    /**
+     * Orca's own language (the panel sees it, the worker does not): what the worker itself says, the
+     * status bar's tooltip and its commands' answers, follows it while the panel's language is Auto.
+     */
+    'ui.locale': { input: { locale: string }; output: { ok: true } }
     /** What auto-enhance did with the last prompt it saw, or null. */
     'hook.last': { output: HookRecord | null }
     /** Rules tab: your rules and prompt structures. */
