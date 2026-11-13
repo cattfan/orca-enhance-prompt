@@ -44,6 +44,8 @@ Code, identifiers, paths and error messages are always kept as they are.
 | Press Enter after sending | Off | Off lets you review the prompt in the agent first. The switch on the Enhance tab overrides it |
 | History size | 50 | Enhanced prompts to keep; 0 turns history off |
 
+Shortcuts in the panel: **Enter** enhances, **Shift+Enter** is a new line, **Ctrl+Enter** (⌘+Enter on a Mac) sends the result once it is the one for the text in the box. An agent that is waiting for an answer from you is not typed into before you say so, and then without Enter.
+
 ## Status bar
 
 | Setting | Default | Meaning |

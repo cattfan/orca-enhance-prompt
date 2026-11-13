@@ -28,7 +28,21 @@ auto-enhance, stored data and feedback). The language menu sits just left of the
 4. Read and edit the result, pick the agent terminal, then press **Send**. Nothing reaches the agent
    before you press Send; turn on the **Enter** switch next to Send to submit it too.
 
+Without the mouse: **Enter** enhances, you read the result, **Ctrl+Enter** (⌘+Enter on a Mac) sends
+it. Ctrl+Enter sends only a result that was made from the text still in the box (in the result box
+it sends what the box holds, your edits included); after you change the request it enhances again
+instead, so an old prompt never goes out by a slip of the hand.
+
+The terminal menu names each agent with its state (working, waiting, needs you, done). An agent
+that **needs you** is waiting for an answer, a permission for example, and would take whatever is
+typed as that answer. Send does not type into it: a note says so and offers **Type it without
+Enter**, which puts the prompt in its input and leaves the Enter to you.
+
 The buttons above the result: copy, move the result up into the prompt box to refine it, and clear.
+
+**First time, no model yet?** When Claude Code, Codex or Gemini CLI is installed, the Enhance tab
+offers it right under the box (**Use Claude Code**): one press, and it runs on the subscription you
+already have.
 
 ## 2. Attach files and screenshots
 
@@ -100,18 +114,25 @@ Gemini CLI) in one click, or an API with its key. Models are tried top to bottom
 
 ## 7. History, projects and privacy
 
-![The History tab](assets/guide/8-history.png)
+![The History tab: every project or this one, and an entry opened to read its enhanced prompt](assets/guide/8-history.png)
 
-- **History** keeps your enhanced prompts: search them, open one again, copy it. Clear asks twice.
+- **History** keeps your enhanced prompts: search them, copy one, open one again. Click an entry to
+  read its enhanced prompt in place. With several projects, the switch above the list narrows it to
+  the project you are in (entries made before this was kept show under **Every project** only).
+  Removing an entry offers **Undo** for a minute; clearing the whole history asks twice.
+  Opening an entry in the Enhance tab replaces what the composer held, and offers **Undo**; an entry
+  written in another project says so before you send it here.
 - **Projects**: each project (workspace) keeps its own draft, files and result. Switch projects while
   a prompt is being written and it waits for its own project; it is never shown, or sent, in
   another one.
-- **Settings** (gear): switches for what the plugin may read or keep, auto-enhance, what is stored,
-  and **Delete everything**. See [Privacy & permissions](privacy.md).
+- **Settings** (gear): auto-enhance, the switches in three groups (what the plugin may read, what
+  it may do, what it may keep and fetch), what is stored, and **Delete everything**. Under each
+  switch, **Risk and when to use it** opens what it does, what can go wrong and when it is worth
+  turning on. See [Privacy & permissions](privacy.md).
 
 ### Switches that read or do more (all off until you turn them on)
 
-![The Settings section with Read other agents' sessions on, set to 2 agents and 120 lines](assets/guide/9-other-agents-settings.png)
+![The Settings section: the switches in groups, with Read other agents' sessions on, set to 2 agents and 120 lines](assets/guide/9-other-agents-settings.png)
 
 - **Read other agents' sessions** (Max level): the other agents in the workspace and the last lines of
   their terminals. Under the switch, pick **Agents read** (1 to 8, 4 by default) and **Lines per
@@ -120,7 +141,7 @@ Gemini CLI) in one click, or an API with its key. Models are tried top to bottom
 - **Notice files you save** (Deep and Max): the paths of files you save in Orca's editor.
 - **Start new agents** and **Open files in Orca**: buttons under the result and in the context list.
 
-![Turning on Watch what agents do: everything it allows, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
+![Turning on Watch what agents do: what it does, what can go wrong and when to turn it on, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
 
 The switches that send more of your work to the model, or start programs, first show everything they
 allow and ask you to confirm. Turned on in Orca's Settings alone, they stay off until you confirm in

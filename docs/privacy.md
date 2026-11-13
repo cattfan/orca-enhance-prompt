@@ -21,11 +21,30 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 | Use API keys from environment variables | Only keys you saved in the Models tab |
 | Fetch model lists online | No `GET /models` or schema download; CLI lists still come from your machine |
 
+### What each switch risks
+
+The panel says this under every switch (**Risk and when to use it**). In short:
+
+| Switch | What can go wrong | Turn it on when |
+| --- | --- | --- |
+| Read project files | File names, your agent rules, the README and manifest files go to the model. Files that look like secrets are never read. | Prompts should name real files and commands. Off for a project whose contents must not reach a provider. |
+| Run git | Branch names, commit subjects and the diff of uncommitted changes go to the model. Nothing is changed. | A prompt should know what you are working on now. |
+| Read terminal output | A terminal shows whatever was printed. Keys, tokens and passwords are masked first, which cannot catch everything. | An error on screen needs fixing. Off when terminals show secrets or customer data. |
+| Read other agents' sessions | Terminals you did not pick are read and sent too. | Several agents share a task. |
+| Watch what agents do | Tool names, paths and command lines of every agent are kept in memory and sent at Deep and Max. | Prompts should follow on from what agents just did. |
+| Notice files you save | Only paths, never text; a path can still say what you work on. | You edit in Orca. |
+| Send to terminals | Text is typed for you; with Enter on the agent starts at once. An agent waiting for an answer is never typed into unasked. | The normal flow. Off: Copy still works. |
+| Start new agents | A new agent runs with your account and can change files and run commands. | You start a fresh agent per task. |
+| Open files in Orca | An editor tab opens; nothing is read or changed. | You check what was read. |
+| Save history | Prompts, enhanced prompts, drafts and results are kept as plain text on this machine. | You reuse prompts. Off on a shared machine. |
+| Use API keys from environment variables | The key goes to that provider, and its account pays. | Your keys already live in the environment. |
+| Fetch model lists online | Requests go to your API providers and to schemastore.org, with no prompt and no project data. | You want new models without updating the plugin. |
+
 ### Switches that ask to confirm
 
 ![The Settings section: the switches, with Read other agents' sessions turned on and its agents and lines](assets/guide/9-other-agents-settings.png)
 
-![Turning on Watch what agents do: everything it allows, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
+![Turning on Watch what agents do: what it does, what can go wrong and when to turn it on, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
 
 **Read other agents' sessions**, **Watch what agents do** and **Start new agents** send more of your work to the model or start programs. Turning one on in the panel first shows everything it allows, in plain words, with **I understand, turn it on** and **Cancel**. Turned on in Orca's Settings alone, it stays off (the panel says so and offers to confirm). Turning it off withdraws the confirmation; **Delete everything** withdraws all of them.
 
@@ -43,7 +62,7 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 ## What is read on your machine
 
 - At the Standard level and above: the agent rule files, README, manifest files and file list of the focused workspace, through read-only `git` commands (`ls-files`, `status`, `log`, `diff`, `grep`) and file reads.
-- At the Max level: the last lines of the terminal you picked.
+- At the Max level: the last lines of the terminal you picked, with values that look like keys, tokens or passwords masked first (as in other agents' sessions). Masking cannot catch everything.
 - Files you paste, drop or pick: copied into a temporary folder on this machine (removed after a day) and read when you press Enhance. Nothing else is read.
 - **Never**: `.env*`, `*.pem`, `*.key`, `*.p12`, keystores, SSH keys, files named like `secret` or `credentials`, binary files, and anything matching your exclude patterns.
 - `~/.claude/settings.json`, `~/.codex/config.toml` and `~/.gemini/settings.json`, only to read which model you use and which models you allow.
@@ -58,7 +77,9 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 | Orca settings | The options on the [Settings](settings.md) page |
 | The system's temporary folder | The files you paste, drop or pick (removed after a day) |
 
-Nothing else is written to disk. Project context, what agents do and the paths of the files you save in Orca's editor are kept in memory only, and a subscription CLI runs in a temporary folder that is deleted afterwards. Clear any of it from the panel's **Settings** section.
+A history entry also holds the name of the project it was written in, so the History tab can show one project.
+
+Nothing else is written to disk. Project context, what agents do and the paths of the files you save in Orca's editor are kept in memory only, like three small things that go when Orca restarts: a history entry you removed (for a minute, so that Undo can bring it back), what auto-enhance did with the last prompt, and the prompt of an agent you started from the panel (for two minutes, so that auto-enhance does not rewrite it); and a subscription CLI runs in a temporary folder that is deleted afterwards. Clear any of it from the panel's **Settings** section.
 
 ## Permissions
 

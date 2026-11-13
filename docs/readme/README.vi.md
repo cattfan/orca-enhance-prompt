@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/cattfan/orca-enhance-prompt/releases"><img src="https://img.shields.io/github/v/release/cattfan/orca-enhance-prompt?style=flat&amp;label=release&amp;color=08C" alt="Bản phát hành mới nhất" /></a>
-  <a href="https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Plugin Orca" /></a>
+  <a href="https://orca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Plugin Orca" /></a>
   <img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="Giấy phép MIT" />
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Hỗ trợ macOS, Windows và Linux" />
 </p>
@@ -129,7 +129,7 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 
 ### Từ Orca
 
-**[Mở trong Orca](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** đưa bạn thẳng tới trang của plugin trong Orca. Hoặc làm tay:
+**[Mở trong Orca](https://orca.dev/plugins/cattfan.enhance-prompt?catalog=community)** đưa bạn thẳng tới trang của plugin trong Orca. Hoặc làm tay:
 
 1. Mở **Settings → Plugins**. Lần đầu, thêm catalog cộng đồng bằng **Add marketplace**: URL `https://github.com/stablyai/orca-community-plugins.git`, ref `main`. Bật setting cho phép plugin full access.
 2. Tìm **Enhance Prompt** và bấm **Install**.

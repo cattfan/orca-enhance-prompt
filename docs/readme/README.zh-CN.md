@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/cattfan/orca-enhance-prompt/releases"><img src="https://img.shields.io/github/v/release/cattfan/orca-enhance-prompt?style=flat&amp;label=release&amp;color=08C" alt="最新版本" /></a>
-  <a href="https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Orca 插件" /></a>
+  <a href="https://orca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Orca 插件" /></a>
   <img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="MIT 许可证" />
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="支持 macOS、Windows 和 Linux" />
 </p>
@@ -129,7 +129,7 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 
 ### 在 Orca 中
 
-**[在 Orca 中打开](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** 会直接打开插件页面。或手动安装：
+**[在 Orca 中打开](https://orca.dev/plugins/cattfan.enhance-prompt?catalog=community)** 会直接打开插件页面。或手动安装：
 
 1. 打开 **Settings → Plugins**。首次使用时，用 **Add marketplace** 添加社区目录：URL `https://github.com/stablyai/orca-community-plugins.git`，ref `main`。并开启允许完全访问插件的设置。
 2. 搜索 **Enhance Prompt** 并点击 **Install**。

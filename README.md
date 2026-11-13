@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/cattfan/orca-enhance-prompt/releases"><img src="https://img.shields.io/github/v/release/cattfan/orca-enhance-prompt?style=flat&amp;label=release&amp;color=08C" alt="Latest release" /></a>
-  <a href="https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Orca plugin" /></a>
+  <a href="https://orca.dev/plugins/cattfan/orca-enhance-prompt"><img src="https://img.shields.io/badge/Orca-plugin-4493F8?style=flat" alt="Orca plugin" /></a>
   <img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="License: MIT" />
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Supported platforms: macOS, Windows, and Linux" />
 </p>
@@ -20,7 +20,7 @@
 
 <h3 align="center"><a href="#install"><ins>Install Enhance Prompt</ins></a></h3>
 
-<p align="center"><a href="https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community"><img src="https://img.shields.io/badge/Open%20in%20Orca-community%20catalog-4493F8?style=for-the-badge" alt="Open in Orca" /></a></p>
+<p align="center"><a href="https://orca.dev/plugins/cattfan.enhance-prompt?catalog=community"><img src="https://img.shields.io/badge/Open%20in%20Orca-community%20catalog-4493F8?style=for-the-badge" alt="Open in Orca" /></a></p>
 
 <p align="center">
   <img src="assets/cover.jpg" alt="The Enhance Prompt panel turning “login page is broken on mobile” into a structured bug-fix prompt that names the files and the test command" width="960" />
@@ -154,7 +154,7 @@ Works with **your subscription CLI** or **any API key**.
 
 ### From Orca
 
-**[Open in Orca](https://onorca.dev/plugins/cattfan.enhance-prompt?catalog=community)** takes you straight to the plugin's page in Orca. Or by hand:
+**[Open in Orca](https://orca.dev/plugins/cattfan.enhance-prompt?catalog=community)** takes you straight to the plugin's page in Orca. Or by hand:
 
 1. Open **Settings → Plugins**. Once, add the community catalog with **Add marketplace**: URL `https://github.com/stablyai/orca-community-plugins.git`, ref `main`. Turn on the setting that allows full-access plugins.
 2. Search for **Enhance Prompt** and click **Install**.

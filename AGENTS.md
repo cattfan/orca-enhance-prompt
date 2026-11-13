@@ -35,6 +35,16 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **Every new read checks its Privacy switch** (`settings.privacy.*` in the worker: project files,
   git, terminal output, environment keys, online model lists, history). The Preview, the run and
   the auto-enhance hook must all go through the same check. Add a test in `src/privacy.test.ts`.
+- **Nothing is typed into an agent that is waiting for an answer** (Orca's state `blocked`): what
+  is typed there could be taken as the answer, and Enter could approve what it asked.
+  `prompt.send` refuses with `error.agent_blocked` until the panel sends `force`, which it does
+  only from the notice's button, and then Enter is never pressed. A result is sent only by a press
+  or a key of the person who has it in front of them (`enhanceOrSend`: Ctrl+Enter sends only the
+  result made from the text the composer still holds).
+- **A notice's button is plain data** (`NoticeAction` in `src/panel/state.ts`); `runNoticeAction`
+  in `src/panel/actions.ts` does the work, so it is tested, and the web UI only draws the button.
+  Undo of a removed history entry goes by its id (`history.restore`): the worker keeps the entry
+  for a minute, so the panel never writes an entry of its own into the history.
 - **Request inputs are plain JSON**: no `undefined` values (leave the key out), no class instances.
   Requests and events are declared once in `src/protocol.ts`.
 - **`terminal.sendText` takes at most 4096 characters per call**: send through `terminalChunks`
@@ -62,6 +72,11 @@ The test suite usually finishes in seconds, but some tests start real processes 
   focused workspace is found by its terminals (`src/context/terminals.ts`: what Orca's agent events
   said, kept in storage), and only then by what the panel noted or the person picked. Tests use
   both id shapes, as the real Orca does; a mock where they are equal hides this.
+- **The auto-enhance hook works for the project its prompt goes to**, which need not be the one in
+  focus: `hookPlace` (`src/worker.ts`) finds the workspace of the hook's terminal
+  (`workspaceOfTerminal`), else takes the focused workspace only when the terminal is one of its
+  own, else no project at all (no project's rules, no project context). A prompt the panel itself
+  launched an agent with is let through unchanged (`wasLaunchedHere`).
 - **What belongs to a project is kept under the project's name**, never under the workspace's:
   the workspace of every project's first checkout is called "main". A rule is `project:<name>`
   (`src/rules.ts`; `<name>` is the repository's name from `workspace.list`), and the panel calls a
@@ -120,6 +135,10 @@ redrawn on every save, with no worker, model or network. The address sets what t
 `?lang=vi&theme=dark&width=360` (language, theme, a sidebar's width), `?tab=models` (a section),
 `?demo=<prompt>` (types the prompt and runs it: the run card plays its steps; `&run=0` only types it),
 `?options=1`, `?attach=1`, `?fallback=1` (the first model fails, the next one answers),
+`?blocked=1` (the first agent waits for an answer), `?nomodels=1` (a first run), `?nokeys=1` (no
+key store), `?hook=rewritten|appended|skipped` (what auto-enhance did last), `?entry=h1` (a history
+entry read in place), `?toast=undo` (a notice with its button), `?details=allowGit` (a switch's
+explanation),
 `?ask=allowAgentLaunch` (a confirmation dialog), and `?mock=1` keeps the sample data even while Orca
 has the development plugin loaded (without it the page talks to that plugin's real worker).
 `node scripts/shot-web.mjs [out.png] [width] [height] [query]` saves a picture of it;
@@ -153,7 +172,7 @@ window and cut out, and a dialog, which centres in its window, is shot at 500 px
    `orca plugin validate`, commits only those three files with the subject
    `vX.Y.Z: <first sentence of the first changelog bullet>` (never cut) and the section as body,
    tags, pushes `main` and the tag, and creates the GitHub release from the changelog section.
-5. Check the listing: <https://www.onorca.dev/plugins/cattfan/orca-enhance-prompt>
+5. Check the listing: <https://orca.dev/plugins/cattfan/orca-enhance-prompt>
 
 ## Listing policy
 

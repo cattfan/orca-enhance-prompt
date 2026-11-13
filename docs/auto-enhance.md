@@ -21,6 +21,24 @@ Switch modes in any of these places:
 
 The status bar item reads **Enhance: On** while auto-enhance is on (with rules or with AI) and **Enhance: Off** otherwise. It is bright while on and dimmed while off, and its tooltip says which of the two is on.
 
+## Which project's rules and context
+
+A prompt Orca sends gets the rules and the project context of **the project its agent is in**, not
+of the one you happen to be looking at. The plugin knows a terminal's project from what Orca said
+about that agent. For a terminal it knows nothing about, and that is not one of the focused
+workspace's own, it uses no project's rules and no project context: only your rules for every
+project.
+
+A prompt you started an agent with from the panel (**Or start a new agent**) is enhanced already,
+so auto-enhance lets it through as it is.
+
+## Did it do anything?
+
+Auto-enhance works out of sight, so the panel's **Settings** section says, under the mode, what it
+did with the last prompt: rewritten (and with which model), your text added, or left unchanged and
+why (no enabled API model, the model was too slow, an empty answer). With the panel open, a prompt
+left unchanged also shows as a note.
+
 ## The 2-second limit
 
 Orca waits at most 2 seconds for a plugin before sending the prompt anyway. In AI mode:

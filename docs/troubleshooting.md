@@ -72,7 +72,16 @@ Your agent's terminal doesn't support bracketed paste. Set **How to send multi-l
 ## Auto-enhance does nothing
 
 - It only changes prompts Orca sends (launch, task, orchestration). Prompts you type are never hooked.
-- In AI mode, the hook model must answer within 2 seconds, and CLI models are skipped. Check the reason with `orca plugin logs cattfan.enhance-prompt`.
+- In AI mode, the hook model must answer within 2 seconds, and CLI models are skipped. The panel's **Settings** section says, under the mode, what happened to the last prompt and why; the same is in `orca plugin logs cattfan.enhance-prompt`.
+- A prompt you started an agent with from the panel is left alone on purpose: it is enhanced already.
+
+## "API keys cannot be saved on this machine"
+
+Orca keeps a plugin's keys in the system's key store, and found none here (some Linux setups have none). The Models tab says so, and saving a model with a key answers "Orca could not store the API key". Put the key in an environment variable instead (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`…, with **Use API keys from environment variables** on), or use a subscription CLI, which needs no key.
+
+## Send says the agent "is waiting for an answer from you"
+
+The agent in that terminal asked you something (a permission, a question), and whatever is typed now could be taken as the answer. Answer it in the terminal first, or press **Type it without Enter** in the note: the prompt is put in its input and you press Enter when it is ready.
 
 ## Where are the logs?
 
