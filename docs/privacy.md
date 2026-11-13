@@ -16,6 +16,7 @@ Orca approves a plugin's access as a whole: it shows everything the plugin may d
 | Notice files you save (**off by default**) | Nothing is kept. On: the paths (never the text) of files you save in Orca's editor, in memory for 45 minutes; they rank first in the code search at Deep and Max |
 | Send to terminals | **Send** is refused; use **Copy** |
 | Start new agents (**off by default, asks to confirm**) | No button. On: a button that starts a new agent in the workspace with the enhanced prompt, only when you press it; the agent runs with your user account |
+| Send right after enhancing (**off by default, asks to confirm; in the panel only**) | Enhancing always stops at the result. On: a second button next to Enhance, and Ctrl+Enter, enhance the prompt and type the result into the picked terminal without showing it first, when the terminal, the project and the text are what they were at the start and the agent is idle; otherwise nothing is sent and a note says why. Needs **Send to terminals** |
 | Open files in Orca | No open button on files in the context list |
 | Save history | Nothing is added to History |
 | Use API keys from environment variables | Only keys you saved in the Models tab |
@@ -28,12 +29,13 @@ The panel says this under every switch (**Risk and when to use it**). In short:
 | Switch | What can go wrong | Turn it on when |
 | --- | --- | --- |
 | Read project files | File names, your agent rules, the README and manifest files go to the model. Files that look like secrets are never read. | Prompts should name real files and commands. Off for a project whose contents must not reach a provider. |
-| Run git | Branch names, commit subjects and the diff of uncommitted changes go to the model. Nothing is changed. | A prompt should know what you are working on now. |
+| Run git | Branch names, commit subjects and the diff of uncommitted changes go to the model. Nothing is changed. A value in the diff that is certainly a key is masked; a secret in another shape is not. | A prompt should know what you are working on now. |
 | Read terminal output | A terminal shows whatever was printed. Keys, tokens and passwords are masked first, which cannot catch everything. | An error on screen needs fixing. Off when terminals show secrets or customer data. |
 | Read other agents' sessions | Terminals you did not pick are read and sent too. | Several agents share a task. |
 | Watch what agents do | Tool names, paths and command lines of every agent are kept in memory and sent at Deep and Max. | Prompts should follow on from what agents just did. |
 | Notice files you save | Only paths, never text; a path can still say what you work on. | You edit in Orca. |
 | Send to terminals | Text is typed for you; with Enter on the agent starts at once. An agent waiting for an answer is never typed into unasked. | The normal flow. Off: Copy still works. |
+| Send right after enhancing | The agent gets a prompt you have not read: a model can misread a request, add a step you did not ask for, or answer with something that is not a prompt; with Enter on, the agent starts at once. | Small, low-risk requests, with an agent that asks before anything hard to undo. Off when the agent has wide permissions. |
 | Start new agents | A new agent runs with your account and can change files and run commands. | You start a fresh agent per task. |
 | Open files in Orca | An editor tab opens; nothing is read or changed. | You check what was read. |
 | Save history | Prompts, enhanced prompts, drafts and results are kept as plain text on this machine. | You reuse prompts. Off on a shared machine. |
@@ -47,6 +49,8 @@ The panel says this under every switch (**Risk and when to use it**). In short:
 ![Turning on Watch what agents do: what it does, what can go wrong and when to turn it on, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
 
 **Read other agents' sessions**, **Watch what agents do** and **Start new agents** send more of your work to the model or start programs. Turning one on in the panel first shows everything it allows, in plain words, with **I understand, turn it on** and **Cancel**. Turned on in Orca's Settings alone, it stays off (the panel says so and offers to confirm). Turning it off withdraws the confirmation; **Delete everything** withdraws all of them.
+
+**Send right after enhancing** asks the same way. It is a switch of the panel alone (there is no entry for it in Orca's Settings), so the only way to turn it on is through its dialog. It types nothing the **Send to terminals** switch would not allow, and it holds a prompt back whenever the terminal, the project, the text or the agent's state is in doubt; what it adds is that you no longer read the prompt first, which is the risk its dialog names.
 
 **Notify when a long enhance finishes** (Settings section, off by default) shows a desktop notification after runs longer than 8 s; it names the model and the time, never your prompt.
 
@@ -63,6 +67,7 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 
 - At the Standard level and above: the agent rule files, README, manifest files and file list of the focused workspace, through read-only `git` commands (`ls-files`, `status`, `log`, `diff`, `grep`) and file reads.
 - At the Max level: the last lines of the terminal you picked, with values that look like keys, tokens or passwords masked first (as in other agents' sessions). Masking cannot catch everything.
+- In the diff and in the lines taken from your source files, a value that is certainly a credential is masked too: one in a known key format (OpenAI, Anthropic, Stripe, GitHub, GitLab, npm, Google, AWS, Slack, a JWT, a private key block), or a quoted text of 12 characters or more, with letters and digits, given to a name that says key, token, secret or password. The code around it is left as it is, so this is narrower than the masking of terminal output: `password = readPassword()` stays, and so does a secret under a name that does not say what it is.
 - Files you paste, drop or pick: copied into a temporary folder on this machine (removed after a day) and read when you press Enhance. Nothing else is read.
 - **Never**: `.env*`, `*.pem`, `*.key`, `*.p12`, keystores, SSH keys, files named like `secret` or `credentials`, binary files, and anything matching your exclude patterns.
 - `~/.claude/settings.json`, `~/.codex/config.toml` and `~/.gemini/settings.json`, only to read which model you use and which models you allow.
@@ -72,8 +77,8 @@ The same section shows what is stored and has **Clear history**, **Clear model l
 | Where | What |
 | --- | --- |
 | Orca's encrypted secrets | API keys you paste |
-| The plugin's own storage | Model profiles, history, cached model lists, your rules and prompt structures, which switches you confirmed, and which workspace each agent's terminal is in (two ids per terminal, as Orca reports them; the newest 500): Orca names the open workspace only by its name and branch, and this is how projects that share both ("main" on "main") are told apart |
-| The panel's saved state (kept by Orca for the panel) | Your picks in the panel (section, style, context level, model, output language), which workspace each terminal belongs to, and for the feedback note: how many prompts you enhanced before it first showed (it stops counting at five), when it last showed, and whether you turned it off. While **Save history** is on, also each project's draft, last result and context list, so they are there when you open the panel again; with it off, they are gone when the panel closes |
+| The plugin's own storage | Model profiles, history, cached model lists, your rules and prompt structures, which switches you confirmed, the language Orca runs in (so that the status bar's tooltip is in it while the panel's language is Auto), and which workspace each agent's terminal is in (two ids per terminal, as Orca reports them; the newest 500): Orca names the open workspace only by its name and branch, and this is how projects that share both ("main" on "main") are told apart |
+| The panel's saved state (kept by Orca for the panel) | Your picks in the panel (section, style, context level, model, output language), whether **Send right after enhancing** is on, which workspace each terminal belongs to, and for the feedback note: how many prompts you enhanced before it first showed (it stops counting at five), when it last showed, and whether you turned it off. While **Save history** is on, also each project's draft, last result and context list, so they are there when you open the panel again; with it off, they are gone when the panel closes |
 | Orca settings | The options on the [Settings](settings.md) page |
 | The system's temporary folder | The files you paste, drop or pick (removed after a day) |
 

@@ -38,11 +38,33 @@ that **needs you** is waiting for an answer, a permission for example, and would
 typed as that answer. Send does not type into it: a note says so and offers **Type it without
 Enter**, which puts the prompt in its input and leaves the Enter to you.
 
-The buttons above the result: copy, move the result up into the prompt box to refine it, and clear.
+![Send pressed for an agent that needs you: the note says it is waiting for an answer and offers Type it without Enter](assets/guide/12-agent-waiting.png)
+
+The buttons above the result: copy, save as a file (Orca's save dialog asks where; the plugin never
+learns the place), move the result up into the prompt box to refine it, and clear.
+
+### In one go: enhance and send without reading
+
+Off until you turn it on: **Settings** (gear) → **What it may do** → **Send right after enhancing**.
+Its dialog says what it does and what can go wrong before it turns on. With it on, a second button
+sits next to Enhance, and **Ctrl+Enter** in the prompt box enhances and then types the result into
+the terminal you picked, with or without Enter as the **Enter** switch says. **Enter** alone still
+stops at the result, so you choose for each prompt.
+
+The agent then gets a prompt you have not read, so it goes out by itself only when nothing is in
+doubt: the terminal is still open and still the one picked, Orca can tell which project this is and
+it is the one you started in, the agent there is idle (not working, not waiting for an answer from
+you), and you did not change the text meanwhile. Otherwise nothing is sent: the result stays in the
+box, a note says why (**Not sent by itself. …**), and you send it yourself. It needs **Send to
+terminals** to be on.
+
+![The second button next to Enhance, and a prompt that was enhanced but held back: the agent is waiting for an answer](assets/guide/5-in-one-go.png)
 
 **First time, no model yet?** When Claude Code, Codex or Gemini CLI is installed, the Enhance tab
 offers it right under the box (**Use Claude Code**): one press, and it runs on the subscription you
 already have.
+
+![A first run: No model yet, and a button to use the agent CLI found on this machine](assets/guide/14-first-run.png)
 
 ## 2. Attach files and screenshots
 
@@ -120,8 +142,14 @@ Gemini CLI) in one click, or an API with its key. Models are tried top to bottom
   read its enhanced prompt in place. With several projects, the switch above the list narrows it to
   the project you are in (entries made before this was kept show under **Every project** only).
   Removing an entry offers **Undo** for a minute; clearing the whole history asks twice.
+  **Save as a file** under the list writes what the list shows (the search and the project switch
+  apply) as one Markdown file: each entry with its date, project, style and model, your request
+  and the enhanced prompt.
   Opening an entry in the Enhance tab replaces what the composer held, and offers **Undo**; an entry
   written in another project says so before you send it here.
+
+  ![The History tab after an entry was removed: the note offers Undo, and Save as a file is under the list](assets/guide/13-undo.png)
+
 - **Projects**: each project (workspace) keeps its own draft, files and result. Switch projects while
   a prompt is being written and it waits for its own project; it is never shown, or sent, in
   another one.
@@ -140,6 +168,9 @@ Gemini CLI) in one click, or an API with its key. Models are tried top to bottom
 - **Watch what agents do** (Deep and Max): the tools agents run and their targets, never the output.
 - **Notice files you save** (Deep and Max): the paths of files you save in Orca's editor.
 - **Start new agents** and **Open files in Orca**: buttons under the result and in the context list.
+- **Send right after enhancing**: one press from request to agent, with no read in between (see
+  [In one go](#in-one-go-enhance-and-send-without-reading)). This one lives in the panel only, not
+  in Orca's Settings.
 
 ![Turning on Watch what agents do: what it does, what can go wrong and when to turn it on, then I understand, turn it on or Cancel](assets/guide/10-confirm-dialog.png)
 

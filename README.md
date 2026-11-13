@@ -124,6 +124,8 @@ Every enhanced prompt is kept with its style and model. Search it, open it again
 - **[Agent-aware prompts](docs/context-levels.md#agent-aware-prompts)**: shaped for Claude Code, Codex, Gemini CLI or Aider when you pick the target terminal.
 - **[Nine styles](docs/getting-started.md#styles)**: Balanced, Concise, Detailed spec, Bug fix, New feature, Refactor, Code review, Plan first, or only your own instructions.
 - **[See the context](docs/context-levels.md#see-what-is-sent)**: the options list what would be sent before any model is called.
+- **[In one go](docs/user-guide.md#in-one-go-enhance-and-send-without-reading)**: for small requests, one press enhances the prompt and sends it to the agent. Off until you turn it on, and it holds a prompt back whenever the terminal, the project or the agent's state is in doubt.
+- **[Keep a prompt](docs/user-guide.md#1-write-enhance-send)**: save an enhanced prompt, or the history you see, as a Markdown file.
 - **[Safe by default](docs/privacy.md)**: `.env` files, keys and credentials are never read; prompts go only to the models you set up.
 
 ---

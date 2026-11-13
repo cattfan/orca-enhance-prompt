@@ -24,6 +24,9 @@ The test suite usually finishes in seconds, but some tests start real processes 
   shows any more: it reads every `t('…')` in `src/panel/` and `web/src/`, and the tables of texts
   passed to `t()` by variable (a new table is added to its list). Worker messages the panel shows
   are translated there too, so keep their wording in step.
+  What the worker says itself (the status bar's tooltip, its commands' answers: `WORKER_WORDS` in
+  `src/worker.ts`) is in `workerLanguage`: the panel's language, and with Auto the language Orca
+  runs in, which only a panel can see and reports on start (`ui.locale`).
 - **The name "Enhance Prompt" is a brand**: use `BRAND` from `src/brand.ts`, never `t()`; text that
   names the plugin keeps the name as it is in every language (`src/i18n.test.tsx` checks it).
 - **Flat colours only**: no gradients in the logo (`assets/icon.png`, cut from `assets/art/logo-source.jpg` by `scripts/cut-icon.ps1`; vector in
@@ -41,6 +44,17 @@ The test suite usually finishes in seconds, but some tests start real processes 
   only from the notice's button, and then Enter is never pressed. A result is sent only by a press
   or a key of the person who has it in front of them (`enhanceOrSend`: Ctrl+Enter sends only the
   result made from the text the composer still holds).
+- **A prompt nobody has read goes out only when nothing is in doubt.** "Send right after
+  enhancing" (`enhanceAndSend` in `src/panel/actions.ts`) is off until the person turns it on from
+  its dialog, and it needs "Send to terminals". The terminal and the project are fixed when the run
+  starts; after the run the terminals are read again, and `heldBack` gives the reason not to send:
+  a project Orca could not tell from another (a `name:` key, at the start or now), another project
+  in focus, a terminal that closed or is no longer the picked one, a plain terminal, an agent that
+  is not `waiting` or `done`, or a text that changed meanwhile. What is sent is the run's own
+  answer, never what the result box holds. A new way to send unread text goes through `heldBack`,
+  and a new condition gets a case in `src/send-after.test.tsx`. The switch is the panel's own
+  (`sendAfterEnhance`, a `persist: 'plugin'` atom drawn from `SEND_AFTER_ROW`), because a new
+  setting in the manifest asks every user to approve again.
 - **A notice's button is plain data** (`NoticeAction` in `src/panel/state.ts`); `runNoticeAction`
   in `src/panel/actions.ts` does the work, so it is tested, and the web UI only draws the button.
   Undo of a removed history entry goes by its id (`history.restore`): the worker keeps the entry
@@ -55,6 +69,12 @@ The test suite usually finishes in seconds, but some tests start real processes 
 - **Project files are read with `readText`** (`src/context/files.ts`): it refuses secret files by
   name, and a link that leads out of the workspace or to a secret file. A new read of a project
   file goes through it.
+- **Text for a model is masked first** (`src/context/secrets.ts`), by one of two functions. What
+  was printed (terminal output, command lines) goes through `redactSecrets`, which goes by the
+  name and may cut too much. Source code (the diff, a file's lines) goes through `redactCode`,
+  which must leave code readable: only a value in a known credential format, or a quoted literal
+  given to a name that says key, token, secret or password. `redactSecrets` on code turns
+  `const token = getToken()` into `token = [redacted]`; do not use it there.
 - **A CLI model runs in an empty temporary folder** and knows that folder (its path, "not a git
   repository", the platform): `runCli` ends the instructions with `NOT_THE_PROJECT` (`src/cli.ts`),
   so none of it is taken for the person's project and written into a prompt.
@@ -130,6 +150,14 @@ subscription) and checks the output mechanically (no preamble, right language, n
 details kept, length, structure headings). Run it after changing `src/prompts.ts` or what a CLI is
 told in `src/cli.ts`.
 
+A model answers differently each time, so one run proves nothing either way. To judge a wording,
+count: `--only <part of a case's name> --runs 20 --parallel 4` runs one case many times and prints
+how often it was right, how often each problem came and the lengths; `--root <folder>` takes the
+rewriter's instructions from another tree, the last release for example
+(`git archive vX.Y.Z src AGENTS.md | tar -x -C <folder>`), so both are measured by the same checks.
+Lengths are told to a model in lines and words: it cannot count characters (2.6.8's "under ~600
+characters" was kept in 10 of 20 runs, "four lines of at most about 25 words" in 20 of 20).
+
 `npm run web:dev` serves the panel at http://localhost:5174 on sample data (`web/src/mock-orca.ts`),
 redrawn on every save, with no worker, model or network. The address sets what to look at:
 `?lang=vi&theme=dark&width=360` (language, theme, a sidebar's width), `?tab=models` (a section),
@@ -137,9 +165,10 @@ redrawn on every save, with no worker, model or network. The address sets what t
 `?options=1`, `?attach=1`, `?fallback=1` (the first model fails, the next one answers),
 `?blocked=1` (the first agent waits for an answer), `?nomodels=1` (a first run), `?nokeys=1` (no
 key store), `?hook=rewritten|appended|skipped` (what auto-enhance did last), `?entry=h1` (a history
-entry read in place), `?toast=undo` (a notice with its button), `?details=allowGit` (a switch's
+entry read in place), `?toast=undo` (a notice with its button), `?onestep=1` ("Send right after enhancing" is on;
+`run` also sends the demo prompt through it, `0` turns it off again), `?details=allowGit` (a switch's
 explanation),
-`?ask=allowAgentLaunch` (a confirmation dialog), and `?mock=1` keeps the sample data even while Orca
+`?ask=allowAgentLaunch` (a confirmation dialog; `sendAfterEnhance` for the panel's own switch), and `?mock=1` keeps the sample data even while Orca
 has the development plugin loaded (without it the page talks to that plugin's real worker).
 `node scripts/shot-web.mjs [out.png] [width] [height] [query]` saves a picture of it;
 `node scripts/make-listing.mjs` redraws every listing, README and guide picture from it

@@ -97,7 +97,17 @@ const states = {
   // The Settings section with Read other agents' sessions on (2 agents, 120 lines) and the other switches that ask first.
   otherAgents: { query: 'lang=en&tab=privacy&set=allowOtherAgents:true,otherAgentsMax:2,otherAgentsLines:120,allowAgentActivity:true,allowAgentLaunch:true&consent=allowOtherAgents,allowAgentActivity,allowAgentLaunch', wait: 6000 },
   // A result with the open-in-Orca buttons in the context list and Start a new agent.
-  newAgent: { query: `lang=en&demo=${PROMPT}&options=1&set=allowAgentLaunch:true&consent=allowAgentLaunch`, wait: 15000 }
+  newAgent: { query: `lang=en&demo=${PROMPT}&options=1&set=allowAgentLaunch:true&consent=allowAgentLaunch`, wait: 15000 },
+  // The states below end in a notice, which sits at the bottom of the sidebar: `room` is the space
+  // kept for it under the content. A notice stays 8 s at most, so `wait` falls while it is there.
+  // "Send right after enhancing" with an agent that is waiting for an answer: enhanced, held back, and why.
+  oneStepHeld: { query: `lang=en&blocked=1&onestep=run&demo=${PROMPT}`, wait: 9000, room: 132 },
+  // Send was pressed for such an agent: the notice offers to type the prompt without Enter.
+  agentWaiting: { query: `lang=en&blocked=1&toast=blocked&demo=${PROMPT}`, wait: 9000, room: 150 },
+  // A history entry was removed: the notice offers Undo.
+  undo: { query: 'lang=en&tab=history&toast=undo', wait: 4000, room: 84 },
+  // A first run: no model yet, and the agent CLI found on this machine is one press away.
+  firstRun: { query: 'lang=en&nomodels=1', wait: 6000 }
 }
 
 const taken = new Map()
@@ -106,14 +116,16 @@ function picture(name, versioned = false) {
   const key = `${name}${versioned ? '-versioned' : ''}`
   let found = taken.get(key)
   if (!found) {
-    const { query, wait } = states[name]
+    const { query, wait, room } = states[name]
     // fresh: nothing the panel saved in an earlier shot (the shots share one browser profile).
     const url = `${SERVER}/?mock=1&fresh&width=380&edge=0${versioned ? '' : '&version=0'}&${query}`
     const measured = measure(url, wait)
     const file = join(work, `${key}.png`)
-    // The whole panel, its last card's corners included.
-    shoot(file, url, 800, measured.height + 40, wait)
-    found = { ...measured, url: pathToFileURL(file).href, dark: query.includes('theme=dark') }
+    // The whole panel, its last card's corners included. With a notice, the window ends where the
+    // picture does: a notice hangs from the window's bottom, and must be inside the picture.
+    const height = measured.height + (room ?? 0)
+    shoot(file, url, 800, room ? height : height + 40, wait)
+    found = { ...measured, height, url: pathToFileURL(file).href, dark: query.includes('theme=dark') }
     taken.set(key, found)
     console.log('shot', key, measured.height)
   }
@@ -224,11 +236,15 @@ const guide = {
   'docs/assets/guide/2-attach-files.png': 'attach',
   'docs/assets/guide/3-progress.png': 'progress',
   'docs/assets/guide/4-progress-early.png': 'progressEarly',
+  'docs/assets/guide/5-in-one-go.png': 'oneStepHeld',
   'docs/assets/guide/6-rules-and-structures.png': 'rules',
   'docs/assets/guide/7-models.png': 'models',
   'docs/assets/guide/8-history.png': 'historyOpen',
   'docs/assets/guide/9-other-agents-settings.png': 'otherAgents',
-  'docs/assets/guide/11-new-agent.png': 'newAgent'
+  'docs/assets/guide/11-new-agent.png': 'newAgent',
+  'docs/assets/guide/12-agent-waiting.png': 'agentWaiting',
+  'docs/assets/guide/13-undo.png': 'undo',
+  'docs/assets/guide/14-first-run.png': 'firstRun'
 }
 /** What Orca's catalog takes: a cover up to 1024 KB, a screenshot up to 1536 KB. */
 const LIMITS = [

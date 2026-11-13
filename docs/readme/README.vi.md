@@ -121,6 +121,8 @@ Mọi prompt đã cải thiện đều được lưu kèm kiểu và model. Tìm
 - **[Tự cải thiện](../auto-enhance.md)**: viết lại prompt mà chính Orca gửi cho agent (khi launch, task, orchestration), bằng luật của bạn hoặc một model nhanh.
 - **[Prompt theo từng agent](../context-levels.md#agent-aware-prompts)**: định dạng hợp với Claude Code, Codex, Gemini CLI hay Aider.
 - **[Chín kiểu prompt](../getting-started.md#styles)**: Cân bằng, Ngắn gọn, Đặc tả chi tiết, Sửa lỗi, Tính năng mới, Refactor, Review code, Lập kế hoạch trước, Chỉ hướng dẫn riêng.
+- **[Làm một lần](../user-guide.md#in-one-go-enhance-and-send-without-reading)**: với yêu cầu nhỏ, một lần bấm là cải thiện prompt rồi gửi luôn cho agent. Tắt cho đến khi bạn bật, và prompt được giữ lại mỗi khi terminal, dự án hay trạng thái của agent còn chưa chắc chắn.
+- **[Giữ lại prompt](../user-guide.md#1-write-enhance-send)**: lưu một prompt đã cải thiện, hoặc phần lịch sử bạn đang xem, thành file Markdown.
 - **[An toàn mặc định](../privacy.md)**: không bao giờ đọc file `.env`, key hay credentials; prompt chỉ gửi tới model bạn cấu hình.
 
 ---

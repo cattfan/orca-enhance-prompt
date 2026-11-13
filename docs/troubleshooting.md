@@ -83,6 +83,28 @@ Orca keeps a plugin's keys in the system's key store, and found none here (some 
 
 The agent in that terminal asked you something (a permission, a question), and whatever is typed now could be taken as the answer. Answer it in the terminal first, or press **Type it without Enter** in the note: the prompt is put in its input and you press Enter when it is ready.
 
+## "Not sent by itself"
+
+With **Send right after enhancing** on, a prompt goes to the agent unread, so the panel sends it only when nothing is in doubt, and says which doubt it was otherwise. The enhanced prompt is in the box either way: read it and press **Send**.
+
+| The note says | What it means |
+| --- | --- |
+| Orca could not tell which project this is | Several projects share this workspace's name and branch, and Orca had not yet said which one this is. Pick its folder when the panel asks; once an agent of the project has reported in, it is known. |
+| The project in focus changed while it ran | You opened another project before the prompt was ready. It waits in the project it was written in. |
+| The terminal picked when you started is closed or no longer the one picked | The prompt was written for that terminal, so it is not sent to another one. |
+| … is a plain terminal, not an agent | A shell would run the prompt's first line as a command. |
+| … is still working / is waiting for an answer from you | A working agent can ask for an answer at any moment, and what is typed then could be taken as that answer. |
+| Orca does not say whether … is idle | The agent has not reported a state yet. |
+| The text changed while it ran | You edited the request or the result meanwhile, so the result is no longer the one for the box. |
+
+## Save as a file does nothing
+
+Orca shows its save dialog only right after a press in the panel, and only in the desktop app. If the dialog does not open, the panel says "The file could not be saved"; press the button again. A dialog you close without saving leaves no note.
+
+## The status bar's tooltip is in English
+
+With the panel's language on **Auto**, the tooltip follows Orca's language once the panel has opened (the panel tells the plugin which language Orca runs in). Open the panel once, or pick a language in the menu at its top.
+
 ## Where are the logs?
 
 ```bash

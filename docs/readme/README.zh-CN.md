@@ -121,6 +121,8 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 - **[自动优化](../auto-enhance.md)**：改写 Orca 自己发给 agent 的提示词（启动、任务、编排），使用你的规则或快速模型。
 - **[按 agent 定制](../context-levels.md#agent-aware-prompts)**：针对 Claude Code、Codex、Gemini CLI 或 Aider 调整格式。
 - **[九种风格](../getting-started.md#styles)**：均衡、简洁、详细规格、修复 bug、新功能、重构、代码审查、先做计划、仅自定义指令。
+- **[一步完成](../user-guide.md#in-one-go-enhance-and-send-without-reading)**：对小请求，按一次即可优化提示词并发送给代理。默认关闭，需你手动开启；只要终端、项目或代理状态有任何不确定，提示词就会被留下。
+- **[保存提示词](../user-guide.md#1-write-enhance-send)**：把优化后的提示词，或你正在查看的历史记录，保存为 Markdown 文件。
 - **[默认安全](../privacy.md)**：从不读取 `.env`、密钥和凭据文件；提示词只发送到你配置的模型。
 
 ---

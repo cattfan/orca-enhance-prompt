@@ -11,6 +11,8 @@ Open **Settings → Plugins → Enhance Prompt**. Model profiles, API keys and f
 
 Code, identifiers, paths and error messages are always kept as they are.
 
+The status bar's tooltip and the answers of the plugin's commands are in the panel's language too. With **Auto** they follow Orca's language from the first time the panel has opened (only the panel can see which language Orca runs in; until then they are in English).
+
 ## Prompt
 
 | Setting | Default | Meaning |
@@ -45,6 +47,8 @@ Code, identifiers, paths and error messages are always kept as they are.
 | History size | 50 | Enhanced prompts to keep; 0 turns history off |
 
 Shortcuts in the panel: **Enter** enhances, **Shift+Enter** is a new line, **Ctrl+Enter** (⌘+Enter on a Mac) sends the result once it is the one for the text in the box. An agent that is waiting for an answer from you is not typed into before you say so, and then without Enter.
+
+**Send right after enhancing** is a switch of the panel, not of this page: gear icon → **What it may do**. Off by default; on, Ctrl+Enter in the prompt box (and a second button next to Enhance) enhances and sends in one go, without a read in between. See the [user guide](user-guide.md#in-one-go-enhance-and-send-without-reading).
 
 ## Status bar
 
