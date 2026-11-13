@@ -135,10 +135,27 @@ export async function gitDiff(
     return null
   }
   const diff = (await git(root, ['diff', 'HEAD', '-M', '-U2', '--no-ext-diff', '--', ...pathspecs], { maxBytes: 4_000_000, signal })) ?? ''
-  // A key pasted into a source file is in the diff too: masked where it is certainly one. The diff
-  // is cut with a little to spare first, so a key at the cut is still whole when it is looked for.
-  const shown = diff.length > maxChars ? `${redactCode(diff.slice(0, maxChars + 400)).slice(0, maxChars)}\n…(diff truncated)` : redactCode(diff)
-  return { stat: stat.trim(), diff: shown }
+  // A key pasted into a source file is in the diff too: masked where it is certainly one.
+  return { stat: stat.trim(), diff: diff.length > maxChars ? `${maskedStart(diff, maxChars)}\n…(diff truncated)` : redactCode(diff) }
+}
+
+/**
+ * The first `maxChars` characters of a long text, masked. Only whole lines are masked: a key that
+ * the cut would split is not recognised, and its first part must not be shown. So the text is cut
+ * with some to spare, its unfinished last line is dropped, it is masked, and then cut to length;
+ * what the second cut splits is text the masking has already been over. Exported for tests.
+ */
+export function maskedStart(text: string, maxChars: number): string {
+  const spare = text.slice(0, maxChars + 2000)
+  if (spare.length === text.length) return redactCode(text).slice(0, maxChars)
+  // The last line of `spare` is unfinished. With a line break after `maxChars` it is simply left
+  // out; in one very long line (minified code), the unfinished last word is.
+  let end = spare.lastIndexOf('\n')
+  if (end < maxChars) {
+    end = spare.length
+    while (end > 0 && !/\s/.test(spare[end - 1])) end--
+  }
+  return redactCode(spare.slice(0, end)).slice(0, maxChars)
 }
 
 export async function gitFiles(root: string, signal?: AbortSignal): Promise<string[] | null> {

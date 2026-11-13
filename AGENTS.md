@@ -50,7 +50,8 @@ The test suite usually finishes in seconds, but some tests start real processes 
   starts; after the run the terminals are read again, and `heldBack` gives the reason not to send:
   a project Orca could not tell from another (a `name:` key, at the start or now), another project
   in focus, a terminal that closed or is no longer the picked one, a plain terminal, an agent that
-  is not `waiting` or `done`, or a text that changed meanwhile. What is sent is the run's own
+  is not `waiting` or `done`, or a text that changed meanwhile. A cancel, a closing panel or the
+  switch turned off while the run goes stops the send as well. What is sent is the run's own
   answer, never what the result box holds. A new way to send unread text goes through `heldBack`,
   and a new condition gets a case in `src/send-after.test.tsx`. The switch is the panel's own
   (`sendAfterEnhance`, a `persist: 'plugin'` atom drawn from `SEND_AFTER_ROW`), because a new
@@ -73,7 +74,8 @@ The test suite usually finishes in seconds, but some tests start real processes 
   was printed (terminal output, command lines) goes through `redactSecrets`, which goes by the
   name and may cut too much. Source code (the diff, a file's lines) goes through `redactCode`,
   which must leave code readable: only a value in a known credential format, or a quoted literal
-  given to a name that says key, token, secret or password. `redactSecrets` on code turns
+  given to a name that says it holds a secret. Mask before cutting (a file's lines to width, a long
+  diff to length: `maskedStart`), or a key the cut splits is shown in part. `redactSecrets` on code turns
   `const token = getToken()` into `token = [redacted]`; do not use it there.
 - **A CLI model runs in an empty temporary folder** and knows that folder (its path, "not a git
   repository", the platform): `runCli` ends the instructions with `NOT_THE_PROJECT` (`src/cli.ts`),

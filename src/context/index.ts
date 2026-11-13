@@ -188,14 +188,30 @@ export async function workspaceOfTerminal(orca: OrcaWorkerApi, terminalId: strin
   const inFocus = focused?.terminals?.some((terminal) => terminal.id === terminalId) ?? false
   for (const id of ids) {
     if (focused && inFocus) {
-      const fits = fittingWorkspace(workspaces, id, focused)
-      if (!fits) forgetTerminal(orca, terminalId)
+      const fits = inFocusedWorkspace(workspaces, id, focused)
+      // Dropped only on what a whole list said: a list that failed or was cut short proves nothing.
+      if (!fits && list && !list.truncated) forgetTerminal(orca, terminalId)
       return fits
     }
     const named = workspaces.filter((ws) => namesWorkspace(id, ws))
     if (named.length === 1) return named[0]
   }
   return null
+}
+
+/**
+ * The listed workspace an id names when that workspace can be the focused one: the very workspace
+ * a newer Orca names as the focus, else one with the focus's name and its branch (both, unlike
+ * `fittingWorkspace`: this decides whether a kept pairing is still true). Several projects can
+ * share both ("main" on "main"); among those a pairing cannot be checked, and is taken as it is.
+ */
+function inFocusedWorkspace(workspaces: readonly Workspace[], id: string, focused: Focused): Workspace | null {
+  const named = workspaces.filter((ws) => namesWorkspace(id, ws))
+  const fits =
+    typeof focused.workspaceId === 'string' && focused.workspaceId
+      ? named.filter((ws) => namesWorkspace(focused.workspaceId!, ws))
+      : named.filter((ws) => ws.name === focused.displayName && (ws.branch ?? '') === focused.branch)
+  return fits.length === 1 ? fits[0] : null
 }
 
 /**
@@ -490,8 +506,10 @@ async function dynamicParts(
     if (options.exclude.has(`file:${entry.path}`)) continue
     const text = await readText(root, entry.path)
     if (!text) continue
-    // A key that sits in a source file is masked where it is certainly one; the code around it stays.
-    out.push(item(`file:${entry.path}`, 'file', raw(entry.path), redactCode(snippet(text, entry.hits, perFile)), entry.why))
+    // A key that sits in a source file is masked where it is certainly one; the code around it
+    // stays. Before the lines are picked and cut to width: a key the cut would split is not
+    // recognised (a masked value keeps its line breaks, so the line numbers still hold).
+    out.push(item(`file:${entry.path}`, 'file', raw(entry.path), snippet(redactCode(text), entry.hits, perFile), entry.why))
   }
   if (keywords.length > 0 && picked.length === 0) {
     notes.push(msg('note.no_files'))

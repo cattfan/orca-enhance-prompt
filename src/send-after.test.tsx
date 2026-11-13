@@ -23,15 +23,20 @@ const agent = (state: string, terminalId = 't1'): Target => ({ terminalId, label
 async function panel(options: { settings?: Record<string, boolean>; fail?: boolean } = {}) {
   const sent: { terminalId: string; text: string }[] = []
   const world = {
-    place: { targets: [agent('waiting')], workspace: 'main', project: 'Shop', workspaceId: 'w1' } as { targets: Target[]; workspace: string; project: string | null; workspaceId?: string },
+    place: { targets: [agent('waiting')], workspace: 'main', project: 'Shop', workspaceId: 'w1' } as { targets: Target[]; workspace: string | null; project: string | null; workspaceId?: string },
     during: () => undefined as void,
+    /** Runs each time the panel reads the terminals. */
+    listed: () => undefined as void,
     runs: 0
   }
   const host = mockHost({
     settings: options.settings ?? {},
     requests: {
       'models.get': models,
-      'targets.list': () => world.place,
+      'targets.list': () => {
+        world.listed()
+        return world.place
+      },
       'prompt.enhance': (input) => {
         world.runs += 1
         world.during()
@@ -205,6 +210,75 @@ test('the one-step send needs "Send to terminals", sends nothing after a failed 
   await clearData('all')
   assert.equal(read(sendAfterEnhance), false)
   await failing.view.unmount()
+})
+
+test('the one-step send stops when the person stops it after the model has answered, and with no project at all', async () => {
+  const { view, sent, world } = await panel()
+  setSendAfterEnhance(true)
+  const { cancel, refreshTargets } = await import('./panel/actions.ts')
+
+  // The switch is turned off while the model writes: the run ends as a plain enhance, with no note.
+  world.during = () => setSendAfterEnhance(false)
+  await enhanceAndSend()
+  assert.deepEqual(sent, [])
+  assert.equal(read(result), 'Better: fix the login page')
+  assert.notEqual(read(notice)?.tone, 'warning')
+
+  // Cancel (or the panel closing) once the model has answered, while the terminals are read again:
+  // there is no request left to stop, and still nothing goes out.
+  setSendAfterEnhance(true)
+  let answered = false
+  world.during = () => {
+    answered = true
+  }
+  // The read of the terminals that follows the model's answer is where the cancel falls.
+  world.listed = () => {
+    if (answered) cancel()
+  }
+  put(draft, 'fix the signup page')
+  await enhanceAndSend()
+  assert.deepEqual(sent, [])
+  assert.equal(read(result), 'Better: fix the signup page')
+  world.listed = () => undefined
+
+  // A later run is not held back by that cancel.
+  world.during = () => undefined
+  put(draft, 'fix the cart page')
+  await enhanceAndSend()
+  assert.deepEqual(sent, [{ terminalId: 't1', text: 'Better: fix the cart page' }])
+  sent.length = 0
+
+  // Orca lists the terminals but names no workspace: there is no project to be sure of.
+  world.place = { targets: [agent('waiting')], workspace: null, project: null }
+  await refreshTargets()
+  put(draft, 'fix the footer')
+  await enhanceAndSend()
+  assert.deepEqual(sent, [])
+  assert.match(read(notice)?.text ?? '', /could not tell which project/)
+  assert.deepEqual(view.errors, [])
+  set(sendAfterEnhance, false)
+  await view.unmount()
+})
+
+test('the one-step send goes to an idle agent Orca lists without its kind, and never to a row that is no agent', async () => {
+  const { view, sent, world } = await panel()
+  setSendAfterEnhance(true)
+  const { refreshTargets } = await import('./panel/actions.ts')
+  // Orca knows an agent runs there and that it waits, but not which CLI it is.
+  world.place = { ...world.place, targets: [{ terminalId: 't1', label: 'Agent · waiting', agent: null, title: 'Agent', state: 'waiting' }] }
+  await refreshTargets()
+  await enhanceAndSend()
+  assert.deepEqual(sent, [{ terminalId: 't1', text: 'Better: fix the login page' }])
+  // No kind and no state: a terminal with no agent in it.
+  world.place = { ...world.place, targets: [{ terminalId: 't1', label: 'pwsh', agent: null }] }
+  await refreshTargets()
+  put(draft, 'fix the signup page')
+  await enhanceAndSend()
+  assert.equal(sent.length, 1)
+  assert.match(read(notice)?.text ?? '', /pwsh is a plain terminal, not an agent/)
+  assert.deepEqual(view.errors, [])
+  set(sendAfterEnhance, false)
+  await view.unmount()
 })
 
 test('the switch is described like the others: what it does, what can go wrong, when to turn it on', () => {

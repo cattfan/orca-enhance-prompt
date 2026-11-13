@@ -16,6 +16,8 @@ import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
 import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, sendAfterEnhance, filteredHistory, type NoticeAction } from './state.ts'
 
 let inFlight: AbortController | null = null
+/** The enhance-and-send in flight (enhanceAndSend), so that Cancel and a closing panel stop its send too. */
+let oneStep: { cancelled: boolean } | null = null
 /** The project of the run in flight; filled in if the panel learns its key only after the run started. */
 let runOrigin: { key: string | null; name: string | null } | null = null
 /** Projects Orca has removed: an answer for one of them is dropped, never shown elsewhere. */
@@ -413,6 +415,8 @@ export async function previewContext(): Promise<void> {
 export function cancel(): void {
   // The request's signal stops the worker; enhanceNow then records the run as cancelled.
   inFlight?.abort()
+  // A one-step send whose model has already answered has no request left to stop: it is told so.
+  if (oneStep) oneStep.cancelled = true
 }
 
 export function toggleItem(id: string, include: boolean): void {
@@ -484,16 +488,17 @@ function heldBack(start: { terminalId: string | null; key: string | null }, done
   const key = read(workspaceKey)
   // Orca tells several same-named projects apart only by their terminals; while it could not (when
   // the run began, or now), this could be a terminal of another project.
-  const unknown = (value: string | null) => value === null || value.startsWith('name:')
+  // An empty key is no project at all (the terminals were listed but Orca named no workspace).
+  const unknown = (value: string | null) => !value || value.startsWith('name:')
   if (unknown(key) || unknown(start.key)) return t('Orca could not tell which project this is.')
   if (key !== start.key) return t('The project in focus changed while it ran; the prompt waits in the project it was written in.')
   const item = read(targets).find((entry) => entry.terminalId === start.terminalId)
   if (!start.terminalId || !item || read(target) !== start.terminalId) return t('The terminal picked when you started is closed or no longer the one picked.')
-  const label = targetLabel(item)
-  // A plain terminal would run the prompt's first line as a command.
-  if (!item.agent) return t('{label} is a plain terminal, not an agent.', { label })
+  // A plain terminal would run the prompt's first line as a command. Orca lists an agent with a
+  // state, sometimes without saying which kind it is; a row with neither is a terminal with no agent.
+  if (!item.agent && !item.state) return t('{label} is a plain terminal, not an agent.', { label: targetLabel(item) })
   // A working agent can ask for an answer at any moment, and what is typed then could be taken as it.
-  const name = item.title ?? item.agent
+  const name = item.title ?? item.agent ?? item.label
   if (item.state === 'working') return t('{name} is still working.', { name })
   if (item.state === 'blocked') return t('{name} is waiting for an answer from you.', { name })
   if (!item.state || !IDLE_STATES.has(item.state)) return t('Orca does not say whether {name} is idle.', { name })
@@ -516,12 +521,20 @@ function heldBack(start: { terminalId: string | null; key: string | null }, done
 export async function enhanceAndSend(): Promise<void> {
   if (!sendsAfterEnhance()) return enhanceNow()
   const start = { terminalId: read(target), key: read(workspaceKey) }
+  const step = { cancelled: false }
+  oneStep = step
   const done = await runEnhance()
-  if (!done) return
+  // The switch was turned off while the model wrote: this is a plain enhance after all.
+  if (!done || !sendsAfterEnhance()) {
+    if (oneStep === step) oneStep = null
+    return
+  }
   set(busy, 'send')
   try {
     // The states as they are now, not as they were when the run began.
     await refreshTargets()
+    // Cancelled, or the panel is closing, after the model had answered: nothing goes out.
+    if (step.cancelled) return
     const why = heldBack(start, done)
     if (why) {
       set(notice, { tone: 'warning', text: `${t('Not sent by itself.')} ${why} ${t('Read the prompt and send it yourself.')}` })
@@ -529,6 +542,7 @@ export async function enhanceAndSend(): Promise<void> {
     }
     await typeInto(start.terminalId!, done.enhanced, false)
   } finally {
+    if (oneStep === step) oneStep = null
     set(busy, null)
   }
 }

@@ -180,6 +180,42 @@ test('the picked terminal\'s output is masked for keys and passwords, in a previ
   await worker.deactivate()
 })
 
+test('a key that sits in a source file is masked in the lines a run sends; the code around it stays', async () => {
+  const root = tempDir('privacy-code-mask-')
+  // Fake values, put together here so that none of them sits in the source as one string.
+  const stripe = ['sk', 'live', 'abcdefghijklmnop1234'].join('_')
+  const secret = ['hunter2', 'very', 'secret', '99'].join('-')
+  writeFileSync(
+    join(root, 'payment-client.ts'),
+    [
+      'export function paymentClient(token: string) {',
+      // Far to the right: a line is cut at 240 characters for the model, and the key lies across
+      // that cut with its first 14 characters before it.
+      `  const client = connect(${'defaults, '.repeat(20)}"${stripe}")`,
+      `  const webhookSecret = '${secret}'`,
+      '  return client.with(token)',
+      '}'
+    ].join('\n')
+  )
+  const bodies: string[] = []
+  globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
+    bodies.push(String(init?.body ?? ''))
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 })
+  }) as typeof fetch
+  const worker = await mountWorker(main, { host: hostWith({ allowGit: false }, root) })
+  await worker.request('prompt.enhance', { prompt: 'fix the payment client', level: 'deep' })
+  const sent = bodies.at(-1) ?? ''
+  // The file was read and its code is there...
+  assert.match(sent, /payment-client\.ts/)
+  assert.match(sent, /export function paymentClient\(token: string\)/)
+  assert.match(sent, /return client\.with\(token\)/)
+  // ...without the key (not even the part before the cut) and without the quoted secret.
+  assert.ok(!sent.includes(stripe.slice(0, 10)), 'a key in a source file reached the model')
+  assert.ok(!sent.includes(secret), 'a quoted secret in a source file reached the model')
+  assert.match(sent, /webhookSecret = '\[redacted\]'/)
+  await worker.deactivate()
+})
+
 test('auto-enhance (AI) leaves cached project context out while project files are off', async () => {
   const root = tempDir('privacy-hook-')
   writeFileSync(join(root, 'AGENTS.md'), 'Use pnpm, secret rules.')

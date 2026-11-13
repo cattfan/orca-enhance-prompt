@@ -844,7 +844,8 @@ test('a kept pairing of a terminal is dropped when Orca now lists that terminal 
       'workspace.list': {
         workspaces: [
           { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'shop', project: 'Shop', path: listedPath(shop), branch: 'main', hostId: 'local' },
-          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'docs', project: 'Docs', path: listedPath(docs), branch: 'guide', hostId: 'local' }
+          // On the same branch as the focus: the name alone tells them apart.
+          { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'docs', project: 'Docs', path: listedPath(docs), branch: 'main', hostId: 'local' }
         ],
         truncated: false
       },
@@ -853,6 +854,18 @@ test('a kept pairing of a terminal is dropped when Orca now lists that terminal 
   })
   const worker = await mountWorker(main, { host })
   const body = () => JSON.stringify(calls.at(-1)?.body)
+  // A list that fails, or is cut short and lacks the workspace, proves nothing: the pairing stays.
+  host.respond('workspace.list', { workspaces: [], truncated: true })
+  await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_1', prompt: 'add a health check endpoint', inputKind: 'launch' as const })
+  await terminalsSaved()
+  assert.equal((host.data().storage.terminalWorkspaces as Record<string, string>).term_1, `repo-docs::${docs}`)
+  host.respond('workspace.list', {
+    workspaces: [
+      { id: 'identity:wt2:local:1111', kind: 'worktree', name: 'shop', project: 'Shop', path: listedPath(shop), branch: 'main', hostId: 'local' },
+      { id: 'identity:wt2:local:2222', kind: 'worktree', name: 'docs', project: 'Docs', path: listedPath(docs), branch: 'main', hostId: 'local' }
+    ],
+    truncated: false
+  })
   await worker.hooks.fire('agent.prompt.before', { agent: 'claude', terminalId: 'term_1', prompt: 'add a health check endpoint', inputKind: 'launch' as const })
   assert.match(body(), /Shop: use pnpm\./)
   assert.ok(!body().includes('Docs: use vale.'), 'a rule of the project the id used to belong to was followed')
