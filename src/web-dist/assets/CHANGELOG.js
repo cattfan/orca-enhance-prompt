@@ -3,6 +3,50 @@ var e=`# Changelog
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a \`vX.Y.Z\` git tag and a GitHub release with these notes.
 
+## [2.7.0] - 2026-11-13
+
+### Added
+
+- **Ctrl+Enter** sends the enhanced prompt (⌘+Enter on a Mac). From the prompt box it sends the result only while that result was made from the text still in the box, and enhances again otherwise, so an old prompt never goes out by a slip of the hand; from the result box it sends what the box holds, your edits included.
+- **Send right after enhancing**, a switch under the gear icon (**What it may do**), off until you turn it on from its dialog. With it on, Ctrl+Enter in the prompt box, or a second button next to Enhance, enhances the prompt and types it into the agent in one go; Enter alone still stops at the result. A prompt nobody has read goes out only when nothing is in doubt: the terminal is still open and still the one picked, Orca can tell which project this is and it is the one you started in, the agent there is idle, and you did not change the text meanwhile. Otherwise nothing is sent, the result stays in the box, and a note says why.
+- **Save as a file**: the enhanced prompt (a button above the result), or the history the list shows (under the list), as a Markdown file through Orca's save dialog. The plugin never learns where the file went.
+- The History tab reads an entry in place (click it), can show only the project you are in, and offers **Undo** after you remove an entry.
+- With no model yet, an agent CLI found on this machine (Claude Code, Codex, Gemini CLI) is one press away in the Enhance tab.
+- Every switch under the gear icon says what it does, what can go wrong and when it is worth turning on (**Risk and when to use it**). The switches are in three groups: what the plugin may read, what it may do, what it may keep and fetch.
+- The Settings section says what auto-enhance did with the last prompt Orca sent, and a note says why when it left a prompt unchanged. It used to be in the log only.
+
+### Changed
+
+- An agent that is waiting for an answer from you (a permission, a question) is not typed into when you press Send: what is typed there could be taken as the answer, and Enter could approve what it asked. A note says so and offers **Type it without Enter**, which puts the prompt in its input and leaves the Enter to you.
+- Auto-enhance takes the rules and the context of the project its prompt goes to, not of the project you happen to be looking at. A terminal whose project is not known gets no project's rules, and a prompt you started an agent with from the panel is not rewritten a second time.
+- The **Concise** style is concise: at most four short lines. Measured over 20 runs with Claude Haiku, the prompt stayed under 800 characters in 20 of 20 (10 of 20 before), with a median of 467 characters (801 before).
+- A prompt for a larger task tells the agent to complete every part before it ends its turn, and to work through a failing command, every time: in 20 of 20 measured runs, where it was 9 of 20.
+- Opening a history entry in the Enhance tab says that it replaced what the composer held and offers **Undo**. An entry written in another project says so before you send it here.
+- The terminal menu names each agent with its state in the panel's language: working, waiting, needs you, done.
+- With the panel's language on **Auto**, the status bar's tooltip and the answers of the plugin's commands follow Orca's language once the panel has opened. They were in English.
+- A warning stays on screen for 8 seconds instead of 4, long enough to read.
+
+### Fixed
+
+- On a machine with no key store (some Linux setups), saving a model with an API key failed without a useful word. The Models tab now says that keys cannot be saved here, and no model is saved without its key.
+- "Online model lists are off" was shown in English whatever the panel's language.
+- A count of tokens in terminal output or a command line (\`max_tokens: 200000\`) was masked as if it were a secret.
+
+### Security
+
+- A key pasted into a source file is masked in the diff and in the file lines sent to the model, where it is certainly a key: a known key format, or a quoted value of 12 characters or more given to a name that says key, token, secret or password. The code around it stays as it is.
+- The output of the terminal you picked (the Max level) is masked for keys, tokens and passwords, as other agents' sessions already were.
+- More key formats are recognised everywhere masking applies: Stripe, GitLab, npm and Google API keys.
+- A remembered pairing of a terminal with a project is dropped when Orca now lists that terminal in a project it does not fit, so auto-enhance cannot follow the rules of a project the terminal used to belong to.
+
+### Notes
+
+- This update asks Orca for nothing new: no permission, setting, command or hook was added or changed, so it installs without a new approval. **Send right after enhancing** is kept by the panel for that reason and has no entry in Orca's own Settings.
+- Masking cannot catch everything: a secret in an unusual shape, under a name that does not say what it is, still goes to the model. Turn **Run git** or **Read project files** off where that matters.
+- The pictures of the listing, the README and the guide are drawn again from the panel as it is now, and the guide has four new ones.
+- Orca's plugin directory moved to orca.dev; the links follow.
+- For contributors: \`node scripts/eval-prompts.mjs --only <case> --runs 20\` runs one case many times and counts the outcomes, and \`--root <folder>\` measures another tree's wording by the same checks.
+
 ## [2.6.8] - 2026-11-11
 
 ### Changed
@@ -571,6 +615,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.7.0
 [2.6.8]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.8
 [2.6.7]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.7
 [2.6.6]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.6

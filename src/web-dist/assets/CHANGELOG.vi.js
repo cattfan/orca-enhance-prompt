@@ -2,6 +2,50 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.7.0] - 2026-11-13
+
+### Thêm mới
+
+- **Ctrl+Enter** gửi prompt đã cải thiện (⌘+Enter trên Mac). Từ ô nhập prompt, nó chỉ gửi kết quả khi kết quả đó được tạo từ đúng nội dung còn trong ô, nếu không thì cải thiện lại, nên một prompt cũ không bao giờ bị gửi đi vì lỡ tay; từ ô kết quả, nó gửi đúng những gì ô đang chứa, kể cả phần bạn đã sửa.
+- **Cải thiện xong gửi luôn**, một công tắc dưới biểu tượng bánh răng (**Plugin được làm gì**), tắt cho đến khi bạn bật từ hộp giải thích của nó. Khi bật, Ctrl+Enter trong ô nhập prompt, hoặc nút thứ hai cạnh nút Cải thiện, sẽ cải thiện prompt rồi gõ luôn vào agent trong một lần; chỉ nhấn Enter thì vẫn dừng ở kết quả. Một prompt chưa ai đọc chỉ được gửi đi khi không còn gì đáng ngờ: terminal vẫn đang mở và vẫn là terminal được chọn, Orca xác định được đây là dự án nào và đó đúng là dự án lúc bạn bắt đầu, agent ở đó đang rảnh, và bạn không sửa nội dung trong lúc chờ. Nếu không, không có gì được gửi, kết quả nằm lại trong ô, và một ghi chú nói rõ lý do.
+- **Lưu thành file**: prompt đã cải thiện (nút phía trên kết quả), hoặc phần lịch sử mà danh sách đang hiện (dưới danh sách), thành file Markdown qua hộp lưu của Orca. Plugin không bao giờ biết file được lưu ở đâu.
+- Tab Lịch sử cho đọc một mục ngay tại chỗ (bấm vào mục đó), có thể chỉ hiện dự án bạn đang mở, và có nút **Hoàn tác** sau khi bạn xóa một mục.
+- Khi chưa có model nào, một CLI agent tìm thấy trên máy (Claude Code, Codex, Gemini CLI) chỉ cách một lần bấm ngay trong tab Cải thiện.
+- Mỗi công tắc dưới biểu tượng bánh răng đều nói nó làm gì, điều gì có thể xảy ra và khi nào nên bật (**Rủi ro và khi nào nên dùng**). Các công tắc được chia thành ba nhóm: plugin được đọc gì, được làm gì, được lưu và tải gì.
+- Mục Cài đặt cho biết tự cải thiện đã làm gì với prompt gần nhất mà Orca gửi, và một ghi chú nói lý do khi nó để nguyên một prompt. Trước đây điều này chỉ có trong log.
+
+### Thay đổi
+
+- Agent đang chờ bạn trả lời (xin quyền, hỏi một câu) sẽ không bị gõ vào khi bạn bấm Gửi: nội dung gõ vào lúc đó có thể bị coi là câu trả lời, và Enter có thể đồng ý với điều nó vừa hỏi. Một ghi chú nói rõ điều này và có nút **Gõ vào, không nhấn Enter**: prompt được đặt vào ô nhập của agent, còn Enter để bạn tự nhấn.
+- Tự cải thiện dùng quy tắc và ngữ cảnh của dự án mà prompt được gửi tới, không phải của dự án bạn đang tình cờ mở. Terminal chưa rõ thuộc dự án nào thì không nhận quy tắc của dự án nào cả, và prompt bạn dùng để mở agent từ panel không bị viết lại lần thứ hai.
+- Kiểu **Ngắn gọn** đã thật sự ngắn gọn: tối đa bốn dòng ngắn. Đo qua 20 lượt chạy với Claude Haiku, prompt nằm dưới 800 ký tự ở 20 trên 20 lượt (trước đây 10 trên 20), với trung vị 467 ký tự (trước đây 801).
+- Prompt cho một việc lớn luôn dặn agent hoàn thành mọi phần trước khi kết thúc lượt, và tự xử lý khi một lệnh bị lỗi: có ở 20 trên 20 lượt đo, trước đây là 9 trên 20.
+- Mở một mục lịch sử trong tab Cải thiện sẽ báo rằng nó đã thay nội dung đang soạn và có nút **Hoàn tác**. Mục được viết ở dự án khác sẽ nói rõ điều đó trước khi bạn gửi nó ở đây.
+- Menu terminal ghi tên từng agent kèm trạng thái bằng ngôn ngữ của panel: đang làm, đang chờ, cần bạn, xong.
+- Khi ngôn ngữ của panel để **Tự động**, tooltip trên thanh trạng thái và câu trả lời của các lệnh sẽ theo ngôn ngữ của Orca sau khi panel đã mở một lần. Trước đây chúng luôn bằng tiếng Anh.
+- Một cảnh báo ở lại trên màn hình 8 giây thay vì 4, đủ để đọc.
+
+### Sửa lỗi
+
+- Trên máy không có kho khóa (một số bản Linux), lưu một model kèm API key bị lỗi mà không có lời giải thích. Giờ tab Model nói rõ rằng không lưu được key trên máy này, và không model nào được lưu thiếu key của nó.
+- "Danh sách model trực tuyến đang tắt" từng hiện bằng tiếng Anh dù panel dùng ngôn ngữ nào.
+- Một con số đếm token trong output terminal hoặc dòng lệnh (\`max_tokens: 200000\`) từng bị che như thể là bí mật.
+
+### Bảo mật
+
+- Key bị dán vào một file mã nguồn sẽ được che trong diff và trong các dòng của file gửi cho model, ở những chỗ chắc chắn là key: một định dạng key đã biết, hoặc một giá trị trong ngoặc kép dài từ 12 ký tự gán cho một tên có nghĩa là key, token, secret hay password. Phần mã xung quanh giữ nguyên.
+- Output của terminal bạn chọn (mức Tối đa) được che key, token và mật khẩu, như phiên của các agent khác vốn đã được che.
+- Nhận ra thêm nhiều định dạng key ở mọi nơi có che: key của Stripe, GitLab, npm và Google API.
+- Cặp terminal–dự án đã ghi nhớ sẽ bị bỏ khi Orca hiện xếp terminal đó vào một dự án không khớp, nên tự cải thiện không thể làm theo quy tắc của dự án mà terminal từng thuộc về.
+
+### Ghi chú
+
+- Bản cập nhật này không xin Orca thêm gì: không quyền, cài đặt, lệnh hay hook nào được thêm hoặc đổi, nên nó cài mà không cần duyệt lại. **Cải thiện xong gửi luôn** do panel tự giữ chính vì lý do đó, và không có mục nào trong Settings của Orca.
+- Việc che không bắt được mọi thứ: một bí mật có hình dạng lạ, nằm dưới một cái tên không nói nó là gì, vẫn sẽ tới model. Hãy tắt **Chạy git** hoặc **Đọc file dự án** ở nơi điều đó quan trọng.
+- Ảnh của trang giới thiệu, README và hướng dẫn được vẽ lại từ panel như hiện tại, và hướng dẫn có thêm bốn ảnh mới.
+- Thư mục plugin của Orca đã chuyển sang orca.dev; các liên kết đã đổi theo.
+- Cho người đóng góp: \`node scripts/eval-prompts.mjs --only <case> --runs 20\` chạy một tình huống nhiều lần và đếm kết quả, còn \`--root <folder>\` đo cách diễn đạt của một cây mã khác bằng cùng các phép kiểm tra.
+
 ## [2.6.8] - 2026-11-11
 
 ### Thay đổi
