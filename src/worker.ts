@@ -480,6 +480,13 @@ const WORKER_WORDS: Record<string, { modes: Record<AutoMode, string>; tooltip: (
     answer: (mode) => `Auto-enhance is ${mode}.`,
     bar: { hidden: 'Status bar item hidden.', shown: 'Status bar item shown.' }
   },
+  es: {
+    modes: { off: 'desactivada', rules: 'activada (reglas)', ai: 'activada (IA)' },
+    tooltip: (mode) =>
+      `Clic: abre la barra lateral derecha (${SIDEBAR_KEY}), luego la pestaña de la bombilla «${BRAND}».\nLa mejora automática está ${mode}. Cámbiala en el engranaje del panel o en la paleta de comandos.\nAjustes y actualizaciones: Ajustes → Plugins → Enhance Prompt.`,
+    answer: (mode) => `La mejora automática está ${mode}.`,
+    bar: { hidden: 'Elemento de la barra de estado oculto.', shown: 'Elemento de la barra de estado visible.' }
+  },
   vi: {
     modes: { off: 'tắt', rules: 'bật (quy tắc)', ai: 'bật (AI)' },
     tooltip: (mode) =>
