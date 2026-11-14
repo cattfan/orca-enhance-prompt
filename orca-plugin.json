@@ -82,18 +82,20 @@
     "settings": [
       {
         "key": "uiLanguage",
-        "title": "Panel language / Ngôn ngữ / 界面语言",
+        "title": "Panel language / Ngôn ngữ / 界面语言 / Español",
         "description": "Language of the Enhance Prompt panel. Auto follows Orca.",
         "type": "string",
         "enum": [
           "auto",
           "en",
+          "es",
           "vi",
           "zh"
         ],
         "enumLabels": [
           "Auto (follow Orca)",
           "English",
+          "Español",
           "Tiếng Việt",
           "中文"
         ],
