@@ -42,6 +42,36 @@ export function isStyle(value: unknown): value is Style {
   return typeof value === 'string' && (STYLES as readonly string[]).includes(value)
 }
 
+/** Letters only Vietnamese writes, and accented letters it shares with French or Portuguese. */
+const VIETNAMESE_ONLY = /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợụủũứừửữựỳỵỷỹ]/i
+const ACCENTED = /[àáâãèéêìíòóôõùúý]/i
+
+/**
+ * The language a request is plainly written in, as a key of `LANGUAGE_NAMES`, or null when its
+ * letters do not say (English and the other Latin-script languages look alike). A model told to
+ * answer "in the language of the request" sometimes answers in the language of the project context
+ * around it instead; naming the language leaves it no doubt. Code, quoted text and a word or two of
+ * another language (a button's label) do not count.
+ */
+export function detectLanguage(text: string): string | null {
+  const prose = text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`\n]*`/g, ' ')
+    .replace(/"[^"\n]*"|“[^”\n]*”/g, ' ')
+    // Single quotes only around words, never the apostrophe inside one ("don't", "it's").
+    .replace(/(^|\s)'[^'\n]*'(?=[\s.,;:!?)]|$)/g, '$1 ')
+  // Chinese and Japanese characters count one each (they have no spaces), other scripts by the word.
+  const words = prose.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|[\p{L}\p{M}]+/gu) ?? []
+  if (words.length === 0) return null
+  const share = (pattern: RegExp) => words.filter((word) => pattern.test(word)).length / words.length
+  if (share(/[\p{Script=Hiragana}\p{Script=Katakana}]/u) > 0 && share(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u) >= 0.3) return 'ja'
+  if (share(/\p{Script=Han}/u) >= 0.3) return 'zh'
+  if (share(/\p{Script=Hangul}/u) >= 0.3) return 'ko'
+  if (share(/\p{Script=Cyrillic}/u) >= 0.3) return 'ru'
+  if (share(VIETNAMESE_ONLY) > 0 && share(new RegExp(`${VIETNAMESE_ONLY.source}|${ACCENTED.source}`, 'i')) >= 0.3) return 'vi'
+  return null
+}
+
 const BASE = `You are a prompt engineer for AI coding agents (Claude Code, Codex, Gemini CLI, OpenCode and similar).
 Rewrite the user's rough request into a clear, specific, actionable prompt that the agent can execute well.
 
@@ -58,6 +88,7 @@ Rules:
 - Verification: name only the one or two commands that check this change (from the context), not every check the project has, also for a larger task: the agent finds the rest in the project's rule files.
 - Do not decide things the user left open (exact UI wording, translations, names, numbers, design choices): leave them to the agent or list them as questions.
 - Match the length to the request: a small change gets a short prompt; never pad.
+- The request can be the next message in a conversation the agent is already having ("continue", "yes, go ahead", "use option 2", "fix that error too", "analyse it carefully"). The agent knows what it refers to; you see at most part of it. Keep such a message about as short as it came, a sentence or two, with its references as they are; clarify it only with what the context plainly shows (an error named in the agent's latest output, for example). Turning it into a new task would send the agent away from its conversation, so it gets no sections, no steps to find things, no checks and none of the "Larger tasks" additions, whatever the shape below says.
 - Keep the reason the user gave for the request, and give the reason behind any constraint that is not obvious in a short clause ("..., because ..."). Never invent a reason.
 - Phrase instructions as what to do ("keep the change inside src/auth") rather than what not to do; keep a "do not" only for a real hard limit. A hard limit says exactly what it covers and why, with any exception in the same sentence ("ask before changing the production database; the test database needs no approval"). Avoid a bare "never" or "always": agents apply such rules as written and then hold back routine work.
 - Use a calm, plain tone: no capitals for emphasis, no MUST / IMPORTANT / CRITICAL, no "be thorough" or "double-check everything". Current agents follow plain instructions, and shouting makes them over-react.
@@ -126,6 +157,8 @@ export function buildSystemPrompt(options: {
   rules?: string[]
   /** A prompt structure: these sections replace the style's shape. */
   structure?: { name: string; sections: string[] } | null
+  /** The request itself, to name its language when `language` is not one (Auto). */
+  request?: string
 }): string {
   const sections = options.structure?.sections.filter((section) => section.trim()) ?? []
   const shape = sections.length > 0 ? structureShape(sections) : STYLE_RULES[options.style]
@@ -134,11 +167,16 @@ export function buildSystemPrompt(options: {
   if (hint) {
     parts.push(hint)
   }
-  const lang = LANGUAGE_NAMES[options.language]
+  // Auto: the request's own language when its letters show it, else the model judges.
+  const lang = LANGUAGE_NAMES[options.language] ?? LANGUAGE_NAMES[detectLanguage(options.request ?? '') ?? '']
+  // The shapes name their sections in English; left alone, a model copies them into a prompt in
+  // another language (a third of the headings of a real Vietnamese history).
+  const headings = (language: string) =>
+    `The section names in the shape only say what each part holds: write the headings in ${language} too.`
   parts.push(
     lang
-      ? `Write the final prompt in ${lang}, but keep code, identifiers, paths and error messages verbatim.`
-      : `Write the final prompt in the same language as the user's request; keep code, identifiers, paths and error messages verbatim.`
+      ? `Write the final prompt in ${lang}.${lang === 'English' ? '' : ` ${headings(lang)}`} Keep code, identifiers, paths and error messages verbatim.`
+      : `Write the final prompt in the language the text inside <request> is written in, even when the project context is in another language. ${headings('that language')} Keep code, identifiers, paths and error messages verbatim.`
   )
   const custom = options.customInstructions?.trim()
   if (custom) {

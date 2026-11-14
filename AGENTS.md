@@ -85,6 +85,11 @@ The test suite usually finishes in seconds, but some tests start real processes 
   ("no project context was provided, so locate…"), and the agent reads that as a statement about
   its own project. A rule in `BASE` (`src/prompts.ts`) and the last sentence of `NOT_THE_PROJECT`
   forbid it; `scripts/eval-prompts.mjs` has a case with no context and checks every case for it.
+  The agent also has its own conversation, which the rewriter does not: a message that continues it
+  ("tiếp tục", "use option 2") stays a short message in every shape, never a new task with steps the
+  rewriter guessed (the `follow-up` cases of the eval). With Auto, the language a request is plainly
+  written in is named to the model (`detectLanguage`), and a prompt in another language than English
+  translates the shapes' section names.
 - **Orca names a workspace two ways.** `workspace.list` answers `identity:…` for a Git worktree,
   while events and hooks (`agent.status.changed`, `agent.tool.after`, `editor.save.before`,
   `workspace.removed`) carry the worktree's own id, `<repository id>::<path>`, and the same folder

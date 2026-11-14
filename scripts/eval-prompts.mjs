@@ -62,8 +62,17 @@ const CASES = [
   // The agent has the whole project, so the prompt says what to find, not what the rewriter lacked.
   { name: 'no project context', style: 'balanced', prompt: 'add dark mode to the settings page', language: 'en', keep: ['dark mode'], bare: true },
   // An action the person already approved is written as approved, not asked about again.
-  { name: 'approved action', style: 'balanced', prompt: 'delete the unused scripts/shots.sh and commit it. I confirm the deletion, no need to ask me', language: 'en', keep: ['scripts/shots.sh'], approved: /(ask|confirm|check with)[^.\n]{0,40}before[^.\n]{0,30}delet|wait for (my |the user'?s? )?(confirmation|approval)/i }
+  { name: 'approved action', style: 'balanced', prompt: 'delete the unused scripts/shots.sh and commit it. I confirm the deletion, no need to ask me', language: 'en', keep: ['scripts/shots.sh'], approved: /(ask|confirm|check with)[^.\n]{0,40}before[^.\n]{0,30}delet|wait for (my |the user'?s? )?(confirmation|approval)/i },
+  // A message in a conversation the agent is already in: the agent knows what it refers to, the
+  // rewriter does not. It stays a short message, not a new task the rewriter made up.
+  { name: 'follow-up, Vietnamese', style: 'balanced', prompt: 'tiếp tục', language: 'vi', keep: [], maxChars: 300, followUp: true },
+  { name: 'follow-up answer, detailed style', style: 'detailed', prompt: 'ok, dùng cách 2 đi', language: 'vi', keep: ['2'], maxChars: 300, followUp: true },
+  // The shapes name their sections in English; a Vietnamese prompt has Vietnamese headings.
+  { name: 'detailed spec, Vietnamese', style: 'detailed', prompt: 'thêm nút xuất lịch sử ra file Markdown', language: 'vi', keep: ['Markdown'] }
 ]
+
+/** Section names of the shapes in `src/prompts.ts`: as a heading, they say a prompt kept them in English. */
+const SHAPE_HEADING = /^(?:#{1,4} +|\*\*)(goal|background|context|requirements|constraints|non-goals|edge cases|acceptance criteria|deliverables|done when|symptom|reproduction|suspected area|investigation|fix requirements|verification|assumptions|behaviou?r|tests to add|target code|motivation|desired structure|scope|steps|focus areas|output format|reporting)\b/gim
 
 /**
  * The rewriter speaking about its own input ("no project context was provided", "I can't see the
@@ -85,7 +94,9 @@ const GIVEN = new RegExp(
 const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i
 /** One case through the model once: what is wrong with the prompt it wrote (nothing, when it is right). */
 async function runCase(item) {
-  const system =buildSystemPrompt({ style: item.style, language: 'auto', agent: 'claude', structure: item.structure ?? null })
+  // `request` lets the rewriter's instructions name the request's language (a tree that does not
+  // know it ignores it).
+  const system = buildSystemPrompt({ style: item.style, language: 'auto', agent: 'claude', structure: item.structure ?? null, request: item.prompt })
   const user = buildUserMessage(item.prompt, item.bare ? [] : context)
   const started = Date.now()
   let text
@@ -99,8 +110,10 @@ async function runCase(item) {
   if (/^```/.test(text)) problems.push('wrapped in a code fence')
   const given = GIVEN.exec(text)
   if (given) problems.push(`talks about what the rewriter was given ("${given[0].trim().slice(0, 80)}")`)
-  // Vietnamese if a fair share of its letters carry Vietnamese marks (a quoted word or two does not count).
-  const marked = (text.match(new RegExp(VIETNAMESE.source, 'gi')) ?? []).length
+  // Vietnamese if a fair share of its letters carry Vietnamese marks (a quoted word or two does not
+  // count); the accents it shares with other languages count too, or a short "Ok, làm theo cách 2
+  // nhé" reads as not Vietnamese.
+  const marked = (text.match(new RegExp(`${VIETNAMESE.source}|[àáèéìíòóùúýãõ]`, 'gi')) ?? []).length
   const isVi = marked / Math.max(1, (text.match(/\p{L}/gu) ?? []).length) > 0.03
   if (item.language === 'vi' && !isVi) problems.push('not in Vietnamese')
   if (item.language === 'en' && isVi) problems.push('not in English')
@@ -123,7 +136,8 @@ async function runCase(item) {
   const negative = bullets.filter((line) => /^\s*(?:[-*]|\d+[.)])\s+(?:\*\*)?(do not|don't|never|avoid|không|đừng|tránh)\b/i.test(line))
   if (negative.length > 2 && negative.length / Math.max(1, bullets.length) > 0.3) problems.push(`${negative.length} of ${bullets.length} bullets are prohibitions`)
   // Claude Code: ask for evidence, not a claim.
-  if (item.style !== 'concise' && !/(report|evidence|output|printed|báo cáo|báo lại|kết quả|in ra|đầu ra)/i.test(text)) problems.push('asks for no evidence')
+  // (Not a follow-up: it carries on a conversation that already says what to report.)
+  if (item.style !== 'concise' && !item.followUp && !/(report|evidence|output|printed|báo cáo|báo lại|kết quả|in ra|đầu ra)/i.test(text)) problems.push('asks for no evidence')
   if (item.reason && !/(because|since|vì|do |bởi)/i.test(text)) problems.push('lost the reason the user gave')
   // Prompting Claude Fable 5.2: how the agent thinks, and whether it delegates, is its own business.
   const meddling = text.match(/step[- ]by[- ]step reasoning|think (hard|step[- ]by[- ]step)|chain of thought|(show|explain|write out) your (reasoning|thinking)|suy nghĩ từng bước|trình bày (quá trình )?suy luận|sub-?agents?|token budget/gi) ?? []
@@ -134,6 +148,15 @@ async function runCase(item) {
   }
   if (item.small && /(obstacle|timeout|deliberate blocker|closing summary|nearby (problem|typo|issue))/i.test(text)) problems.push('pads a small change with long-task instructions')
   if (item.approved?.test(text)) problems.push('asks again for an approval the request already gave')
+  if (item.language !== 'en') {
+    const english = [...text.matchAll(SHAPE_HEADING)].map((match) => match[1])
+    if (english.length) problems.push(`English headings in a ${item.language} prompt (${[...new Set(english)].join(', ')})`)
+  }
+  if (item.followUp) {
+    if (/^#{1,4} /m.test(text)) problems.push('turns a follow-up into a document with headings')
+    const invented = text.match(/git (status|diff|log)|TODO|FIXME/g) ?? []
+    if (invented.length) problems.push(`invents steps for a follow-up (${[...new Set(invented)].join(', ')})`)
+  }
   if (item.structure) {
     const missing = item.structure.sections.filter((section) => !text.includes(section))
     if (missing.length) problems.push(`missing headings: ${missing.join(', ')}`)

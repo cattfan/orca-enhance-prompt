@@ -12,7 +12,54 @@ test('system prompt follows language and custom instructions', () => {
   assert.match(vi, /in Vietnamese/)
   assert.match(vi, /regression test/)
   assert.match(vi, /Use pnpm\./)
-  assert.match(buildSystemPrompt({ style: 'balanced', language: 'auto' }), /same language/)
+  const auto = buildSystemPrompt({ style: 'balanced', language: 'auto' })
+  assert.match(auto, /in the language the text inside <request> is written in, even when the project context is in another language/)
+  // The shapes name their sections in English: a prompt in another language translates them.
+  // Measured with `--model sonnet --only "detailed spec"`: English headings in 7 of 8 Vietnamese prompts before, 0 of 8 after.
+  assert.match(vi, /Write the final prompt in Vietnamese\. The section names in the shape only say what each part holds: write the headings in Vietnamese too\. Keep code/)
+  assert.match(auto, /write the headings in that language too\. Keep code/)
+  assert.match(buildSystemPrompt({ style: 'balanced', language: 'en' }), /Write the final prompt in English\. Keep code/)
+})
+
+test('Auto names the request\'s language when its letters show it', async () => {
+  const { detectLanguage } = await import('./prompts.ts')
+  // Measured on the requests of a real history: short Vietnamese has few letters only Vietnamese writes.
+  assert.equal(detectLanguage('panel mở chậm quá, sửa đi'), 'vi')
+  assert.equal(detectLanguage('ok, dùng cách 2 đi'), 'vi')
+  assert.equal(detectLanguage('Phân tích kỹ nhé'), 'vi')
+  assert.equal(detectLanguage('把 History 标签改名为 Log'), 'zh')
+  assert.equal(detectLanguage('履歴タブの名前を変えて'), 'ja')
+  assert.equal(detectLanguage('설정에 다크 모드 추가'), 'ko')
+  assert.equal(detectLanguage('добавь тёмную тему в настройки'), 'ru')
+  // English, and the Latin-script languages whose accents Vietnamese shares, are left to the model.
+  assert.equal(detectLanguage('add a dark mode toggle'), null)
+  assert.equal(detectLanguage("Corrige le bogue: la fenêtre ne s'ouvre pas après la mise à jour"), null)
+  assert.equal(detectLanguage('Você pode corrigir o botão de português que não aparece?'), null)
+  // A label of another language, quoted or not, code and a pasted error do not make a request Vietnamese.
+  assert.equal(detectLanguage('rename the Save button to "Lưu lại" in the vi translation'), null)
+  assert.equal(detectLanguage('rename the Save button to Lưu lại in the vi translation'), null)
+  assert.equal(detectLanguage("don't rename 'Lưu lại', it's fine"), null)
+  assert.equal(detectLanguage('fix this:\n```\nconst tiêuĐề = "Lưu"\n```'), null)
+  assert.equal(detectLanguage(''), null)
+
+  const named = buildSystemPrompt({ style: 'balanced', language: 'auto', request: 'panel mở chậm quá, sửa đi' })
+  assert.match(named, /Write the final prompt in Vietnamese\. The section names/)
+  assert.match(buildSystemPrompt({ style: 'balanced', language: 'auto', request: 'add dark mode' }), /in the language the text inside <request> is written in/)
+  // A language the person chose wins over the request's.
+  assert.match(buildSystemPrompt({ style: 'balanced', language: 'en', request: 'panel mở chậm quá' }), /Write the final prompt in English/)
+})
+
+test('a message in the agent\'s conversation stays a short message, in every shape', async () => {
+  // Measured with `scripts/eval-prompts.mjs --only follow-up --runs 10`: without this rule "tiếp tục"
+  // became a 1,400-character task to search git status and TODOs in 10 of 10 runs.
+  for (const style of ['balanced', 'detailed', 'bugfix', 'plan'] as const) {
+    const system = buildSystemPrompt({ style, language: 'auto' })
+    assert.match(system, /The request can be the next message in a conversation the agent is already having/)
+    assert.match(system, /Keep such a message about as short as it came, a sentence or two, with its references as they are/)
+    assert.match(system, /whatever the shape below says/)
+    // The rule comes before the shape it overrides.
+    assert.ok(system.indexOf('next message in a conversation') < system.indexOf('Shape:'))
+  }
 })
 
 test('user message includes context only when present', () => {

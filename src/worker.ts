@@ -323,7 +323,8 @@ export async function enhance(
     customInstructions: settings.customInstructions,
     agent: settings.adaptToAgent ? (agentItem?.content.split(' ')[0] ?? null) : null,
     rules: own.rules,
-    structure: structureById(own.config, input.structureId)
+    structure: structureById(own.config, input.structureId),
+    request: prompt
   })
   // Attached files, read before any model is called: images are shown to models that read images,
   // text goes in the context, and the user message lists every file by its path.
@@ -1144,7 +1145,8 @@ function registerAutoEnhance(orca: OrcaWorkerApi): void {
         language: settings.outputLanguage,
         customInstructions: settings.customInstructions,
         agent: settings.adaptToAgent ? event.agent : null,
-        rules
+        rules,
+        request: prompt
       })
       // CLI models take seconds to start; the hook has under 2 s, so it uses API models only.
       const list = candidates(config.profiles, config.hookProfileId, settings.fallbackEnabled).filter(
