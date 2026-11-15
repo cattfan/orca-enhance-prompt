@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 2.0.0). Each version has a \`vX.Y.Z\` tag and a [GitHub release](https://github.com/cattfan/orca-enhance-prompt/releases).
 Translations: [Tiếng Việt](docs/changelog/CHANGELOG.vi.md), [中文](docs/changelog/CHANGELOG.zh-CN.md).
 
+## [2.8.1] - 2026-11-15
+
+### Fixed
+
+- The panel now recognizes agents running in Orca's chat view instead of reporting "No terminals in this workspace".
+- When Orca's chat is the only target, **Send** becomes **Copy** (Ctrl+Enter too), because Orca does not let plugins type into the chat. **Send right after enhancing** skips the send there and shows why.
+- Links in **What's new** open in the browser instead of showing as raw Markdown.
+
 ## [2.8.0] - 2026-11-15
 
 ### Added
@@ -641,6 +649,7 @@ Translations: [Tiếng Việt](docs/changelog/CHANGELOG.vi.md), [中文](docs/ch
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.8.1]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.8.1
 [2.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.8.0
 [2.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.7.0
 [2.6.8]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.8

@@ -3,6 +3,14 @@
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục **Có gì mới** của panel khi
 panel dùng tiếng Việt. Định dạng theo [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 
+## [2.8.1] - 2026-11-15
+
+### Sửa lỗi
+
+- Panel nhận ra agent chạy trong khung chat của Orca, không còn báo "Workspace này chưa có terminal".
+- Khi khung chat của Orca là nơi gửi duy nhất, nút **Gửi** đổi thành **Sao chép** (Ctrl+Enter cũng vậy), vì Orca không cho plugin gõ vào khung chat. **Cải thiện xong gửi luôn** bỏ qua bước gửi ở đó và nêu lý do.
+- Link trong **Có gì mới** mở bằng trình duyệt, không còn hiện dạng Markdown thô.
+
 ## [2.8.0] - 2026-11-15
 
 ### Thêm mới
