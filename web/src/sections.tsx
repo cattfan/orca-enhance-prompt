@@ -174,9 +174,10 @@ export function HistorySection() {
           {t('Show more')}
         </Button>
       ) : null}
-      <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-xs">{t('{shown} of {total}', { shown: Math.min(shown, list.length), total: all.length })}</span>
-        <div className="flex items-center gap-1">
+      {/* Wraps in a narrow sidebar rather than squeezing the count into a column. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span className="text-muted-foreground text-xs whitespace-nowrap">{t('{shown} of {total}', { shown: Math.min(shown, list.length), total: all.length })}</span>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
           {/* What the list shows goes into the file: the search and the project filter apply. */}
           <Button size="sm" variant="ghost" onClick={() => void exportHistory()} disabled={list.length === 0}>
             <DownloadIcon />

@@ -75,14 +75,16 @@ function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex min-h-screen flex-col gap-3 p-3">
-        <header className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
+        {/* In a narrow sidebar the section icons move to a second row: on one row the version ran
+            over the language picker (a 219 px wide panel). The name and the version need 4.5rem. */}
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 grow basis-[4.5rem] items-center gap-1.5">
             <img src={logo} alt="" className="size-5 shrink-0 dark:invert" />
             {/* The app's name stays; the highlighted icon says which section is open. */}
             <h1 className="truncate text-sm font-semibold">{BRAND}</h1>
             <WhatsNew />
           </div>
-          <nav className="flex shrink-0 items-center">
+          <nav className="ml-auto flex shrink-0 items-center">
             <LanguagePicker />
             {SECTIONS.map(({ value, Icon }) => (
               <IconAction
