@@ -1,6 +1,7 @@
 var e=`# 更新日志
 
-[CHANGELOG.md](../../CHANGELOG.md) 的中文版，面板语言为中文时显示在“新功能”中。
+[CHANGELOG.md](../../CHANGELOG.md) 的中文版，面板语言为中文时显示在 **新功能** 中。格式遵循
+[Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)。
 
 ## [2.8.0] - 2026-11-15
 
