@@ -3,7 +3,9 @@
 // The version in the header opens it; after an update it opens once by itself.
 import { useEffect, useState, type ReactNode } from 'react'
 import { currentLanguage, t, type UiLanguage } from '../../src/i18n.ts'
+import { openIssues } from '../../src/panel/actions.ts'
 import { VERSION } from '../../src/version.ts'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Segmented } from './common'
 
@@ -67,15 +69,21 @@ function ReleaseBody({ body }: { body: string }) {
 
 const SEEN_KEY = 'enhance-prompt:seen-version'
 
+const CHANGELOG_TRANSLATIONS: Partial<Record<UiLanguage, () => Promise<{ default: string }>>> = {
+  vi: () => import('../../docs/changelog/CHANGELOG.vi.md?raw'),
+  zh: () => import('../../docs/changelog/CHANGELOG.zh-CN.md?raw')
+}
+
 /**
  * The changelog in the panel's language (docs/changelog/CHANGELOG.<lang>.md), each release falling
  * back to the English one when its translation is missing. Loaded only when the dialog opens.
  */
 async function loadChangelog(lang: UiLanguage): Promise<Release[]> {
   const english = parseChangelog((await import('../../CHANGELOG.md?raw')).default)
-  if (lang === 'en') return english
-  const text = lang === 'vi' ? (await import('../../docs/changelog/CHANGELOG.vi.md?raw')).default : (await import('../../docs/changelog/CHANGELOG.zh-CN.md?raw')).default
-  const translated = new Map(parseChangelog(text).map((release) => [release.version, release]))
+  // A language without a translated changelog (Spanish) reads the English one, not another language's.
+  const load = CHANGELOG_TRANSLATIONS[lang]
+  if (!load) return english
+  const translated = new Map(parseChangelog((await load()).default).map((release) => [release.version, release]))
   return english.map((release) => translated.get(release.version) ?? release)
 }
 
@@ -139,6 +147,13 @@ export function WhatsNew() {
               ))}
             </div>
           )}
+        </div>
+        {/* Right after an update is a good moment to ask what could be better. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+          <p className="text-muted-foreground min-w-0 flex-1 basis-48 text-xs">{t('Got an idea, or something that could work better? Send your feedback: it is how the plugin improves.')}</p>
+          <Button size="xs" variant="outline" onClick={() => void openIssues()}>
+            {t('Send feedback')}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
