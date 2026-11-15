@@ -3,6 +3,28 @@
 All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
 2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
 
+## [2.8.0] - 2026-11-15
+
+### Added
+
+- **Español**: the panel speaks Spanish. Thanks to [@YuniorGlez](https://github.com/YuniorGlez), who translated all of it ([#1](https://github.com/cattfan/orca-enhance-prompt/pull/1)). It shows with the panel language on **Auto**, the default, when Orca runs in Spanish, the status bar's tooltip and the commands' answers included. The language menu will offer it with a release that changes the plugin's settings anyway: such a change makes Orca ask every user to approve the update again.
+- **Feedback is one press away, and quicker to write.** What's new, which opens after each update, has a **Send feedback** button, and the issue page offers four short forms: a prompt that came out wrong, something broken, an idea, a translation. The plugin collects nothing about how it is used, so what you report is how it improves.
+
+### Changed
+
+- A short message that continues the agent's conversation ("continue", "yes, use option 2", "fix that error too") stays a short message. It used to become a new task of 1,400 to 5,000 characters, with steps to search git and the TODOs, which pulled the agent away from what it was doing: in 10 of 10 measured runs before, short in 10 of 10 now.
+- A prompt in Vietnamese, Chinese or any language other than English has its section headings in that language too. They were often left in English: Claude Sonnet did it in 7 of 8 measured runs, 0 of 8 now.
+- With the output language on **Same as my prompt**, a request plainly written in Vietnamese, Chinese, Japanese, Korean or Russian is named to the model, which no longer answers in English now and then because the project around it is in English. A request whose sentence is English, with a label of another language in it, stays the model's to judge.
+
+### Fixed
+
+- In a narrow sidebar (about 220 px), the version was drawn over the language menu and the plugin's name was cut away. The section icons now move to a second row when they do not fit, and the history's footer wraps instead of squeezing its count into a column.
+
+### Notes
+
+- Nothing new is asked of Orca: the update keeps its approval.
+- [CONTRIBUTING.md](https://github.com/cattfan/orca-enhance-prompt/blob/main/CONTRIBUTING.md) says how to help without code, and how to add a language.
+
 ## [2.7.0] - 2026-11-13
 
 ### Added
@@ -615,6 +637,7 @@ All notable changes to Enhance Prompt. Versions count like an odometer: minor an
 - Auto-enhance hook for prompts Orca sends to agents (rules or AI), toggled from the status bar.
 - Bracketed paste for multi-line prompts.
 
+[2.8.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.8.0
 [2.7.0]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.7.0
 [2.6.8]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.8
 [2.6.7]: https://github.com/cattfan/orca-enhance-prompt/releases/tag/v2.6.7
