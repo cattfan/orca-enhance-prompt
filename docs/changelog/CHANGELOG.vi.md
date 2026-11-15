@@ -1,6 +1,7 @@
 # Nhật ký thay đổi
 
-Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
+Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục **Có gì mới** của panel khi
+panel dùng tiếng Việt. Định dạng theo [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
 
 ## [2.8.0] - 2026-11-15
 

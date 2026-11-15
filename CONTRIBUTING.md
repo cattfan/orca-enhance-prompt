@@ -53,3 +53,52 @@ commit the rebuilt `src/web-dist` (Orca runs no build step). Leave the version a
 to the release.
 
 The plugin stays free, with no tracking or analytics and no obfuscated code.
+
+## Commit messages
+
+Commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```text
+<type>(<scope>): <summary>
+
+<body: what changed and why, wrapped at 72 columns>
+
+<footers: Refs: #12, Co-Authored-By: ...>
+```
+
+- **type**: `feat` (a new capability), `fix` (a bug fix), `perf`, `refactor`, `test`, `docs`,
+  `build`, `ci`, `chore`, `revert`. A breaking change adds `!` after the scope and a
+  `BREAKING CHANGE:` footer.
+- **scope**: the part touched: `panel`, `worker`, `prompts`, `context`, `hook`, `i18n`, `models`,
+  `privacy`, `changelog`, `release`, `deps`.
+- **summary**: imperative mood, lower case, no final period, at most 72 characters in all
+  (`fix(panel): recognize agents running in Orca's chat view`).
+- One logical change per commit. Generated files (`src/web-dist`) go in the commit whose sources
+  produced them.
+- A release is the commit `chore(release): vX.Y.Z`, which `scripts/release.mjs` makes.
+
+## Changelog
+
+[CHANGELOG.md](CHANGELOG.md) follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
+
+- One section per version, `## [X.Y.Z] - YYYY-MM-DD`, newest first, with its link at the end of
+  the file.
+- Groups, in this order and only when they have entries: `Added`, `Changed`, `Deprecated`,
+  `Removed`, `Fixed`, `Security`.
+- One change per bullet, written for the person using the plugin: what is different for them, in
+  one or two sentences. UI names in **bold** as the panel shows them, code and settings in
+  `backticks`. No implementation detail, no test or refactor that changes nothing for them.
+- A change that makes Orca ask to approve the update again says so in its bullet.
+- `docs/changelog/CHANGELOG.vi.md` and `CHANGELOG.zh-CN.md` carry the same sections, translated,
+  with the same bullets in the same order (the panel's What's new shows them).
+
+## Pull requests and releases
+
+- Work on a branch named `<type>/<short-topic>` (`fix/orca-chat-view`), and open a pull request
+  whose title is the commit summary. The template asks for the summary, the changes, how it was
+  verified and the user-facing impact.
+- Pull requests are squash-merged, so the commit on `main` is the pull request's title and
+  description.
+- A release adds its section to the three changelogs, then `node scripts/release.mjs X.Y.Z`
+  commits, tags `vX.Y.Z` and creates the GitHub release named `vX.Y.Z`, with the changelog section
+  and a link to the full diff as its notes.

@@ -205,18 +205,24 @@ window and cut out, and a dialog, which centres in its window, is shot at 500 px
 1. Bump `version` in `orca-plugin.json` and `VERSION` in `src/version.ts` (shown in the panel's header): patch for fixes, minor for features, major for breaking changes.
    Minor and patch are single digits 0-9 and carry over like an odometer: 1.8.9 -> 1.9.0,
    1.9.0 -> 2.0.0 (never 1.10.0), 13.9.9 -> 14.0.0.
-2. Add a section at the top of `CHANGELOG.md` (Added / Changed / Fixed / Security / Notes) and its link at the bottom.
+2. Add a section at the top of `CHANGELOG.md` and its link at the bottom, in the form
+   CONTRIBUTING.md sets (Keep a Changelog: Added, Changed, Deprecated, Removed, Fixed, Security;
+   one change per bullet, for the person using the plugin). `scripts/changelog.test.mjs` checks it.
 3. Translate that section into `docs/changelog/CHANGELOG.vi.md` and `CHANGELOG.zh-CN.md` (What's new
-   reads them), run `npm run web:build`, and commit the two translations with the rebuilt
-   `src/web-dist`. The three files of steps 1 and 2 stay uncommitted: the release commits them.
+   reads them; the same groups and bullets, in the same order), run `npm run web:build`, and commit
+   the two translations with the rebuilt `src/web-dist` as `docs(changelog): add X.Y.Z notes`. The
+   three files of steps 1 and 2 stay uncommitted: the release commits them.
 4. Run `node scripts/release.mjs X.Y.Z`. It refuses to start unless you are on `main`, nothing but
    `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
    the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`). It then builds the panel again
    and stops if that changes `src/web-dist` (the committed panel was older than the sources: commit
    the rebuilt one and run it again), runs tsc, the tests, `orca plugin check` and
-   `orca plugin validate`, commits only those three files with the subject
-   `vX.Y.Z: <first sentence of the first changelog bullet>` (never cut) and the section as body,
-   tags, pushes `main` and the tag, and creates the GitHub release from the changelog section.
+   `orca plugin validate`, commits only those three files as `chore(release): vX.Y.Z` with the
+   section as body, tags, pushes `main` and the tag, and creates the GitHub release `vX.Y.Z` from
+   the changelog section and a link to the full diff since the previous tag.
+
+Commits follow Conventional Commits (`fix(panel): …`, `feat(prompts): …`, `docs: …`): the types,
+scopes and rules are in CONTRIBUTING.md. Changes reach `main` through a pull request, squash-merged.
 5. Check the listing: <https://orca.dev/plugins/cattfan/orca-enhance-prompt>
 
 ## Listing policy

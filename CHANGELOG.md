@@ -1,7 +1,11 @@
 # Changelog
 
-All notable changes to Enhance Prompt. Versions count like an odometer: minor and patch are digits 0-9 that carry over (1.9.0 is followed by
-2.0.0, 13.9.9 by 14.0.0). Each version is a `vX.Y.Z` git tag and a GitHub release with these notes.
+All notable changes to Enhance Prompt are documented in this file.
+
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/). Versions are
+`MAJOR.MINOR.PATCH`, where `MINOR` and `PATCH` are single digits that roll over (1.9.9 is followed by
+2.0.0). Each version has a `vX.Y.Z` tag and a [GitHub release](https://github.com/cattfan/orca-enhance-prompt/releases).
+Translations: [Tiếng Việt](docs/changelog/CHANGELOG.vi.md), [中文](docs/changelog/CHANGELOG.zh-CN.md).
 
 ## [2.8.0] - 2026-11-15
 
