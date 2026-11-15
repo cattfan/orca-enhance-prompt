@@ -2,6 +2,28 @@ var e=`# Nhật ký thay đổi
 
 Bản tiếng Việt của [CHANGELOG.md](../../CHANGELOG.md), hiện trong mục "Có gì mới" của panel khi panel dùng tiếng Việt.
 
+## [2.8.0] - 2026-11-15
+
+### Thêm mới
+
+- **Español**: panel có tiếng Tây Ban Nha. Cảm ơn [@YuniorGlez](https://github.com/YuniorGlez) đã dịch toàn bộ ([#1](https://github.com/cattfan/orca-enhance-prompt/pull/1)). Tiếng Tây Ban Nha hiện ra khi ngôn ngữ panel để **Tự động** (mặc định) và Orca chạy tiếng Tây Ban Nha, kể cả chú thích ở thanh trạng thái và câu trả lời của các lệnh. Menu ngôn ngữ sẽ có lựa chọn này trong một bản phát hành vốn đã phải đổi cài đặt của plugin: thay đổi như vậy khiến Orca hỏi mọi người dùng duyệt lại bản cập nhật.
+- **Góp ý chỉ cách một lần bấm, và viết nhanh hơn.** Mục Có gì mới, tự mở sau mỗi lần cập nhật, có nút **Gửi góp ý**, và trang issue có sẵn bốn mẫu ngắn: prompt viết ra chưa đúng ý, có gì đó bị lỗi, một ý tưởng, một bản dịch. Plugin không thu thập gì về cách nó được dùng, nên điều bạn báo lại chính là cách nó tốt lên.
+
+### Thay đổi
+
+- Một câu ngắn nói tiếp cuộc trò chuyện của agent ("tiếp tục", "ừ, dùng cách 2", "sửa luôn lỗi đó") giữ nguyên là một câu ngắn. Trước đây nó bị biến thành một nhiệm vụ mới dài 1.400 đến 5.000 ký tự, kèm các bước lục git và các TODO, kéo agent ra khỏi việc đang làm: 10/10 lần đo trước đây, nay giữ ngắn cả 10/10.
+- Prompt bằng tiếng Việt, tiếng Trung hay bất kỳ ngôn ngữ nào khác tiếng Anh có tiêu đề các phần bằng chính ngôn ngữ đó. Trước đây tiêu đề hay bị để tiếng Anh: Claude Sonnet làm vậy 7/8 lần đo, nay 0/8.
+- Khi ngôn ngữ đầu ra là **Đầu ra: như prompt**, một yêu cầu viết rõ bằng tiếng Việt, Trung, Nhật, Hàn hoặc Nga được báo tên ngôn ngữ cho model, nên model không còn thỉnh thoảng trả lời bằng tiếng Anh chỉ vì dự án xung quanh viết bằng tiếng Anh. Yêu cầu có câu viết bằng tiếng Anh, kèm một nhãn của ngôn ngữ khác, vẫn để model tự phán đoán.
+
+### Sửa lỗi
+
+- Trong thanh bên hẹp (khoảng 220 px), số phiên bản bị vẽ đè lên menu ngôn ngữ và tên plugin bị cắt mất. Giờ các biểu tượng của các mục xuống hàng thứ hai khi không đủ chỗ, và phần chân của Lịch sử xuống dòng thay vì bóp số đếm thành một cột.
+
+### Ghi chú
+
+- Orca không phải xin thêm quyền gì: bản cập nhật giữ nguyên sự chấp thuận cũ.
+- [CONTRIBUTING.md](https://github.com/cattfan/orca-enhance-prompt/blob/main/CONTRIBUTING.md) hướng dẫn cách góp sức không cần viết code, và cách thêm một ngôn ngữ.
+
 ## [2.7.0] - 2026-11-13
 
 ### Thêm mới
