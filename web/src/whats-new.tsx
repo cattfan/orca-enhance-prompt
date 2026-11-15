@@ -3,7 +3,7 @@
 // The version in the header opens it; after an update it opens once by itself.
 import { useEffect, useState, type ReactNode } from 'react'
 import { currentLanguage, t, type UiLanguage } from '../../src/i18n.ts'
-import { openIssues } from '../../src/panel/actions.ts'
+import { openIssues, openLink } from '../../src/panel/actions.ts'
 import { VERSION } from '../../src/version.ts'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -24,19 +24,35 @@ export function parseChangelog(text: string): Release[] {
   return out
 }
 
-/** `code` and **bold** inside a line. */
+/** `code`, **bold** and [links](https://…) inside a line; a link opens in the browser. */
 function inline(text: string): ReactNode[] {
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((piece, index) =>
-    piece.startsWith('`') ? (
-      <code key={index} className="bg-muted rounded px-1 font-mono text-[12px]">
-        {piece.slice(1, -1)}
-      </code>
-    ) : piece.startsWith('**') ? (
-      <strong key={index}>{piece.slice(2, -2)}</strong>
-    ) : (
-      piece
-    )
-  )
+  return text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\(https:\/\/[^)\s]+\))/g).map((piece, index) => {
+    if (piece.startsWith('`')) {
+      return (
+        <code key={index} className="bg-muted rounded px-1 font-mono text-[12px]">
+          {piece.slice(1, -1)}
+        </code>
+      )
+    }
+    if (piece.startsWith('**')) return <strong key={index}>{piece.slice(2, -2)}</strong>
+    const link = /^\[([^\]]+)\]\((https:\/\/[^)\s]+)\)$/.exec(piece)
+    if (link) {
+      return (
+        <a
+          key={index}
+          href={link[2]}
+          className="text-primary underline underline-offset-2"
+          onClick={(event) => {
+            event.preventDefault()
+            void openLink(link[2])
+          }}
+        >
+          {link[1]}
+        </a>
+      )
+    }
+    return piece
+  })
 }
 
 /** The small Markdown a changelog section uses: ### headings, - bullets, paragraphs. */
