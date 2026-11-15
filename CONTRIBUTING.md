@@ -75,7 +75,7 @@ Commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/
   (`fix(panel): recognize agents running in Orca's chat view`).
 - One logical change per commit. Generated files (`src/web-dist`) go in the commit whose sources
   produced them.
-- A release is the commit `chore(release): vX.Y.Z`, which `scripts/release.mjs` makes.
+- A release is the single commit `chore(release): vX.Y.Z`, which `scripts/release.mjs` makes.
 
 ## Changelog
 
@@ -95,10 +95,11 @@ Commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/
 ## Pull requests and releases
 
 - Work on a branch named `<type>/<short-topic>` (`fix/orca-chat-view`), and open a pull request
-  whose title is the commit summary. The template asks for the summary, the changes, how it was
-  verified and the user-facing impact.
-- Pull requests are squash-merged, so the commit on `main` is the pull request's title and
-  description.
-- A release adds its section to the three changelogs, then `node scripts/release.mjs X.Y.Z`
-  commits, tags `vX.Y.Z` and creates the GitHub release named `vX.Y.Z`, with the changelog section
-  and a link to the full diff as its notes.
+  whose title is written like a commit summary. The template asks for the summary, the changes,
+  how it was verified and the user-facing impact.
+- Pull requests are merged with **Rebase and merge**, so every commit on `main` keeps its own
+  Conventional Commits message: keep each commit to one logical change before asking for review.
+- A release bumps the version, adds its section to the three changelogs, then
+  `node scripts/release.mjs X.Y.Z` makes one commit `chore(release): vX.Y.Z`, tags `vX.Y.Z` and
+  creates the GitHub release named `vX.Y.Z`, with the changelog section and a link to the full
+  diff as its notes.

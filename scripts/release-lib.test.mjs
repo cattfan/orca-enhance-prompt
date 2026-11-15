@@ -2,7 +2,7 @@
 // and the GitHub release notes.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { commitSubject, latestTag, nextVersions, releaseNotes, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { commitSubject, latestTag, nextVersions, releaseNotes, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 test('versions count like an odometer and must follow the last tag', () => {
   assert.deepEqual(nextVersions('2.0.1'), { patch: '2.0.2', minor: '2.1.0', major: '3.0.0' })
@@ -20,21 +20,13 @@ test('versions count like an odometer and must follow the last tag', () => {
   assert.equal(latestTag([]), null)
 })
 
-test('only orca-plugin.json and CHANGELOG.md may be changed when releasing', () => {
-  assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n M CHANGELOG.md\n M src/version.ts\n'), [])
-  assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n?? src/zz-perf.test.ts\nR  a.ts -> b.ts\n'), ['src/zz-perf.test.ts', 'b.ts'])
-})
-
-test('a panel build that changes src/web-dist means the committed panel was stale', () => {
-  // Building again changed nothing: the committed panel is what the sources build.
-  assert.deepEqual(staleBuild(''), [])
-  assert.deepEqual(staleBuild('\n'), [])
-  // A shared file changed after the last build: these are the files the release must not ship as they were.
-  assert.deepEqual(staleBuild(' M src/web-dist/assets/app.js\n M src/web-dist/assets/index.css\n?? src/web-dist/assets/new-chunk.js\n'), [
-    'src/web-dist/assets/app.js',
-    'src/web-dist/assets/index.css',
-    'src/web-dist/assets/new-chunk.js'
-  ])
+test('a release commits only the version, the three changelogs and the panel it builds', () => {
+  const edited = ' M orca-plugin.json\n M src/version.ts\n M CHANGELOG.md\n M docs/changelog/CHANGELOG.vi.md\n M docs/changelog/CHANGELOG.zh-CN.md\n'
+  assert.deepEqual(unexpectedChanges(edited), [])
+  // The release builds the panel itself, so a panel already rebuilt is no obstacle.
+  assert.deepEqual(unexpectedChanges(`${edited} M src/web-dist/assets/app.js\n?? src/web-dist/assets/new-chunk.js\n`), [])
+  // Anything else would ride along unreviewed: a scratch test, a source change, a rename.
+  assert.deepEqual(unexpectedChanges(' M orca-plugin.json\n?? src/zz-perf.test.ts\n M src/worker.ts\nR  a.ts -> b.ts\n'), ['src/zz-perf.test.ts', 'src/worker.ts', 'b.ts'])
 })
 
 test('the release commit is chore(release) in Conventional Commits form', () => {
