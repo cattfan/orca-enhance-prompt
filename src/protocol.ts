@@ -117,6 +117,9 @@ declare module 'orca' {
       output: {
         /** `title` and `state` (an agent's: working, blocked, waiting, done) are what `label` is made of, for the panel's language. */
         targets: { terminalId: string; label: string; agent: string | null; title?: string; state?: string }[]
+        /** Agents Orca runs in its chat view, which has no terminal: Orca gives a plugin no way to type
+         *  into it (host API 1.9), so the panel offers to copy the prompt instead. */
+        chats?: { agent: string | null; state: string }[]
         workspace?: string | null
         project?: string | null
         workspaceId?: string | null

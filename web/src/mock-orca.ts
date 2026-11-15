@@ -139,6 +139,8 @@ const SAMPLE_CONTEXT = [
 let fallbackDemo = false
 /** `?blocked=1`: the first agent is waiting for an answer, so Send asks before it types. */
 let blockedDemo = false
+/** `?chat=1`: the agent runs in Orca's chat view, with no terminal: Send becomes Copy. */
+let chatDemo = false
 /** `?hook=rewritten|appended|skipped`: what auto-enhance last did, for the line in the Settings section. */
 let hookDemo: string | null = null
 /** `?nokeys=1`: a machine without an OS key store. */
@@ -209,11 +211,14 @@ const handlers: Record<string, (input: Record<string, unknown>, signal?: AbortSi
   'models.test': () => ({ ok: true, ms: 840, message: 'OK' }),
   // An agent's terminal reads "<its title> · <its state>", any other terminal by its title.
   'targets.list': () => ({
-    targets: [
-      { terminalId: 't1', label: `Claude Code · ${blockedDemo ? 'blocked' : 'waiting'}`, agent: 'claude', title: 'Claude Code', state: blockedDemo ? 'blocked' : 'waiting' },
-      { terminalId: 't2', label: 'Codex · working', agent: 'codex', title: 'Codex', state: 'working' },
-      { terminalId: 't3', label: 'pnpm dev', agent: null }
-    ],
+    targets: chatDemo
+      ? []
+      : [
+          { terminalId: 't1', label: `Claude Code · ${blockedDemo ? 'blocked' : 'waiting'}`, agent: 'claude', title: 'Claude Code', state: blockedDemo ? 'blocked' : 'waiting' },
+          { terminalId: 't2', label: 'Codex · working', agent: 'codex', title: 'Codex', state: 'working' },
+          { terminalId: 't3', label: 'pnpm dev', agent: null }
+        ],
+    chats: chatDemo ? [{ agent: 'claude', state: 'waiting' }] : [],
     workspace: CHECKOUT,
     project: PROJECT,
     workspaceId: 'identity:wt2:local:mock',
@@ -345,6 +350,7 @@ export async function installMockOrca(): Promise<void> {
   for (const key of (query.get('consent') ?? '').split(',').filter(Boolean)) granted.add(key)
   fallbackDemo = query.get('fallback') === '1'
   blockedDemo = query.get('blocked') === '1'
+  chatDemo = query.get('chat') === '1'
   hookDemo = query.get('hook')
   noKeyStore = query.get('nokeys') === '1'
   // ?nomodels=1: a first run, before any model is set (the Enhance tab then offers the CLI it found).

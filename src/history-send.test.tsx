@@ -4,7 +4,7 @@
 import { read, set } from 'orca'
 import { assert, mockHost, test } from 'orca/testing'
 import { changeUiLanguage, enhanceNow, enhanceOrSend, refreshTargets, removeEntry, reuse, runNoticeAction, send } from './panel/actions.ts'
-import { busy, contextShown, draft, filteredHistory, history, historyByProject, historyOpen, historyScope, lastRun, notice, put, result, resultFor, tab, targets } from './panel/state.ts'
+import { busy, chatOnly, chats, contextShown, draft, filteredHistory, history, historyByProject, historyOpen, historyScope, lastRun, notice, put, result, resultFor, tab, targets } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
 import { targetLabel } from './panel/view.ts'
 import { msg, withMessage } from './messages.ts'
@@ -59,6 +59,46 @@ test('Ctrl+Enter sends the result while it is the one for what the composer hold
   assert.equal(runs, 2)
   assert.equal(sent.length, 1)
   assert.equal(read(resultFor), 'fix the signup page')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test("with only Orca's chat, Send and Ctrl+Enter copy the prompt and say where to paste it", async () => {
+  const copied: string[] = []
+  const typed: string[] = []
+  const host = mockHost({
+    requests: {
+      'models.get': models,
+      'targets.list': { targets: [], chats: [{ agent: 'claude', state: 'working' }], workspace: 'main', project: 'Shop', workspaceId: 'w1' },
+      'prompt.enhance': (input) => answer(`Better: ${input.prompt}`),
+      'prompt.copy': (input) => {
+        copied.push(input.text)
+        return { copied: true }
+      },
+      'prompt.send': (input) => {
+        typed.push(input.text)
+        return { accepted: true }
+      }
+    }
+  })
+  const view = await mountPanel(host)
+  assert.equal(chatOnly(), true)
+  put(draft, 'fix the login page')
+  // No result yet: Ctrl+Enter enhances, then copies the result that is for what the composer holds.
+  await enhanceOrSend()
+  assert.deepEqual(copied, [])
+  await enhanceOrSend()
+  assert.deepEqual(copied, ['Better: fix the login page'])
+  assert.deepEqual(read(notice), { tone: 'success', text: "Copied: paste it into Orca's chat." })
+  // The button does the same with what the box holds, edits included.
+  await send('Better, edited')
+  assert.deepEqual(copied, ['Better: fix the login page', 'Better, edited'])
+  // No chat and no terminal: nothing to send to, and nothing is copied unasked.
+  set(chats, [])
+  assert.equal(chatOnly(), false)
+  await send('Better, edited')
+  assert.equal(copied.length, 2)
+  assert.deepEqual(typed, [])
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

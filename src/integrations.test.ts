@@ -225,6 +225,35 @@ test('an agent that is waiting for an answer is not typed into unasked, and neve
   await worker.deactivate()
 })
 
+test("an agent in Orca's chat view is listed apart: it has no terminal to type into", async () => {
+  // As Orca 1.4.259 answers for its chat view: the agent, its state and session, and no terminal.
+  const chat = { terminalId: null, title: null, agent: 'claude', state: 'working' as const, stateStartedAt: 0, sessionId: 's1' }
+  const chatHost = mockHost({
+    results: {
+      'workspace.readContext': { workspaceId: 'w1', branch: 'main', displayName: 'demo', terminals: [] },
+      'agents.list': { agents: [chat] }
+    }
+  })
+  const worker = await mountWorker(main, { host: chatHost })
+  const listed = await worker.request('targets.list', {})
+  assert.deepEqual(listed.targets, [])
+  assert.deepEqual(listed.chats, [{ agent: 'claude', state: 'working' }])
+  await worker.deactivate()
+
+  // Beside a terminal agent: the terminal is a target, the chat is not.
+  const both = mockHost({
+    results: {
+      'workspace.readContext': { workspaceId: 'w1', branch: 'main', displayName: 'demo', terminals: [{ id: 't1', title: 'Codex' }] },
+      'agents.list': { agents: [chat, { terminalId: 't1', title: 'Codex', agent: 'codex', state: 'waiting', stateStartedAt: 0 }] }
+    }
+  })
+  const second = await mountWorker(main, { host: both })
+  const mixed = await second.request('targets.list', {})
+  assert.deepEqual(mixed.targets.map((item) => item.terminalId), ['t1'])
+  assert.deepEqual(mixed.chats, [{ agent: 'claude', state: 'working' }])
+  await second.deactivate()
+})
+
 test('a prompt the panel started an agent with goes through auto-enhance as it is, and its terminal is known at once', async () => {
   const launchHost = mockHost({
     settings: { allowAgentLaunch: true, autoEnhanceMode: 'rules', autoEnhanceAppend: 'Run the tests before you finish.' },

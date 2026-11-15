@@ -23,6 +23,7 @@ import { t } from '../../src/i18n.ts'
 import { totalPercent, stepPercent } from '../../src/progress.ts'
 import {
   busy,
+  chatOnly,
   contextNotes,
   contextShown,
   draft,
@@ -514,27 +515,38 @@ function ResultCard({ output }: { output: string }) {
           })}
         </p>
       ) : null}
-      <div className="flex items-center gap-1.5">
-        <TargetPicker />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <label className="text-muted-foreground hover:text-foreground flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-md px-1 text-xs">
-              <Switch size="sm" checked={read(effectiveEnter)} onCheckedChange={(value) => set(pressEnter, value)} aria-label={t('Press Enter after sending')} />
-              Enter
-            </label>
-          </TooltipTrigger>
-          <TooltipContent>{t('Press Enter after sending')}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="sm" onClick={() => void send(output)} disabled={!read(target) || working !== null}>
-              <SendIcon />
-              {t('Send')}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t('Send to the terminal (Ctrl+Enter)')}</TooltipContent>
-        </Tooltip>
-      </div>
+      {chatOnly() ? (
+        // Only Orca's chat here: it takes no text from a plugin, so Send becomes Copy (Ctrl+Enter too).
+        <div className="flex items-center gap-1.5">
+          <p className="text-muted-foreground min-w-0 flex-1 text-xs">{t('Orca does not let plugins type into its chat.')}</p>
+          <Button size="sm" onClick={() => void send(output)} disabled={working !== null}>
+            <CopyIcon />
+            {t('Copy')}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <TargetPicker />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <label className="text-muted-foreground hover:text-foreground flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-md px-1 text-xs">
+                <Switch size="sm" checked={read(effectiveEnter)} onCheckedChange={(value) => set(pressEnter, value)} aria-label={t('Press Enter after sending')} />
+                Enter
+              </label>
+            </TooltipTrigger>
+            <TooltipContent>{t('Press Enter after sending')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" onClick={() => void send(output)} disabled={!read(target) || working !== null}>
+                <SendIcon />
+                {t('Send')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('Send to the terminal (Ctrl+Enter)')}</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
       {allowed('allowAgentLaunch') ? <NewAgent output={output} /> : null}
     </div>
   )

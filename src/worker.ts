@@ -812,10 +812,13 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('targets.list', async (input) => {
     const targets: { terminalId: string; label: string; agent: string | null; title?: string; state?: string }[] = []
+    const chats: { agent: string | null; state: string }[] = []
     const seen = new Set<string>()
     const agents = await orca.host.call('agents.list', {}).catch(() => null)
     for (const agent of agents?.agents ?? []) {
-      if (agent.terminalId && !seen.has(agent.terminalId)) {
+      // No terminal: an agent of Orca's chat view, which takes no text from a plugin.
+      if (!agent.terminalId) chats.push({ agent: agent.agent, state: agent.state })
+      else if (!seen.has(agent.terminalId)) {
         seen.add(agent.terminalId)
         const title = agent.title ?? agent.agent ?? 'Agent'
         targets.push({ terminalId: agent.terminalId, label: `${title} · ${agent.state}`, agent: agent.agent, title, state: agent.state })
@@ -838,6 +841,7 @@ function registerRunHandlers(orca: OrcaWorkerApi): void {
     const choices = context && !workspace ? await focusedCandidates(orca, context) : []
     return {
       targets,
+      chats,
       workspace: context?.displayName ?? null,
       // The name this project's rules are kept under; null while Orca cannot tell which project it is.
       project: context ? await projectNameOf(orca, context, workspace) : null,
