@@ -5,7 +5,12 @@ import { atom, env, read } from 'orca'
 import { ES, resolveLanguage, translate, VI, ZH, type UiLanguage } from './i18n-dict.ts'
 
 export { resolveLanguage, translate, type UiLanguage }
-export const UI_LANGUAGES = ['auto', 'en', 'es', 'vi', 'zh'] as const
+/**
+ * The picker's choices: the values of the `uiLanguage` setting, since Orca saves no value its enum
+ * does not list. Spanish comes with Auto, when Orca runs in Spanish; it joins the picker when the
+ * setting lists it, a changed setting being one every user must approve again (AGENTS.md).
+ */
+export const UI_LANGUAGES = ['auto', 'en', 'vi', 'zh'] as const
 
 /** The `uiLanguage` setting: 'auto' follows Orca's own language. */
 export const uiLanguageSetting = atom<string>('uiLanguage', 'auto')

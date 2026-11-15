@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { read } from 'orca'
 import { assert, mockHost, test } from 'orca/testing'
-import { currentLanguage, dictionaries, resolveLanguage, t, translate } from './i18n.ts'
+import { currentLanguage, dictionaries, resolveLanguage, t, translate, UI_LANGUAGES } from './i18n.ts'
 import { changeUiLanguage, enhanceNow, previewContext } from './panel/actions.ts'
 import { contextNotes, contextShown, draft, put, run, say } from './panel/state.ts'
 import { mountPanel } from './panel/testing.ts'
@@ -49,7 +49,7 @@ function uiStrings(): Set<string> {
   return keys
 }
 
-test('every UI string has a Vietnamese and a Chinese translation', () => {
+test('every UI string has a translation in every language (Vietnamese, Chinese, Spanish)', () => {
   const keys = uiStrings()
   for (const [lang, dict] of Object.entries(dictionaries)) {
     const missing = [...keys].filter((key) => !(key in dict))
@@ -82,9 +82,20 @@ test('placeholders survive translation; auto follows the Orca locale', () => {
   }
   assert.equal(resolveLanguage('auto', 'vi-VN'), 'vi')
   assert.equal(resolveLanguage('auto', 'zh-CN'), 'zh')
+  // Spanish comes with Auto when Orca runs in Spanish (Orca has an es locale).
+  assert.equal(resolveLanguage('auto', 'es-ES'), 'es')
+  assert.equal(translate('es', 'Send'), 'Enviar')
   assert.equal(resolveLanguage('auto', 'fr'), 'en')
   assert.equal(resolveLanguage('zh', 'vi'), 'zh')
   assert.ok(PRESETS.length > 10)
+})
+
+test('the language menu offers only values the uiLanguage setting can save', () => {
+  // Orca refuses a setting value its enum does not list (settings.set fails), so a choice the
+  // enum lacks would switch the panel until the next reload and never reach the worker.
+  const manifest = JSON.parse(readFileSync(new URL('../orca-plugin.json', import.meta.url), 'utf8')) as { contributes: { settings: { key: string; enum?: string[] }[] } }
+  const allowed = manifest.contributes.settings.find((setting) => setting.key === 'uiLanguage')?.enum ?? []
+  assert.deepEqual(UI_LANGUAGES.filter((value) => !allowed.includes(value)), [])
 })
 
 test('the panel speaks Vietnamese from the uiLanguage setting, and the language menu switches it at once', async () => {
