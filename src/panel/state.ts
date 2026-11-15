@@ -200,6 +200,10 @@ export function restoreSaved(): void {
   for (const [now, saved] of KEPT) set(now, read(saved))
 }
 export const targets = atom<Target[]>([])
+/** Agents of Orca's chat view in the focused workspace: no terminal, so nothing can be typed into them. */
+export const chats = atom<{ agent: string | null; state: string }[]>([])
+/** Only Orca's chat to send to, no terminal: Send copies the prompt for the person to paste there. */
+export const chatOnly = () => read(targets).length === 0 && read(chats).length > 0
 /** The draft the shown result was made from: while the composer still holds it, Ctrl+Enter sends the result. */
 export const resultFor = atom<string | null>(null)
 /**

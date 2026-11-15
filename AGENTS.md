@@ -44,6 +44,11 @@ The test suite usually finishes in seconds, but some tests start real processes 
   only from the notice's button, and then Enter is never pressed. A result is sent only by a press
   or a key of the person who has it in front of them (`enhanceOrSend`: Ctrl+Enter sends only the
   result made from the text the composer still holds).
+- **Orca's chat view has no terminal**: `agents.list` gives its agent with `terminalId: null` (its
+  pane is `structured-agent-session-…`), and host API 1.9 has no call that types into it. So
+  `targets.list` lists such agents under `chats`, never as targets; with only a chat in the
+  workspace (`chatOnly`), Send and Ctrl+Enter copy the prompt for the person to paste, and the
+  one-step send holds back.
 - **A prompt nobody has read goes out only when nothing is in doubt.** "Send right after
   enhancing" (`enhanceAndSend` in `src/panel/actions.ts`) is off until the person turns it on from
   its dialog, and it needs "Send to terminals". The terminal and the project are fixed when the run
@@ -173,7 +178,8 @@ redrawn on every save, with no worker, model or network. The address sets what t
 `?lang=vi&theme=dark&width=360` (language, theme, a sidebar's width), `?tab=models` (a section),
 `?demo=<prompt>` (types the prompt and runs it: the run card plays its steps; `&run=0` only types it),
 `?options=1`, `?attach=1`, `?fallback=1` (the first model fails, the next one answers),
-`?blocked=1` (the first agent waits for an answer), `?nomodels=1` (a first run), `?nokeys=1` (no
+`?blocked=1` (the first agent waits for an answer), `?chat=1` (the agent runs in Orca's chat view,
+which has no terminal: Send becomes Copy), `?nomodels=1` (a first run), `?nokeys=1` (no
 key store), `?hook=rewritten|appended|skipped` (what auto-enhance did last), `?entry=h1` (a history
 entry read in place), `?toast=undo` (a notice with its button), `?onestep=1` ("Send right after enhancing" is on;
 `run` also sends the demo prompt through it, `0` turns it off again), `?details=allowGit` (a switch's

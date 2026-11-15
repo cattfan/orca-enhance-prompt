@@ -23,7 +23,7 @@ const agent = (state: string, terminalId = 't1'): Target => ({ terminalId, label
 async function panel(options: { settings?: Record<string, boolean>; fail?: boolean } = {}) {
   const sent: { terminalId: string; text: string }[] = []
   const world = {
-    place: { targets: [agent('waiting')], workspace: 'main', project: 'Shop', workspaceId: 'w1' } as { targets: Target[]; workspace: string | null; project: string | null; workspaceId?: string },
+    place: { targets: [agent('waiting')], workspace: 'main', project: 'Shop', workspaceId: 'w1' } as { targets: Target[]; chats?: { agent: string | null; state: string }[]; workspace: string | null; project: string | null; workspaceId?: string },
     during: () => undefined as void,
     /** Runs each time the panel reads the terminals. */
     listed: () => undefined as void,
@@ -276,6 +276,22 @@ test('the one-step send goes to an idle agent Orca lists without its kind, and n
   await enhanceAndSend()
   assert.equal(sent.length, 1)
   assert.match(read(notice)?.text ?? '', /pwsh is a plain terminal, not an agent/)
+  assert.deepEqual(view.errors, [])
+  set(sendAfterEnhance, false)
+  await view.unmount()
+})
+
+test("the one-step send holds back where only Orca's chat runs, and says why", async () => {
+  const { view, sent, world } = await panel()
+  setSendAfterEnhance(true)
+  const { refreshTargets } = await import('./panel/actions.ts')
+  // The chat view has no terminal: an idle agent there still cannot be typed into.
+  world.place = { ...world.place, targets: [], chats: [{ agent: 'claude', state: 'waiting' }] }
+  await refreshTargets()
+  await enhanceAndSend()
+  assert.deepEqual(sent, [])
+  assert.equal(read(notice)?.text, 'Not sent by itself. Orca does not let plugins type into its chat. Read the prompt and send it yourself.')
+  assert.equal(read(result), 'Better: fix the login page')
   assert.deepEqual(view.errors, [])
   set(sendAfterEnhance, false)
   await view.unmount()

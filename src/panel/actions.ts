@@ -13,7 +13,7 @@ import { NEEDS_CONSENT, parseOtherAgentsLimits, parsePrivacy } from '../privacy.
 import { stepPercent, totalPercent, type Step } from '../progress.ts'
 import { PANEL_REQUEST_LIMIT_MS, type ProfileInput } from '../protocol.ts'
 import { pathInWorkspaceId, pathKey } from '../workspaces.ts'
-import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, sendAfterEnhance, filteredHistory, type NoticeAction } from './state.ts'
+import { consents, feedbackAsk, feedbackOff, feedbackShown, files, ruleDraft, ruleScope, structureDraft, type Form, terminalWorkspaces, workspaceChoices, tick, workspaceKey, projectName, parked, MAX_PARKED, type Slot, rulesState, structureChoice, workspaceName, tab, draft, result, style, profileChoice, modelChoice, outputChoice, excluded, target, historyRaw, confirmClearHistory, form, detected, catalogs, catalogLoading, customModel, type Run, run, dataSummary, privacy, confirmWipe, busy, notice, lastRun, contextShown, contextNotes, KEPT, mayKeep, put, forgetSaved, targets, chats, chatOnly, models, defaults, effectiveStyle, effectiveLevel, effectiveEnter, say, message, errorMessage, historyOpen, hookLast, resultFor, sendAfterEnhance, filteredHistory, type NoticeAction } from './state.ts'
 
 let inFlight: AbortController | null = null
 /** The enhance-and-send in flight (enhanceAndSend), so that Cancel and a closing panel stop its send too. */
@@ -220,7 +220,7 @@ export function formCatalogInput(current: Form) {
 
 export async function refreshTargets(): Promise<void> {
   try {
-    const { targets: list, workspace, project, workspaceId, workspacePath, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
+    const { targets: list, chats: chatList, workspace, project, workspaceId, workspacePath, choices } = await plugin.request('targets.list', { known: read(terminalWorkspaces) })
     set(workspaceChoices, choices ?? [])
     // Once known, the workspace of these terminals stays known (the next lookup needs no guess).
     if (workspaceId) learnTerminals(list.map((item) => item.terminalId), workspaceId)
@@ -234,12 +234,14 @@ export async function refreshTargets(): Promise<void> {
     // After the switch: what was parked just now carries the name of the project it was written in.
     set(projectName, project ?? null)
     set(targets, list)
+    set(chats, chatList ?? [])
     const current = read(target)
     if (!current || !list.some((item) => item.terminalId === current)) {
       set(target, list.find((item) => item.agent)?.terminalId ?? list[0]?.terminalId ?? null)
     }
   } catch {
     set(targets, [])
+    set(chats, [])
   }
 }
 
@@ -425,7 +427,9 @@ export function toggleItem(id: string, include: boolean): void {
 
 export async function send(text: string): Promise<void> {
   const terminalId = read(target)
-  if (!terminalId || !text.trim()) return
+  if (!text.trim()) return
+  // Orca's chat view takes no text from a plugin: the prompt is copied, for the person to paste.
+  if (!terminalId) return chatOnly() ? copy(text, t("Copied: paste it into Orca's chat.")) : undefined
   await sendTo(terminalId, text, false)
 }
 
@@ -470,7 +474,7 @@ async function typeInto(terminalId: string, text: string, force: boolean): Promi
 export async function enhanceOrSend(): Promise<void> {
   const output = read(result)
   const current = output.trim() !== '' && read(resultFor) !== null && read(resultFor) === read(draft).trim()
-  if (current && read(target) && read(busy) === null) return send(output)
+  if (current && (read(target) || chatOnly()) && read(busy) === null) return send(output)
   return enhanceAndSend()
 }
 
@@ -485,6 +489,7 @@ const IDLE_STATES = new Set(['waiting', 'done'])
  * when every condition holds. `start` is what was fixed when the run began.
  */
 function heldBack(start: { terminalId: string | null; key: string | null }, done: Enhanced): string | null {
+  if (!start.terminalId && chatOnly()) return t('Orca does not let plugins type into its chat.')
   const key = read(workspaceKey)
   // Orca tells several same-named projects apart only by their terminals; while it could not (when
   // the run began, or now), this could be a terminal of another project.
@@ -570,10 +575,11 @@ export async function runNoticeAction(action: NoticeAction): Promise<void> {
   }
 }
 
-export async function copy(text: string): Promise<void> {
+/** `done`: what the notice says once it is copied. */
+export async function copy(text: string, done = t('Copied to clipboard.')): Promise<void> {
   if (!text.trim()) return
   const answer = await plugin.request('prompt.copy', { text }).catch((error) => ({ copied: false, error: message(error) }))
-  set(notice, answer.copied ? { tone: 'success', text: t('Copied to clipboard.') } : { tone: 'danger', text: t('Copy failed: {error}', { error: answer.error ?? 'unknown error' }) })
+  set(notice, answer.copied ? { tone: 'success', text: done } : { tone: 'danger', text: t('Copy failed: {error}', { error: answer.error ?? 'unknown error' }) })
 }
 
 /**
