@@ -26,7 +26,7 @@ export const AUTO_MODE_HINTS: Record<string, string> = {
   ai: 'A fast API model rewrites each prompt Orca sends to an agent (a new agent with a task, the task board, orchestration). Orca waits at most 2 s, then sends the original.'
 }
 
-export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', vi: 'VI', zh: '中文' }
+export const UI_LANGUAGE_LABELS: Record<string, string> = { auto: 'Auto', en: 'EN', es: 'ES', vi: 'VI', zh: '中文' }
 export const OUTPUT_LANGUAGE_LABELS: Record<string, string> = {
   auto: 'Output: same as prompt',
   en: 'Output: English',

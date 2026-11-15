@@ -41,7 +41,7 @@ const APPROVED: Record<string, Record<string, string>> = {
   hooks: { 'agent.prompt.before': '9ae9367d7cbc', 'agent.tool.after': '72ad837d1088', 'editor.save.before': 'b5340a7b03fa' },
   events: { 'workspace.changed': '5630f913aa4e', 'agent.status.changed': '19cd2cd9f0f0' },
   settings: {
-    uiLanguage: '95634734562c', statusBarItem: '571cdb383aa2', defaultStyle: '4369b1374e9f', outputLanguage: 'e81656cb1a85',
+    uiLanguage: 'e295e4ea7487', statusBarItem: '571cdb383aa2', defaultStyle: '4369b1374e9f', outputLanguage: 'e81656cb1a85',
     customInstructions: 'fbb1f8727c66', contextLevel: 'f5a62b67c4d1', terminalLines: '477455e916de', extraContextFiles: '204c6516c5de',
     excludePatterns: '50a17aeb0ced', adaptToAgent: '6389029954f7', fallbackEnabled: '8eaaa9e05243', fallbackOn: '2febe871960d',
     timeoutSeconds: 'ae1cdf5f21ed', sendMode: 'd15bf2d2281a', sendPressEnter: '6d1a43715235', historyLimit: '57be090e4de9',
