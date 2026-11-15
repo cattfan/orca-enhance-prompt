@@ -45,13 +45,21 @@ export function isStyle(value: unknown): value is Style {
 /** Letters only Vietnamese writes, and accented letters it shares with French or Portuguese. */
 const VIETNAMESE_ONLY = /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịĩọỏốồổỗộớờởỡợụủũứừửữựỳỵỷỹ]/i
 const ACCENTED = /[àáâãèéêìíòóôõùúý]/i
+/**
+ * English words that carry a sentence and are no word of Vietnamese (so not "in", "do", "to", "an",
+ * "so", "can"). A request written in English with a label of another language in it ("rename the tab
+ * Lịch sử to Nhật ký") has a good share of them (13% and more); the Vietnamese requests of a real
+ * history had 0.8% at most, from English text pasted into them.
+ */
+const ENGLISH_GLUE = /^(?:the|of|and|or|is|are|was|were|this|that|these|those|it|its|for|with|from|into|on|at|by|as|if|then|when|why|how|what|which|should|would|could|not|but|please|my|your|we|you)$/i
 
 /**
  * The language a request is plainly written in, as a key of `LANGUAGE_NAMES`, or null when its
  * letters do not say (English and the other Latin-script languages look alike). A model told to
  * answer "in the language of the request" sometimes answers in the language of the project context
  * around it instead; naming the language leaves it no doubt. Code, quoted text and a word or two of
- * another language (a button's label) do not count.
+ * another language (a button's label) do not count, and a request whose sentence is English is left
+ * to the model: naming a wrong language would be worse than naming none.
  */
 export function detectLanguage(text: string): string | null {
   const prose = text
@@ -64,6 +72,7 @@ export function detectLanguage(text: string): string | null {
   const words = prose.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|[\p{L}\p{M}]+/gu) ?? []
   if (words.length === 0) return null
   const share = (pattern: RegExp) => words.filter((word) => pattern.test(word)).length / words.length
+  if (share(ENGLISH_GLUE) >= 0.1) return null
   if (share(/[\p{Script=Hiragana}\p{Script=Katakana}]/u) > 0 && share(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u) >= 0.3) return 'ja'
   if (share(/\p{Script=Han}/u) >= 0.3) return 'zh'
   if (share(/\p{Script=Hangul}/u) >= 0.3) return 'ko'

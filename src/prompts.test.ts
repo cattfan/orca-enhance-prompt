@@ -39,6 +39,12 @@ test('Auto names the request\'s language when its letters show it', async () => 
   assert.equal(detectLanguage('rename the Save button to "Lưu lại" in the vi translation'), null)
   assert.equal(detectLanguage('rename the Save button to Lưu lại in the vi translation'), null)
   assert.equal(detectLanguage("don't rename 'Lưu lại', it's fine"), null)
+  // Neither does a longer one in an English sentence, of any script; a pasted English error in a
+  // Vietnamese request leaves it Vietnamese.
+  assert.equal(detectLanguage('rename the tab Lịch sử to Nhật ký'), null)
+  assert.equal(detectLanguage('rename the button to 保存设置'), null)
+  assert.equal(detectLanguage('Nguyễn Văn An reported that the panel freezes'), null)
+  assert.equal(detectLanguage('sửa lỗi Cannot read properties of undefined khi mở tab Lịch sử'), 'vi')
   assert.equal(detectLanguage('fix this:\n```\nconst tiêuĐề = "Lưu"\n```'), null)
   assert.equal(detectLanguage(''), null)
 
