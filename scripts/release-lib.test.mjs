@@ -1,7 +1,8 @@
-// The release rules: odometer versions, only release files committed, whole-sentence subjects.
+// The release rules: odometer versions, only release files committed, the chore(release) commit
+// and the GitHub release notes.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { commitSubject, latestTag, nextVersions, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { commitSubject, latestTag, nextVersions, releaseNotes, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 test('versions count like an odometer and must follow the last tag', () => {
   assert.deepEqual(nextVersions('2.0.1'), { patch: '2.0.2', minor: '2.1.0', major: '3.0.0' })
@@ -36,10 +37,17 @@ test('a panel build that changes src/web-dist means the committed panel was stal
   ])
 })
 
-test('the commit subject is a whole first sentence, never cut', () => {
-  const section = '\n### Fixed\n\n- The panel opens faster. Claude Code\'s model list is read straight from its program file bytes and remembered until that file changes.\n- Other.\n'
-  assert.equal(commitSubject('v2.0.1', section), 'v2.0.1: The panel opens faster.')
-  const long = '- **Git diff** in the context leaves out secret files, both sides of a rename, and the person\'s exclude patterns, also at the Max level'
-  assert.equal(commitSubject('v2.0.2', long), "v2.0.2: Git diff in the context leaves out secret files, both sides of a rename, and the person's exclude patterns, also at the Max level")
-  assert.equal(commitSubject('v1.0.0', 'no bullets'), 'v1.0.0')
+test('the release commit is chore(release) in Conventional Commits form', () => {
+  assert.equal(commitSubject('v2.8.1'), 'chore(release): v2.8.1')
+  assert.match(commitSubject('v13.9.9'), /^chore\(release\): v\d+\.\d+\.\d+$/)
+})
+
+test('the GitHub release notes are the changelog section and a link to the full diff', () => {
+  const section = '\n### Fixed\n\n- The panel opens faster.\n'
+  assert.equal(
+    releaseNotes(section, 'v2.8.1', 'v2.8.0'),
+    '### Fixed\n\n- The panel opens faster.\n\n**Full changelog**: https://github.com/cattfan/orca-enhance-prompt/compare/v2.8.0...v2.8.1\n'
+  )
+  // The first release has nothing to compare with.
+  assert.equal(releaseNotes(section, 'v1.0.0', null), '### Fixed\n\n- The panel opens faster.\n')
 })

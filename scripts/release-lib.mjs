@@ -73,13 +73,18 @@ export function staleBuild(porcelain) {
 }
 
 /**
- * The commit subject: "vX.Y.Z: " and the first sentence of the section's first bullet, whole (it is
- * never cut mid-sentence; the full notes go in the commit body).
+ * The release commit's subject, in Conventional Commits form (CONTRIBUTING.md); the changelog
+ * section goes in the body.
  */
-export function commitSubject(tag, section) {
-  const bullet = section.split('\n').find((line) => line.startsWith('- '))
-  if (!bullet) return tag
-  const text = bullet.replace(/^- /, '').replace(/\*\*/g, '').replace(/`/g, '').trim()
-  const sentence = /^(.+?[.!?])(\s|$)/.exec(text)?.[1] ?? text
-  return `${tag}: ${sentence}`
+export function commitSubject(tag) {
+  return `chore(release): ${tag}`
+}
+
+/**
+ * The GitHub release notes: the changelog section, then the link to everything that changed since
+ * the previous tag (none for the first release).
+ */
+export function releaseNotes(section, tag, previous, repo = 'cattfan/orca-enhance-prompt') {
+  const notes = section.trim()
+  return previous ? `${notes}\n\n**Full changelog**: https://github.com/${repo}/compare/${previous}...${tag}\n` : `${notes}\n`
 }

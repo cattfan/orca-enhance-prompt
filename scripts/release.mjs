@@ -2,13 +2,14 @@
 // Before anything is committed it checks: on main, nothing changed but the release files
 // (orca-plugin.json, CHANGELOG.md, src/version.ts), the version follows the last tag (odometer
 // rule), those files name it, the committed panel (src/web-dist) is what the sources build, and
-// tsc, tests, check and validate pass. Then it commits the release files only, tags vX.Y.Z,
-// pushes, and creates the GitHub release with the changelog section as notes.
+// tsc, tests, check and validate pass. Then it commits the release files only
+// (chore(release): vX.Y.Z), tags vX.Y.Z, pushes, and creates the GitHub release with the changelog
+// section and a link to the full diff as notes.
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commitSubject, latestTag, RELEASE_FILES, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { commitSubject, latestTag, RELEASE_FILES, releaseNotes, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 const fail = (message) => {
   console.error(`release: ${message}`)
@@ -74,11 +75,11 @@ run('orca', ['plugin', 'validate', '.'])
 
 const notes = section[1].trim()
 run('git', ['add', '--', ...RELEASE_FILES])
-run('git', ['commit', '-m', commitSubject(tag, notes), '-m', notes])
+run('git', ['commit', '-m', commitSubject(tag), '-m', notes])
 run('git', ['tag', '-a', tag, '-m', tag])
 run('git', ['push', 'origin', 'main', tag])
 
 const notesFile = join(mkdtempSync(join(tmpdir(), 'release-')), 'notes.md')
-writeFileSync(notesFile, `${notes}\n`)
+writeFileSync(notesFile, releaseNotes(notes, tag, latest ? `v${latest}` : null))
 run('gh', ['release', 'create', tag, '--title', tag, '--notes-file', notesFile, '--verify-tag'])
 console.log(`Released ${tag}`)
