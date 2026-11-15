@@ -1,0 +1,52 @@
+name: Something is broken
+description: An error, a button that does nothing, a send that went wrong, something slow or confusing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time: broken or confusing things only get fixed when someone says so.
+
+        **This page is public.** Remove keys, tokens, private code and paths you would not publish. Write in any language you like (English, Tiếng Việt, 中文, Español). [Troubleshooting & FAQ](https://github.com/cattfan/orca-enhance-prompt/blob/main/docs/troubleshooting.md) has the common fixes.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and any message the panel showed. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. Open the panel
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Shown next to the name at the top of the panel.
+      placeholder: v2.8.0
+    validations:
+      required: true
+  - type: input
+    id: orca
+    attributes:
+      label: Orca version and system
+      placeholder: Orca 1.4.258, Windows 11
+  - type: input
+    id: model
+    attributes:
+      label: Model, if it matters
+      placeholder: Claude Code (sonnet), Codex, OpenAI gpt-5-mini, ...
+  - type: textarea
+    id: log
+    attributes:
+      label: Log, if you have it
+      description: "`orca plugin logs cattfan.enhance-prompt` in a terminal. Read it before pasting: remove anything private."
+      render: text

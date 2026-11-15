@@ -22,6 +22,8 @@
 
 <p align="center"><a href="https://orca.dev/plugins/cattfan.enhance-prompt?catalog=community"><img src="https://img.shields.io/badge/Open%20in%20Orca-community%20catalog-4493F8?style=for-the-badge" alt="Open in Orca" /></a></p>
 
+<p align="center"><sub>Something not right, or an idea? <a href="#feedback--contributing">Tell us</a>: every report shapes the next release.</sub></p>
+
 <p align="center">
   <img src="assets/cover.jpg" alt="The Enhance Prompt panel turning “login page is broken on mobile” into a structured bug-fix prompt that names the files and the test command" width="960" />
 </p>
@@ -88,9 +90,9 @@ Add OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM S
 <tr>
 <td width="50%" valign="middle">
 
-### English, Tiếng Việt, 中文
+### English, Tiếng Việt, 中文, Español
 
-The panel follows Orca's language or your pick. The enhanced prompt can be written in the language of your request, or in English, Vietnamese or Chinese, per prompt.
+The panel follows Orca's language or your pick (Español when Orca runs in Spanish). The enhanced prompt can be written in the language of your request, or in English, Vietnamese or Chinese, per prompt.
 
 [Docs →](docs/settings.md#language)
 
@@ -196,9 +198,15 @@ Then follow **[Your first enhanced prompt](docs/getting-started.md)**.
 
 ---
 
-## Community &amp; Support
+## Feedback &amp; contributing
 
-- **Bugs &amp; ideas:** [Open an issue](https://github.com/cattfan/orca-enhance-prompt/issues/new). Any feedback helps: something broken, confusing, slow, or a prompt that came out wrong. The panel links here too (gear icon → Feedback).
+The plugin collects nothing about how you use it, so what you tell us is how it gets better. Every report is read.
+
+- **A prompt came out wrong:** [report it](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=1-prompt-came-out-wrong.yml) with what you typed and what came out. These help the most.
+- **Something broken, slow or confusing:** [open a bug report](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=2-something-is-broken.yml).
+- **An idea or a wish**, small ones too: [share it](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=3-idea.yml).
+- **Translations:** the panel speaks English, Tiếng Việt, 中文 and Español (thanks to [@YuniorGlez](https://github.com/YuniorGlez)). Better wording or a new language: see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **In the panel:** gear icon → Feedback, or the button under What's new after each update.
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md) and [releases](https://github.com/cattfan/orca-enhance-prompt/releases).
 - **Privacy:** no tracking or analytics. See [Privacy &amp; permissions](docs/privacy.md).
 - **Show support:** [Star](https://github.com/cattfan/orca-enhance-prompt) this repo.

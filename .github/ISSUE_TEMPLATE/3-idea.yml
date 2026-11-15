@@ -1,0 +1,24 @@
+name: An idea or a wish
+description: Something the plugin could do, do better, or do with fewer steps.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome, small ones too: several features of this plugin started as someone's wish. Write in any language you like (English, Tiếng Việt, 中文, Español).
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: What you want to do, and how it goes today.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters to you
+      description: The situation where you missed it. This decides more than the solution does.
+  - type: textarea
+    id: how
+    attributes:
+      label: How it could work (optional)

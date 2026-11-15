@@ -1,0 +1,60 @@
+name: A prompt came out wrong
+description: The enhanced prompt missed what you meant, made something up, lost a detail, or came out too long. These reports improve the rewriter most.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you: a real prompt that came out wrong is the most useful report there is. Every one is read, and cases like it are how the rewriter's instructions get better.
+
+        **This page is public.** Remove keys, tokens, private code and anything about your project you would not publish. The plugin sends nothing by itself: what you paste here is all that is seen. Write in any language you like (English, Tiếng Việt, 中文, Español).
+  - type: textarea
+    id: request
+    attributes:
+      label: What you typed
+      description: Your request as you wrote it in the panel (or as Orca sent it, with auto-enhance).
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What came out
+      description: The enhanced prompt, or the part of it that is wrong.
+      render: markdown
+    validations:
+      required: true
+  - type: checkboxes
+    id: problems
+    attributes:
+      label: What was wrong
+      options:
+        - label: It named files, functions or commands that do not exist
+        - label: It lost a detail I gave (a name, a number, an error message, a reason)
+        - label: It added work I did not ask for
+        - label: A short reply ("continue", "yes, option 2") became a whole new task
+        - label: Wrong language, or headings in another language
+        - label: Too long or padded for what I asked
+        - label: Too vague, or it missed what I meant
+        - label: Something else (below)
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: A sentence is enough. A better version of the prompt is welcome too.
+  - type: input
+    id: options
+    attributes:
+      label: Style and options
+      description: Style, context level, output language and prompt structure, as the options under the text box show them.
+      placeholder: Detailed spec, Standard context, same language as my prompt, no structure
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: Claude Code (sonnet), Codex, OpenAI gpt-5-mini, ...
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Shown next to the name at the top of the panel.
+      placeholder: v2.8.0

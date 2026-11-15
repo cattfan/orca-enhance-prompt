@@ -19,8 +19,8 @@ The test suite usually finishes in seconds, but some tests start real processes 
 
 ## Rules that must keep holding
 
-- **Every UI string goes through `t('...')`** from `src/i18n.ts`, with its Vietnamese and Chinese
-  entries in the same change. `src/i18n.test.tsx` fails on a missing key, and on an entry nothing
+- **Every UI string goes through `t('...')`** from `src/i18n.ts`, with its Vietnamese, Chinese and
+  Spanish entries in the same change. `src/i18n.test.tsx` fails on a missing key, and on an entry nothing
   shows any more: it reads every `t('…')` in `src/panel/` and `web/src/`, and the tables of texts
   passed to `t()` by variable (a new table is added to its list). Worker messages the panel shows
   are translated there too, so keep their wording in step.
@@ -137,7 +137,10 @@ The test suite usually finishes in seconds, but some tests start real processes 
   manifest's own text shows only until the worker's first update), and a preference of the panel
   lives in the panel's state (a `persist: 'plugin'` atom), not in `contributes.settings`.
   `src/manifest.test.ts` holds a fingerprint of every entry; when one must change or the manifest
-  must grow, say in the changelog that Orca will ask (as 2.5.0 did).
+  must grow, say in the changelog that Orca will ask (as 2.5.0 did). Orca also saves no setting
+  value its enum does not list, so the language menu offers only the `uiLanguage` setting's values:
+  Spanish comes with Auto (Orca in Spanish) until a release that changes the manifest anyway adds
+  `es` to that setting and to `UI_LANGUAGES`.
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
   scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
   `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked.

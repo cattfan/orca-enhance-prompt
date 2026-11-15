@@ -20,6 +20,8 @@
 
 <h3 align="center"><a href="#安装"><ins>安装 Enhance Prompt</ins></a></h3>
 
+<p align="center"><sub>有不对劲的地方，或者有新想法？<a href="#反馈与问题">告诉我们</a>：每一条反馈都会影响下一个版本。</sub></p>
+
 <p align="center">
   <img src="../../assets/cover.jpg" alt="Enhance Prompt 面板把 “login page is broken on mobile” 改写成包含文件和测试命令的修复提示词" width="960" />
 </p>
@@ -86,9 +88,9 @@ OpenAI、Anthropic、OpenRouter、Gemini、Groq、DeepSeek、Mistral、Ollama、
 <tr>
 <td width="50%" valign="middle">
 
-### English、Tiếng Việt、中文
+### English、Tiếng Việt、中文、Español
 
-面板跟随 Orca 的语言或你的选择。优化结果可以与需求同语言，也可以按次选择英文、越南语或中文。
+面板跟随 Orca 的语言或你的选择（Orca 使用西班牙语时显示 Español）。优化结果可以与需求同语言，也可以按次选择英文、越南语或中文。
 
 [文档 →](../settings.md#language)
 
@@ -175,7 +177,13 @@ orca plugin update cattfan.enhance-prompt
 
 ## 反馈与问题
 
-遇到 bug、觉得哪里难用或慢，或者写出的提示词不对？请[在 GitHub 上提 issue](https://github.com/cattfan/orca-enhance-prompt/issues/new)，帮助插件修复和改进。面板里也有这个按钮（齿轮图标 → 反馈）。
+插件不收集任何使用数据，所以你告诉我们的内容就是它改进的方式。每一条反馈都会被阅读。
+
+- **提示词写得不对：**[反馈](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=1-prompt-came-out-wrong.yml)你输入的内容和得到的结果。这类反馈最有帮助。
+- **出错、太慢或难以理解：**[提交 bug](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=2-something-is-broken.yml)。
+- **想法或愿望**，小的也欢迎：[分享](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=3-idea.yml)。
+- **翻译：**面板支持英文、越南语、中文和西班牙语（感谢 [@YuniorGlez](https://github.com/YuniorGlez)）。改进措辞或添加语言：见 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
+- **在面板里：**齿轮图标 → 反馈，或每次更新后 What's new 下方的按钮。用中文写也可以。
 
 ---
 

@@ -1,0 +1,25 @@
+name: Translation or wording
+description: A text in the panel that reads wrong or unclear, in any language, or a language you would like to see.
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The panel speaks English, Tiếng Việt, 中文 and Español, the last one thanks to a contributor. Better wording and new languages are welcome; [CONTRIBUTING.md](https://github.com/cattfan/orca-enhance-prompt/blob/main/CONTRIBUTING.md) says how to add a language in a pull request.
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      placeholder: Español
+    validations:
+      required: true
+  - type: textarea
+    id: text
+    attributes:
+      label: The text as it is, and where you saw it
+    validations:
+      required: true
+  - type: textarea
+    id: better
+    attributes:
+      label: What it should say

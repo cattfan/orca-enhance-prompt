@@ -6,7 +6,7 @@ Open **Settings → Plugins → Enhance Prompt**. Model profiles, API keys and f
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Panel language | Auto | Language of the panel: Auto follows Orca, or English, Tiếng Việt, 中文. Also in the language menu at the top of the panel. |
+| Panel language | Auto | Language of the panel: Auto follows Orca (Español too, when Orca runs in Spanish), or English, Tiếng Việt, 中文. Also in the language menu at the top of the panel. |
 | Output language | Same as my prompt | Language of the enhanced prompt. The **Output** menu on the Enhance tab overrides it for one prompt. |
 
 Code, identifiers, paths and error messages are always kept as they are.

@@ -20,6 +20,8 @@
 
 <h3 align="center"><a href="#cài-đặt"><ins>Cài Enhance Prompt</ins></a></h3>
 
+<p align="center"><sub>Có gì chưa ổn, hay có ý tưởng? <a href="#góp-ý-và-báo-lỗi">Hãy cho biết</a>: mỗi góp ý đều góp phần làm nên bản tiếp theo.</sub></p>
+
 <p align="center">
   <img src="../../assets/cover.jpg" alt="Panel Enhance Prompt biến “login page is broken on mobile” thành prompt sửa lỗi có cấu trúc, nêu rõ file và lệnh test" width="960" />
 </p>
@@ -86,9 +88,9 @@ OpenAI, Anthropic, OpenRouter, Gemini, Groq, DeepSeek, Mistral, Ollama, LM Studi
 <tr>
 <td width="50%" valign="middle">
 
-### English, Tiếng Việt, 中文
+### English, Tiếng Việt, 中文, Español
 
-Panel theo ngôn ngữ của Orca hoặc theo lựa chọn của bạn. Prompt đầu ra có thể cùng ngôn ngữ với yêu cầu, hoặc tiếng Anh, Việt, Trung, chọn riêng cho từng lần.
+Panel theo ngôn ngữ của Orca hoặc theo lựa chọn của bạn (Español khi Orca chạy tiếng Tây Ban Nha). Prompt đầu ra có thể cùng ngôn ngữ với yêu cầu, hoặc tiếng Anh, Việt, Trung, chọn riêng cho từng lần.
 
 [Hướng dẫn →](../settings.md#language)
 
@@ -175,7 +177,13 @@ Tài liệu chi tiết bằng tiếng Anh:
 
 ## Góp ý và báo lỗi
 
-Gặp lỗi, thấy chỗ nào khó dùng, chậm, hay prompt viết ra chưa đúng ý? Hãy [tạo issue trên GitHub](https://github.com/cattfan/orca-enhance-prompt/issues/new) để plugin được sửa và cải thiện. Trong panel cũng có nút này (biểu tượng bánh răng → Góp ý).
+Plugin không thu thập gì về cách bạn dùng nó, nên điều bạn kể lại chính là cách nó tốt lên. Mọi góp ý đều được đọc.
+
+- **Prompt viết ra chưa đúng ý:** [báo lại](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=1-prompt-came-out-wrong.yml) kèm điều bạn gõ và kết quả nhận được. Loại góp ý này giúp nhiều nhất.
+- **Lỗi, chậm hay khó hiểu:** [báo lỗi](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=2-something-is-broken.yml).
+- **Ý tưởng hay mong muốn**, nhỏ cũng được: [chia sẻ](https://github.com/cattfan/orca-enhance-prompt/issues/new?template=3-idea.yml).
+- **Bản dịch:** panel có tiếng Anh, Việt, Trung và Tây Ban Nha (cảm ơn [@YuniorGlez](https://github.com/YuniorGlez)). Muốn sửa câu chữ hay thêm ngôn ngữ: xem [CONTRIBUTING.md](../../CONTRIBUTING.md).
+- **Ngay trong panel:** biểu tượng bánh răng → Góp ý, hoặc nút dưới mục What's new sau mỗi lần cập nhật. Viết bằng tiếng Việt cũng được.
 
 ---
 
