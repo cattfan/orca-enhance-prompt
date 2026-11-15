@@ -47,8 +47,10 @@ export function versionProblem(latest, version) {
   return `${version} does not follow ${latest}: use ${next.patch} (fix), ${next.minor} (feature) or ${next.major} (breaking)`
 }
 
-/** Files a release commit may contain; anything else changed or untracked stops the release. */
-export const RELEASE_FILES = ['orca-plugin.json', 'CHANGELOG.md', 'src/version.ts']
+/** The files a release edits by hand: the version, and the notes in the three changelogs. */
+export const RELEASE_FILES = ['orca-plugin.json', 'src/version.ts', 'CHANGELOG.md', 'docs/changelog/CHANGELOG.vi.md', 'docs/changelog/CHANGELOG.zh-CN.md']
+/** The built panel: the release builds it again (it bundles the version and the notes) and commits it. */
+export const BUILD_DIR = 'src/web-dist/'
 
 /** The paths in `git status --porcelain` output (for a rename, the new name). */
 function statusPaths(porcelain) {
@@ -58,18 +60,9 @@ function statusPaths(porcelain) {
     .map((line) => line.slice(3).split(' -> ').pop().replace(/^"|"$/g, ''))
 }
 
-/** Paths in `git status --porcelain` output that are not release files. */
+/** Paths in `git status --porcelain` output that a release commit must not take along. */
 export function unexpectedChanges(porcelain) {
-  return statusPaths(porcelain).filter((path) => !RELEASE_FILES.includes(path))
-}
-
-/**
- * The files of the built panel that building it again just changed, from
- * `git status --porcelain -- src/web-dist`. Any at all means the committed panel was built from
- * older sources than the ones being released.
- */
-export function staleBuild(porcelain) {
-  return statusPaths(porcelain)
+  return statusPaths(porcelain).filter((path) => !RELEASE_FILES.includes(path) && !path.startsWith(BUILD_DIR))
 }
 
 /**

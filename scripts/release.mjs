@@ -1,15 +1,15 @@
 // Usage: node scripts/release.mjs 1.2.0
-// Before anything is committed it checks: on main, nothing changed but the release files
-// (orca-plugin.json, CHANGELOG.md, src/version.ts), the version follows the last tag (odometer
-// rule), those files name it, the committed panel (src/web-dist) is what the sources build, and
-// tsc, tests, check and validate pass. Then it commits the release files only
-// (chore(release): vX.Y.Z), tags vX.Y.Z, pushes, and creates the GitHub release with the changelog
-// section and a link to the full diff as notes.
+// Before anything is committed it checks: on main, nothing changed but the release files (the
+// version in orca-plugin.json and src/version.ts, the three changelogs), the version follows the
+// last tag (odometer rule) and those files name it. It builds the panel (src/web-dist bundles the
+// version and the notes), runs tsc, the tests, check and validate, then makes one commit,
+// chore(release): vX.Y.Z, of the release files and the built panel, tags vX.Y.Z, pushes, and
+// creates the GitHub release with the changelog section and a link to the full diff as notes.
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commitSubject, latestTag, RELEASE_FILES, releaseNotes, staleBuild, unexpectedChanges, versionProblem } from './release-lib.mjs'
+import { BUILD_DIR, commitSubject, latestTag, RELEASE_FILES, releaseNotes, unexpectedChanges, versionProblem } from './release-lib.mjs'
 
 const fail = (message) => {
   console.error(`release: ${message}`)
@@ -28,7 +28,7 @@ const branch = out('git', ['rev-parse', '--abbrev-ref', 'HEAD'])
 if (branch !== 'main') fail(`releases are made from main, not ${branch}`)
 // Untrimmed: each porcelain line starts with a two-letter status that may begin with a space.
 const stray = unexpectedChanges(raw('git', ['status', '--porcelain', '--untracked-files=all']))
-if (stray.length > 0) fail(`commit or remove these first (a release commits only ${RELEASE_FILES.join(', ')}):\n  ${stray.join('\n  ')}`)
+if (stray.length > 0) fail(`commit or remove these first (a release commits only ${RELEASE_FILES.join(', ')} and ${BUILD_DIR}):\n  ${stray.join('\n  ')}`)
 
 const latest = latestTag(out('git', ['tag', '--list', 'v*']).split('\n'))
 const problem = versionProblem(latest, version)
@@ -54,19 +54,15 @@ if (!changelog.includes(`[${version}]: `)) fail(`CHANGELOG.md has no "[${version
 for (const path of ['docs/changelog/CHANGELOG.vi.md', 'docs/changelog/CHANGELOG.zh-CN.md']) {
   if (!readFileSync(path, 'utf8').includes(`## [${version}]`)) fail(`${path} has no "## [${version}]" section`)
 }
-const built = readdirSync('src/web-dist/assets').map((name) => readFileSync(`src/web-dist/assets/${name}`, 'utf8')).join('\n')
-if (!built.includes(`[${version}]`)) fail(`src/web-dist does not include ${version}'s notes: run npm run web:build and commit it first`)
-// Orca runs the committed build of the panel, not web/ and src/: it has to be what they build now.
-// A change to a file the panel bundles (src/panel, the translations, the worker's messages…) made
-// after the last build would otherwise be released without reaching the panel. The build is
-// reproducible, so building again changes nothing when the committed one is up to date.
+// Orca runs the committed build of the panel, not web/ and src/: the release builds it from the
+// sources as they are now, with this version and its notes, and commits it.
 try {
   run('npm', ['run', 'web:build'])
 } catch {
   fail('the panel did not build: run npm run web:install, then npm run web:build')
 }
-const rebuilt = staleBuild(raw('git', ['status', '--porcelain', '--', 'src/web-dist']))
-if (rebuilt.length > 0) fail(`src/web-dist was not up to date: building it again changed\n  ${rebuilt.join('\n  ')}\nCommit the rebuilt panel, then run the release again.`)
+const built = readdirSync(`${BUILD_DIR}assets`).map((name) => readFileSync(`${BUILD_DIR}assets/${name}`, 'utf8')).join('\n')
+if (!built.includes(`[${version}]`)) fail(`the built panel does not include ${version}'s notes`)
 
 run('npx', ['tsc', '-p', '.'])
 run('orca', ['plugin', 'test', '.'])
@@ -74,7 +70,7 @@ run('orca', ['plugin', 'check', '.'])
 run('orca', ['plugin', 'validate', '.'])
 
 const notes = section[1].trim()
-run('git', ['add', '--', ...RELEASE_FILES])
+run('git', ['add', '--', ...RELEASE_FILES, BUILD_DIR])
 run('git', ['commit', '-m', commitSubject(tag), '-m', notes])
 run('git', ['tag', '-a', tag, '-m', tag])
 run('git', ['push', 'origin', 'main', tag])

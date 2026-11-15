@@ -147,8 +147,8 @@ The test suite usually finishes in seconds, but some tests start real processes 
   Spanish comes with Auto (Orca in Spanish) until a release that changes the manifest anyway adds
   `es` to that setting and to `UI_LANGUAGES`.
 - **Never commit temporary files**: scratch tests or measurements (`src/zz-*.test.ts`, timing
-  scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but
-  `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked.
+  scripts) stay out of git. `scripts/release.mjs` refuses to run while anything but the version,
+  the three changelogs and `src/web-dist` is changed or untracked.
 
 ## End-to-end in the real Orca
 
@@ -209,21 +209,21 @@ window and cut out, and a dialog, which centres in its window, is shot at 500 px
    CONTRIBUTING.md sets (Keep a Changelog: Added, Changed, Deprecated, Removed, Fixed, Security;
    one change per bullet, for the person using the plugin). `scripts/changelog.test.mjs` checks it.
 3. Translate that section into `docs/changelog/CHANGELOG.vi.md` and `CHANGELOG.zh-CN.md` (What's new
-   reads them; the same groups and bullets, in the same order), run `npm run web:build`, and commit
-   the two translations with the rebuilt `src/web-dist` as `docs(changelog): add X.Y.Z notes`. The
-   three files of steps 1 and 2 stay uncommitted: the release commits them.
+   reads them): the same groups and bullets, in the same order. Leave all five files uncommitted.
 4. Run `node scripts/release.mjs X.Y.Z`. It refuses to start unless you are on `main`, nothing but
-   `orca-plugin.json`, `CHANGELOG.md` and `src/version.ts` is changed or untracked, and X.Y.Z is exactly the next patch, minor or major after
-   the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`). It then builds the panel again
-   and stops if that changes `src/web-dist` (the committed panel was older than the sources: commit
-   the rebuilt one and run it again), runs tsc, the tests, `orca plugin check` and
-   `orca plugin validate`, commits only those three files as `chore(release): vX.Y.Z` with the
-   section as body, tags, pushes `main` and the tag, and creates the GitHub release `vX.Y.Z` from
-   the changelog section and a link to the full diff since the previous tag.
+   those five files (and `src/web-dist`) is changed or untracked, and X.Y.Z is exactly the next
+   patch, minor or major after the latest `v*` tag (odometer rule; see `scripts/release-lib.mjs`).
+   It builds the panel (it bundles the version and the notes), runs tsc, the tests,
+   `orca plugin check` and `orca plugin validate`, makes one commit `chore(release): vX.Y.Z` of the
+   five files and `src/web-dist` with the section as body, tags, pushes `main` and the tag, and
+   creates the GitHub release `vX.Y.Z` from the changelog section and a link to the full diff since
+   the previous tag.
+5. Check the listing: <https://orca.dev/plugins/cattfan/orca-enhance-prompt>
 
 Commits follow Conventional Commits (`fix(panel): …`, `feat(prompts): …`, `docs: …`): the types,
-scopes and rules are in CONTRIBUTING.md. Changes reach `main` through a pull request, squash-merged.
-5. Check the listing: <https://orca.dev/plugins/cattfan/orca-enhance-prompt>
+scopes and rules are in CONTRIBUTING.md. Changes reach `main` through a pull request, merged with
+**Rebase and merge** so each commit keeps its message; only the release commit goes to `main`
+directly.
 
 ## Listing policy
 
