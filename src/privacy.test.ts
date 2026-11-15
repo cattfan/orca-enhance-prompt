@@ -350,6 +350,15 @@ test('the gear section links to GitHub issues for feedback', async () => {
   // Orca opens a site only on a click (there is none here) and may be told no: the panel then
   // shows the address to open by hand.
   assert.deepEqual(read(notice), { tone: 'neutral', text: 'Open https://github.com/cattfan/orca-enhance-prompt/issues/new in your browser.' })
+  // A link in What's new opens the same way; an address that is not https is not opened at all.
+  const { openLink } = await import('./panel/actions.ts')
+  await openLink('https://github.com/cattfan/orca-enhance-prompt/pull/1')
+  await openLink('file:///C:/Windows/System32/calc.exe')
+  await openLink('javascript:alert(1)')
+  assert.deepEqual(
+    (host.callsOf('shell.openExternal') as { url: string }[]).map((call) => call.url),
+    ['https://github.com/cattfan/orca-enhance-prompt/issues/new', 'https://github.com/cattfan/orca-enhance-prompt/pull/1']
+  )
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

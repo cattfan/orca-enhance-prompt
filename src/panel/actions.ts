@@ -979,8 +979,14 @@ export function removeStructure(id: string): void {
 
 /** The plugin's issue page, in the browser (Orca asks before opening a site the first time). */
 export async function openIssues(): Promise<void> {
-  const opened = await shell.openExternal(ISSUES_URL).catch(() => ({ opened: false }))
-  if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url: ISSUES_URL }) })
+  await openLink(ISSUES_URL)
+}
+
+/** A web page in the browser, such as a link in the changelog; only https addresses are opened. */
+export async function openLink(url: string): Promise<void> {
+  if (!url.startsWith('https://')) return
+  const opened = await shell.openExternal(url).catch(() => ({ opened: false }))
+  if (!opened.opened) set(notice, { tone: 'neutral', text: t('Open {url} in your browser.', { url }) })
 }
 
 /**
