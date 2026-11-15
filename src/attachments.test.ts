@@ -244,7 +244,7 @@ test('a run reads only files the panel attached: any other path is refused befor
     await assert.rejects(enhance([join(ATTACHMENTS_DIR, '..', basename(outside), 'notes.txt')]), /could not be received/)
     await assert.rejects(enhance([ATTACHMENTS_DIR]), /could not be received/)
   } finally {
-    rmSync(outside, { recursive: true, force: true })
+    rmSync(outside, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
   // An attachment that has been cleaned away since (they are kept for a day): said by its name.
   await assert.rejects(enhance([join(ATTACHMENTS_DIR, 'att-long-gone', 'yesterday.log')]), /The attached file yesterday\.log is no longer there/)

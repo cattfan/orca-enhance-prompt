@@ -19,7 +19,8 @@ afterEach(async () => {
 })
 const root = mkdtempSync(join(tmpdir(), 'integrations-'))
 writeFileSync(join(root, 'login.ts'), 'export function login() {}\n')
-after(() => rmSync(root, { recursive: true, force: true }))
+// Windows can hold the folder a moment after the worker's last read of it (EPERM): retry, as the other tests do.
+after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }))
 
 // The two names Orca has for one workspace (workspaces.ts): the id workspace.list answers and takes
 // (agent.launch, editor.open), and the id its hooks and events carry, "<repository id>::<path>".
